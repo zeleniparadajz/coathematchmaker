@@ -1,0 +1,28 @@
+services:
+  api:
+    build: .
+    container_name: coathematchmaker-api
+    ports:
+      - "${PORT:-4000}:${PORT:-4000}"
+    env_file:
+      - .env
+    environment:
+      PORT: ${PORT:-4000}
+      MONGO_URI: ${DOCKER_MONGO_URI:-mongodb://mongo:27017/coathematchmaker}
+    depends_on:
+      - mongo
+    volumes:
+      - ./uploads:/app/uploads
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:7
+    container_name: coathematchmaker-mongo
+    ports:
+      - "27019:27017"
+    volumes:
+      - mongo_data:/data/db
+    restart: unless-stopped
+
+volumes:
+  mongo_data:
