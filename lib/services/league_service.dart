@@ -67,6 +67,7 @@ class LeagueService {
 
   Future<Tournament> createTournament({
     required String name,
+    required String discipline,
     required String location,
     required String surface,
     required String category,
@@ -77,6 +78,7 @@ class LeagueService {
   }) async {
     final data = await api.postJson('/api/tournaments', {
       'name': name,
+      'discipline': discipline,
       'location': location,
       'surface': surface,
       'category': category,
@@ -91,6 +93,7 @@ class LeagueService {
   Future<Tournament> updateTournament({
     required String id,
     required String name,
+    required String discipline,
     required String location,
     required String surface,
     required String category,
@@ -101,6 +104,7 @@ class LeagueService {
   }) async {
     final data = await api.patchJson('/api/tournaments/$id', {
       'name': name,
+      'discipline': discipline,
       'location': location,
       'surface': surface,
       'category': category,
@@ -174,12 +178,18 @@ class LeagueService {
 
   Future<void> challengeMatch({
     required String opponentId,
+    String? partnerId,
+    String? opponentPartnerId,
+    String discipline = 'singles',
     String? tournamentId,
     String round = 'Challenge',
     String? location,
   }) async {
     await api.postJson('/api/matches/challenge', {
       'opponentId': opponentId,
+      'partnerId': ?partnerId,
+      'opponentPartnerId': ?opponentPartnerId,
+      'discipline': discipline,
       'tournamentId': ?tournamentId,
       'round': round,
       'location': ?location,
@@ -245,14 +255,20 @@ class LeagueService {
     required String tournament,
     required String player1,
     required String player2,
+    String? player1Partner,
+    String? player2Partner,
+    String discipline = 'singles',
     required String winner,
     required String round,
     required List<SetScore> sets,
   }) async {
     await api.postJson('/api/matches', {
       'tournament': tournament,
+      'discipline': discipline,
       'player1': player1,
       'player2': player2,
+      'player1Partner': ?player1Partner,
+      'player2Partner': ?player2Partner,
       'winner': winner,
       'round': round,
       'sets': sets.map((set) => set.toJson()).toList(),

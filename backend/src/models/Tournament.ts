@@ -12,6 +12,7 @@ export type TournamentFormat =
 
 export interface TournamentAttrs {
   name: string;
+  discipline: "singles" | "doubles";
   location: string;
   surface: string;
   category: string;
@@ -30,6 +31,7 @@ export interface TournamentAttrs {
 const tournamentSchema = new Schema<TournamentAttrs>(
   {
     name: { type: String, required: true, trim: true },
+    discipline: { type: String, enum: ["singles", "doubles"], default: "singles" },
     location: { type: String, required: true, trim: true },
     surface: { type: String, required: true, trim: true, default: "Hard" },
     category: { type: String, required: true, trim: true },

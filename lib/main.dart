@@ -207,7 +207,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(titles[_index]),
+        title: _BrandTitle(section: titles[_index]),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 12),
@@ -219,15 +219,70 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           ),
         ],
       ),
+      extendBody: true,
       body: IndexedStack(index: _index, children: pages),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (index) {
-          setState(() => _index = index);
-          _refreshVisibleData();
-        },
-        destinations: destinations,
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Container(
+          margin: const EdgeInsets.fromLTRB(18, 0, 18, 12),
+          decoration: BoxDecoration(
+            color: AppTheme.lime,
+            borderRadius: BorderRadius.circular(999),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.ink.withValues(alpha: .16),
+                blurRadius: 22,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: NavigationBar(
+              selectedIndex: _index,
+              onDestinationSelected: (index) {
+                setState(() => _index = index);
+                _refreshVisibleData();
+              },
+              destinations: destinations,
+            ),
+          ),
+        ),
       ),
+    );
+  }
+}
+
+class _BrandTitle extends StatelessWidget {
+  const _BrandTitle({required this.section});
+
+  final String section;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Image.asset('assets/images/coa.png', width: 34, height: 34),
+        const SizedBox(width: 8),
+        RichText(
+          text: const TextSpan(
+            style: TextStyle(
+              color: AppTheme.ink,
+              fontSize: 20,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0,
+            ),
+            children: [
+              TextSpan(text: 'C'),
+              TextSpan(
+                text: 'O',
+                style: TextStyle(color: AppTheme.court),
+              ),
+              TextSpan(text: 'A'),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

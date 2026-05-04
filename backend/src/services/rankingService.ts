@@ -13,21 +13,33 @@ export const applyConfirmedMatchStats = async (match: MatchAttrs & { _id: Types.
   const winnerId = match.winner.toString();
   const player1Id = match.player1.toString();
   const player2Id = match.player2.toString();
-
   if (winnerId !== player1Id && winnerId !== player2Id) {
-    throw new AppError(400, "Winner must be player1 or player2");
+    throw new AppError(400, "Winner must be player1/team1 or player2/team2");
   }
 
-  const loserId = winnerId === player1Id ? match.player2 : match.player1;
+  const winnerIds = winnerId === player1Id
+    ? [match.player1, match.player1Partner].filter(Boolean)
+    : [match.player2, match.player2Partner].filter(Boolean);
+  const loserIds = winnerId === player1Id
+    ? [match.player2, match.player2Partner].filter(Boolean)
+    : [match.player1, match.player1Partner].filter(Boolean);
   const settings = await getLeagueSettings();
 
-  await Player.findByIdAndUpdate(match.winner, {
-    $inc: { wins: 1, matchesPlayed: 1, totalPoints: settings.matchWinPoints }
-  });
+  await Promise.all(
+    winnerIds.map((id) =>
+      Player.findByIdAndUpdate(id, {
+        $inc: { wins: 1, matchesPlayed: 1, totalPoints: settings.matchWinPoints }
+      })
+    )
+  );
 
-  await Player.findByIdAndUpdate(loserId, {
-    $inc: { losses: 1, matchesPlayed: 1 }
-  });
+  await Promise.all(
+    loserIds.map((id) =>
+      Player.findByIdAndUpdate(id, {
+        $inc: { losses: 1, matchesPlayed: 1 }
+      })
+    )
+  );
 
   await Match.findByIdAndUpdate(match._id, { statsApplied: true });
 };
@@ -86,17 +98,24 @@ export const getTournamentRanking = async (tournamentId: string) => {
   for (const match of matches) {
     const settings = await getLeagueSettings();
     const winnerId = match.winner?.toString();
-    const loserId = winnerId === match.player1.toString() ? match.player2.toString() : match.player1.toString();
+    const winnerIds = winnerId === match.player1.toString()
+      ? [match.player1, match.player1Partner].filter(Boolean).map((id) => id!.toString())
+      : [match.player2, match.player2Partner].filter(Boolean).map((id) => id!.toString());
+    const loserIds = winnerId === match.player1.toString()
+      ? [match.player2, match.player2Partner].filter(Boolean).map((id) => id!.toString())
+      : [match.player1, match.player1Partner].filter(Boolean).map((id) => id!.toString());
 
-    if (winnerId && stats.has(winnerId)) {
-      const winnerStats = stats.get(winnerId)!;
+    for (const id of winnerIds) {
+      if (!stats.has(id)) continue;
+      const winnerStats = stats.get(id)!;
       winnerStats.wins += 1;
       winnerStats.matchesPlayed += 1;
       winnerStats.points += settings.matchWinPoints;
     }
 
-    if (stats.has(loserId)) {
-      const loserStats = stats.get(loserId)!;
+    for (const id of loserIds) {
+      if (!stats.has(id)) continue;
+      const loserStats = stats.get(id)!;
       loserStats.losses += 1;
       loserStats.matchesPlayed += 1;
     }

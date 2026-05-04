@@ -10,6 +10,7 @@ import { saveUploadedImage } from "../services/uploadService";
 
 export const createTournamentSchema = z.object({
   name: z.string().min(1),
+  discipline: z.enum(["singles", "doubles"]).default("singles"),
   location: z.string().min(1),
   surface: z.string().min(1).default("Hard"),
   category: z.string().min(1),
@@ -36,6 +37,9 @@ export const addParticipantSchema = z.object({
 export const createTournamentMatchSchema = z.object({
   player1: z.string().min(1),
   player2: z.string().min(1),
+  player1Partner: z.string().min(1).optional(),
+  player2Partner: z.string().min(1).optional(),
+  discipline: z.enum(["singles", "doubles"]).default("singles"),
   round: z.enum(["Q", "R32", "R16", "QF", "SF", "F", "RR"]).default("R16")
 });
 
@@ -57,6 +61,8 @@ export const getTournament = asyncHandler(async (req, res) => {
       populate: [
         { path: "player1", select: "-password" },
         { path: "player2", select: "-password" },
+        { path: "player1Partner", select: "-password" },
+        { path: "player2Partner", select: "-password" },
         { path: "winner", select: "-password" }
       ]
     })
@@ -169,20 +175,34 @@ export const createTournamentMatch = asyncHandler(async (req, res) => {
     throw new AppError(404, "Tournament not found");
   }
 
-  if (req.body.player1 === req.body.player2) {
-    throw new AppError(400, "Players must be different");
+  const playerIds = [
+    req.body.player1,
+    req.body.player2,
+    req.body.player1Partner,
+    req.body.player2Partner
+  ].filter(Boolean) as string[];
+
+  if (new Set(playerIds).size !== playerIds.length) {
+    throw new AppError(400, "Match players must be different");
+  }
+
+  if (req.body.discipline === "doubles" && (!req.body.player1Partner || !req.body.player2Partner)) {
+    throw new AppError(400, "Doubles matches require four players");
   }
 
   const participantIds = tournament.participants.map((id) => id.toString());
 
-  if (!participantIds.includes(req.body.player1) || !participantIds.includes(req.body.player2)) {
-    throw new AppError(400, "Both players must be tournament participants");
+  if (!playerIds.every((id) => participantIds.includes(id))) {
+    throw new AppError(400, "All match players must be tournament participants");
   }
 
   const match = await Match.create({
     tournament: tournament._id,
+    discipline: req.body.discipline,
     player1: req.body.player1,
     player2: req.body.player2,
+    player1Partner: req.body.player1Partner,
+    player2Partner: req.body.player2Partner,
     round: req.body.round,
     status: "accepted",
     acceptedAt: new Date()
@@ -194,6 +214,8 @@ export const createTournamentMatch = asyncHandler(async (req, res) => {
   const populated = await Match.findById(match._id)
     .populate("player1", "-password")
     .populate("player2", "-password")
+    .populate("player1Partner", "-password")
+    .populate("player2Partner", "-password")
     .populate("winner", "-password");
 
   res.status(201).json({ match: populated });

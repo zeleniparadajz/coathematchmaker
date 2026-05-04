@@ -22,8 +22,11 @@ const resultSchema = z.object({
 
 export const createMatchSchema = z.object({
   tournament: z.string().min(1).optional(),
+  discipline: z.enum(["singles", "doubles"]).default("singles"),
   player1: z.string().min(1),
   player2: z.string().min(1),
+  player1Partner: z.string().min(1).optional(),
+  player2Partner: z.string().min(1).optional(),
   sets: z.array(setScoreSchema).default([]),
   winner: z.string().optional(),
   round: z.string().min(1).default("Challenge"),
@@ -35,6 +38,9 @@ export const createMatchSchema = z.object({
 
 export const challengeMatchSchema = z.object({
   opponentId: z.string().min(1),
+  partnerId: z.string().min(1).optional(),
+  opponentPartnerId: z.string().min(1).optional(),
+  discipline: z.enum(["singles", "doubles"]).default("singles"),
   tournamentId: z.string().min(1).optional(),
   round: z.string().min(1).default("Challenge"),
   location: z.string().optional()
@@ -61,29 +67,29 @@ const validateObjectId = (id: string, label: string): void => {
 
 const validateWinner = (player1: string, player2: string, winner?: string): void => {
   if (winner && winner !== player1 && winner !== player2) {
-    throw new AppError(400, "Winner must be player1 or player2");
+    throw new AppError(400, "Winner must be player1/team1 or player2/team2");
   }
 };
 
 const ensurePlayersAndTournament = async (
   player1Id: string,
   player2Id: string,
+  player1PartnerId?: string,
+  player2PartnerId?: string,
   tournamentId?: string
 ): Promise<void> => {
-  if (player1Id === player2Id) {
+  const playerIds = [player1Id, player2Id, player1PartnerId, player2PartnerId].filter(Boolean) as string[];
+
+  if (new Set(playerIds).size !== playerIds.length) {
     throw new AppError(400, "Match players must be different");
   }
 
-  validateObjectId(player1Id, "player1");
-  validateObjectId(player2Id, "player2");
+  playerIds.forEach((id, index) => validateObjectId(id, `player${index + 1}`));
 
-  const [player1, player2] = await Promise.all([
-    Player.findById(player1Id),
-    Player.findById(player2Id)
-  ]);
+  const players = await Promise.all(playerIds.map((id) => Player.findById(id)));
 
-  if (!player1 || !player2) {
-    throw new AppError(404, "Both players must exist");
+  if (players.some((player) => !player)) {
+    throw new AppError(404, "All match players must exist");
   }
 
   if (!tournamentId) {
@@ -99,26 +105,33 @@ const ensurePlayersAndTournament = async (
 
   const participantIds = tournament.participants.map((id) => id.toString());
 
-  if (!participantIds.includes(player1Id) || !participantIds.includes(player2Id)) {
-    throw new AppError(400, "Both players must be tournament participants");
+  if (!playerIds.every((id) => participantIds.includes(id))) {
+    throw new AppError(400, "All match players must be tournament participants");
   }
 };
 
-const ensureParticipantOrAdmin = (match: { player1: Types.ObjectId; player2: Types.ObjectId }, userId: string, role?: string): void => {
+const matchPlayerIds = (match: {
+  player1: Types.ObjectId;
+  player2: Types.ObjectId;
+  player1Partner?: Types.ObjectId;
+  player2Partner?: Types.ObjectId;
+}) => [match.player1, match.player2, match.player1Partner, match.player2Partner].filter(Boolean).map((id) => id!.toString());
+
+const ensureParticipantOrAdmin = (match: { player1: Types.ObjectId; player2: Types.ObjectId; player1Partner?: Types.ObjectId; player2Partner?: Types.ObjectId }, userId: string, role?: string): void => {
   if (isAdmin(role)) {
     return;
   }
 
-  const isParticipant = match.player1.toString() === userId || match.player2.toString() === userId;
+  const isParticipant = matchPlayerIds(match).includes(userId);
 
   if (!isParticipant) {
     throw new AppError(403, "You can only act on your own matches");
   }
 };
 
-const getActorSide = (match: { player1: Types.ObjectId; player2: Types.ObjectId }, userId: string): "player1" | "player2" | null => {
-  if (match.player1.toString() === userId) return "player1";
-  if (match.player2.toString() === userId) return "player2";
+const getActorSide = (match: { player1: Types.ObjectId; player2: Types.ObjectId; player1Partner?: Types.ObjectId; player2Partner?: Types.ObjectId }, userId: string): "player1" | "player2" | null => {
+  if (match.player1.toString() === userId || match.player1Partner?.toString() === userId) return "player1";
+  if (match.player2.toString() === userId || match.player2Partner?.toString() === userId) return "player2";
   return null;
 };
 
@@ -140,6 +153,8 @@ const populateMatch = (id: Types.ObjectId | string) => {
     .populate("tournament")
     .populate("player1", "-password")
     .populate("player2", "-password")
+    .populate("player1Partner", "-password")
+    .populate("player2Partner", "-password")
     .populate("winner", "-password")
     .populate("challengedBy", "-password")
     .populate("resultSubmittedBy", "-password")
@@ -152,6 +167,8 @@ export const listMatches = asyncHandler(async (req, res) => {
     .populate("tournament")
     .populate("player1", "-password")
     .populate("player2", "-password")
+    .populate("player1Partner", "-password")
+    .populate("player2Partner", "-password")
     .populate("winner", "-password")
     .sort({ createdAt: -1 });
 
@@ -160,11 +177,13 @@ export const listMatches = asyncHandler(async (req, res) => {
 
 export const getMyMatches = asyncHandler(async (req, res) => {
   const matches = await Match.find({
-    $or: [{ player1: req.user!.id }, { player2: req.user!.id }]
+    $or: [{ player1: req.user!.id }, { player2: req.user!.id }, { player1Partner: req.user!.id }, { player2Partner: req.user!.id }]
   })
     .populate("tournament")
     .populate("player1", "-password")
     .populate("player2", "-password")
+    .populate("player1Partner", "-password")
+    .populate("player2Partner", "-password")
     .populate("winner", "-password")
     .populate("resultSubmittedBy", "-password")
     .sort({ createdAt: -1 });
@@ -174,12 +193,14 @@ export const getMyMatches = asyncHandler(async (req, res) => {
 
 export const getPendingMatches = asyncHandler(async (req, res) => {
   const matches = await Match.find({
-    player2: req.user!.id,
+    $or: [{ player2: req.user!.id }, { player2Partner: req.user!.id }],
     status: "pending"
   })
     .populate("tournament")
     .populate("player1", "-password")
     .populate("player2", "-password")
+    .populate("player1Partner", "-password")
+    .populate("player2Partner", "-password")
     .sort({ createdAt: -1 });
 
   res.json({ matches });
@@ -190,6 +211,8 @@ export const getDisputedMatches = asyncHandler(async (_req, res) => {
     .populate("tournament")
     .populate("player1", "-password")
     .populate("player2", "-password")
+    .populate("player1Partner", "-password")
+    .populate("player2Partner", "-password")
     .populate("winner", "-password")
     .populate("resultSubmittedBy", "-password")
     .sort({ disputedAt: -1 });
@@ -210,13 +233,22 @@ export const getMatch = asyncHandler(async (req, res) => {
 export const createChallenge = asyncHandler(async (req, res) => {
   const player1 = req.user!.id;
   const player2 = req.body.opponentId;
+  const player1Partner = req.body.partnerId;
+  const player2Partner = req.body.opponentPartnerId;
 
-  await ensurePlayersAndTournament(player1, player2, req.body.tournamentId);
+  if (req.body.discipline === "doubles" && (!player1Partner || !player2Partner)) {
+    throw new AppError(400, "Doubles matches require four players");
+  }
+
+  await ensurePlayersAndTournament(player1, player2, player1Partner, player2Partner, req.body.tournamentId);
 
   const match = await Match.create({
     tournament: req.body.tournamentId,
+    discipline: req.body.discipline,
     player1,
     player2,
+    player1Partner,
+    player2Partner,
     round: req.body.round,
     location: req.body.location,
     status: "pending",
@@ -233,7 +265,7 @@ export const acceptMatch = asyncHandler(async (req, res) => {
     throw new AppError(404, "Match not found");
   }
 
-  if (!isAdmin(req.user!.role) && match.player2.toString() !== req.user!.id) {
+  if (!isAdmin(req.user!.role) && ![match.player2.toString(), match.player2Partner?.toString()].includes(req.user!.id)) {
     throw new AppError(403, "Only challenged player can accept this match");
   }
 
@@ -255,7 +287,7 @@ export const rejectMatch = asyncHandler(async (req, res) => {
     throw new AppError(404, "Match not found");
   }
 
-  if (!isAdmin(req.user!.role) && match.player2.toString() !== req.user!.id) {
+  if (!isAdmin(req.user!.role) && ![match.player2.toString(), match.player2Partner?.toString()].includes(req.user!.id)) {
     throw new AppError(403, "Only challenged player can reject this match");
   }
 
@@ -411,7 +443,10 @@ export const adminResolve = asyncHandler(async (req, res) => {
 });
 
 export const createMatch = asyncHandler(async (req, res) => {
-  await ensurePlayersAndTournament(req.body.player1, req.body.player2, req.body.tournament);
+  if (req.body.discipline === "doubles" && (!req.body.player1Partner || !req.body.player2Partner)) {
+    throw new AppError(400, "Doubles matches require four players");
+  }
+  await ensurePlayersAndTournament(req.body.player1, req.body.player2, req.body.player1Partner, req.body.player2Partner, req.body.tournament);
   validateWinner(req.body.player1, req.body.player2, req.body.winner);
 
   if (req.body.status === "confirmed" && !req.body.winner) {
@@ -446,14 +481,19 @@ export const updateMatch = asyncHandler(async (req, res) => {
   const nextTournament = req.body.tournament ?? match.tournament?.toString();
   const nextPlayer1 = req.body.player1 ?? match.player1.toString();
   const nextPlayer2 = req.body.player2 ?? match.player2.toString();
+  const nextPlayer1Partner = req.body.player1Partner ?? match.player1Partner?.toString();
+  const nextPlayer2Partner = req.body.player2Partner ?? match.player2Partner?.toString();
   const nextWinner = req.body.winner ?? match.winner?.toString();
   const nextStatus = req.body.status ?? match.status;
+  const nextDiscipline = req.body.discipline ?? match.discipline;
 
   if (match.statsApplied) {
     const identityChanged =
       nextTournament !== match.tournament?.toString() ||
       nextPlayer1 !== match.player1.toString() ||
       nextPlayer2 !== match.player2.toString() ||
+      nextPlayer1Partner !== match.player1Partner?.toString() ||
+      nextPlayer2Partner !== match.player2Partner?.toString() ||
       nextWinner !== match.winner?.toString() ||
       nextStatus !== match.status;
 
@@ -462,7 +502,10 @@ export const updateMatch = asyncHandler(async (req, res) => {
     }
   }
 
-  await ensurePlayersAndTournament(nextPlayer1, nextPlayer2, nextTournament);
+  if (nextDiscipline === "doubles" && (!nextPlayer1Partner || !nextPlayer2Partner)) {
+    throw new AppError(400, "Doubles matches require four players");
+  }
+  await ensurePlayersAndTournament(nextPlayer1, nextPlayer2, nextPlayer1Partner, nextPlayer2Partner, nextTournament);
   validateWinner(nextPlayer1, nextPlayer2, nextWinner);
 
   if (nextStatus === "confirmed" && !nextWinner) {
@@ -476,8 +519,11 @@ export const updateMatch = asyncHandler(async (req, res) => {
   Object.assign(match, {
     ...req.body,
     tournament: nextTournament ? new Types.ObjectId(nextTournament) : undefined,
+    discipline: nextDiscipline,
     player1: new Types.ObjectId(nextPlayer1),
     player2: new Types.ObjectId(nextPlayer2),
+    player1Partner: nextPlayer1Partner ? new Types.ObjectId(nextPlayer1Partner) : undefined,
+    player2Partner: nextPlayer2Partner ? new Types.ObjectId(nextPlayer2Partner) : undefined,
     winner: nextWinner ? new Types.ObjectId(nextWinner) : undefined
   });
 

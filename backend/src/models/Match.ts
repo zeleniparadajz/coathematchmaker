@@ -16,8 +16,11 @@ export interface SetScore {
 
 export interface MatchAttrs {
   tournament?: Types.ObjectId;
+  discipline: "singles" | "doubles";
   player1: Types.ObjectId;
   player2: Types.ObjectId;
+  player1Partner?: Types.ObjectId;
+  player2Partner?: Types.ObjectId;
   sets: SetScore[];
   winner?: Types.ObjectId;
   round: string;
@@ -49,8 +52,11 @@ const setScoreSchema = new Schema<SetScore>(
 const matchSchema = new Schema<MatchAttrs>(
   {
     tournament: { type: Schema.Types.ObjectId, ref: "Tournament" },
+    discipline: { type: String, enum: ["singles", "doubles"], default: "singles" },
     player1: { type: Schema.Types.ObjectId, ref: "Player", required: true },
     player2: { type: Schema.Types.ObjectId, ref: "Player", required: true },
+    player1Partner: { type: Schema.Types.ObjectId, ref: "Player" },
+    player2Partner: { type: Schema.Types.ObjectId, ref: "Player" },
     sets: { type: [setScoreSchema], default: [] },
     winner: { type: Schema.Types.ObjectId, ref: "Player" },
     round: { type: String, required: true, trim: true },

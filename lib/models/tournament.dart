@@ -4,6 +4,7 @@ class Tournament {
   const Tournament({
     required this.id,
     required this.name,
+    required this.discipline,
     required this.location,
     required this.surface,
     required this.category,
@@ -18,6 +19,7 @@ class Tournament {
 
   final String id;
   final String name;
+  final String discipline;
   final String location;
   final String surface;
   final String category;
@@ -35,6 +37,7 @@ class Tournament {
     return Tournament(
       id: (json['_id'] ?? json['id']).toString(),
       name: json['name'] ?? '',
+      discipline: json['discipline'] ?? 'singles',
       location: json['location'] ?? '',
       surface: json['surface'] ?? 'Hard',
       category: json['category'] ?? '',

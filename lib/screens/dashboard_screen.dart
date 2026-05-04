@@ -7,7 +7,6 @@ import '../services/auth_service.dart';
 import '../services/league_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/player_avatar.dart';
-import '../widgets/section_header.dart';
 import '../widgets/stat_card.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -83,50 +82,131 @@ class _DashboardScreenState extends State<DashboardScreen> {
           final top = data.rankings.take(5).toList();
 
           return ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
             children: [
               Container(
-                padding: const EdgeInsets.all(18),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [AppTheme.ink, AppTheme.court],
+                    colors: [AppTheme.courtDark, AppTheme.court],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(26),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.court.withValues(alpha: .22),
+                      blurRadius: 26,
+                      offset: const Offset(0, 14),
+                    ),
+                  ],
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    PlayerAvatar(player: me, api: widget.api, radius: 34),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Zdravo, ${me.firstName}',
-                            style: Theme.of(context).textTheme.titleLarge
-                                ?.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w900,
+                    Row(
+                      children: [
+                        PlayerAvatar(player: me, api: widget.api, radius: 36),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                me.fullName,
+                                style: Theme.of(context).textTheme.titleLarge
+                                    ?.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                              ),
+                              const SizedBox(height: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 5,
                                 ),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.lime.withValues(alpha: .22),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  '${me.totalPoints} pts  |  ${me.wins}W ${me.losses}L',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          Text(
-                            '${me.totalPoints} poena  |  ${me.wins}-${me.losses}',
-                            style: const TextStyle(color: Colors.white70),
+                        ),
+                        IconButton.filledTonal(
+                          tooltip: 'Logout',
+                          onPressed: widget.auth.logout,
+                          icon: const Icon(Icons.logout),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        _HeroMiniStat(
+                          label: 'Mečevi',
+                          value: '${me.matchesPlayed}',
+                          icon: Icons.sports_tennis,
+                        ),
+                        const SizedBox(width: 10),
+                        _HeroMiniStat(
+                          label: 'Titule',
+                          value: '${me.tournamentsWon}',
+                          icon: Icons.emoji_events,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: .12),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.bolt,
+                            color: AppTheme.lime,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              active > 0
+                                  ? '$active aktivnih turnira se trenutno igra'
+                                  : 'Nema aktivnih turnira trenutno',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                           ),
                         ],
                       ),
                     ),
-                    IconButton(
-                      tooltip: 'Logout',
-                      onPressed: widget.auth.logout,
-                      icon: const Icon(Icons.logout, color: Colors.white),
-                    ),
                   ],
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 18),
+              Text(
+                'Liga danas',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 10),
               GridView.count(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -159,24 +239,137 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ],
               ),
-              const SectionHeader('Top 5 ranking'),
+              const SizedBox(height: 18),
+              Text(
+                'Top 5 ranking',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 10),
               ...top.asMap().entries.map((entry) {
                 final player = entry.value;
-                return Card(
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: AppTheme.lime,
-                      child: Text('${entry.key + 1}'),
-                    ),
-                    title: Text(player.fullName),
-                    subtitle: Text('${player.wins} pobjeda'),
-                    trailing: Text('${player.totalPoints} pts'),
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.ink.withValues(alpha: .05),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 17,
+                        backgroundColor: entry.key < 3
+                            ? AppTheme.court
+                            : AppTheme.cream,
+                        child: Text(
+                          '${entry.key + 1}',
+                          style: const TextStyle(
+                            color: AppTheme.ink,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      PlayerAvatar(player: player, api: widget.api, radius: 24),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              player.fullName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              '${player.wins} pobjeda  |  ${player.matchesPlayed} mečeva',
+                              style: TextStyle(
+                                color: AppTheme.ink.withValues(alpha: .56),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppTheme.lime,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          '${player.totalPoints} pts',
+                          style: const TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                    ],
                   ),
                 );
               }),
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _HeroMiniStat extends StatelessWidget {
+  const _HeroMiniStat({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: .13),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: AppTheme.lime, size: 20),
+            const SizedBox(width: 8),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                Text(
+                  label,
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

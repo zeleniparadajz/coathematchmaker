@@ -234,7 +234,7 @@ class _MatchCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(24),
         onTap: onOpen,
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -247,7 +247,7 @@ class _MatchCard extends StatelessWidget {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      '${match.player1.fullName} vs ${match.player2.fullName}',
+                      '${match.team1Name} vs ${match.team2Name}',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w900,
                       ),
@@ -392,6 +392,15 @@ class _StatusFilterBar extends StatelessWidget {
           return ChoiceChip(
             selected: selected == status,
             label: Text(status == 'all' ? 'Svi' : status.replaceAll('_', ' ')),
+            avatar: selected == status
+                ? const Icon(Icons.check, size: 16)
+                : null,
+            backgroundColor: Colors.white,
+            selectedColor: AppTheme.lime,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(999),
+              side: BorderSide(color: AppTheme.ink.withValues(alpha: .10)),
+            ),
             onSelected: (_) => onSelected(status),
           );
         },
@@ -673,7 +682,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 _StatusBadge(status: _match.status),
                 const SizedBox(height: 14),
                 Text(
-                  '${_match.player1.fullName} vs ${_match.player2.fullName}',
+                  '${_match.team1Name} vs ${_match.team2Name}',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w900,
@@ -779,14 +788,14 @@ class _SetScoreBoard extends StatelessWidget {
       children: [
         _scoreRow(
           context,
-          player: match.player1.fullName,
+          player: match.team1Name,
           scores: match.sets.map((set) => set.player1Games).toList(),
           winner: match.winner?.id == match.player1.id,
         ),
         const SizedBox(height: 8),
         _scoreRow(
           context,
-          player: match.player2.fullName,
+          player: match.team2Name,
           scores: match.sets.map((set) => set.player2Games).toList(),
           winner: match.winner?.id == match.player2.id,
         ),
@@ -934,7 +943,10 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
   List<Player> _players = [];
   List<Tournament> _tournaments = [];
   Player? _opponent;
+  Player? _partner;
+  Player? _opponentPartner;
   Tournament? _tournament;
+  String _discipline = 'singles';
   bool _loading = true;
   bool _saving = false;
 
@@ -968,10 +980,22 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
 
   Future<void> _save() async {
     if (_opponent == null) return;
+    if (_discipline == 'doubles' &&
+        (_partner == null || _opponentPartner == null)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Za dubl izaberi još dva igrača.')),
+      );
+      return;
+    }
     setState(() => _saving = true);
     try {
       await widget.league.challengeMatch(
         opponentId: _opponent!.id,
+        partnerId: _discipline == 'doubles' ? _partner?.id : null,
+        opponentPartnerId: _discipline == 'doubles'
+            ? _opponentPartner?.id
+            : null,
+        discipline: _discipline,
         tournamentId: _tournament?.id,
         round: _round.text.trim().isEmpty ? 'Challenge' : _round.text.trim(),
         location: _location.text.trim().isEmpty ? null : _location.text.trim(),
@@ -1108,6 +1132,53 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
                     child: Column(
                       children: [
                         AppSelectField(
+                          label: 'Disciplina',
+                          value: _discipline == 'doubles' ? 'Dubl' : 'Singl',
+                          icon: Icons.sports_tennis,
+                          onTap: () async {
+                            final value = await showAppOptionPicker<String>(
+                              context: context,
+                              title: 'Disciplina',
+                              selected: _discipline,
+                              options: const ['singles', 'doubles'],
+                              labelBuilder: (value) =>
+                                  value == 'doubles' ? 'Dubl' : 'Singl',
+                            );
+                            if (value != null) {
+                              setState(() => _discipline = value);
+                            }
+                          },
+                        ),
+                        if (_discipline == 'doubles') ...[
+                          const SizedBox(height: 12),
+                          AppSelectField(
+                            label: 'Moj partner',
+                            value: _partner?.fullName ?? 'Izaberi partnera',
+                            icon: Icons.group_add,
+                            onTap: () => _pickExtraPlayer(
+                              title: 'Moj partner',
+                              selected: _partner,
+                              onSelected: (player) =>
+                                  setState(() => _partner = player),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          AppSelectField(
+                            label: 'Partner protivnika',
+                            value:
+                                _opponentPartner?.fullName ??
+                                'Izaberi partnera protivnika',
+                            icon: Icons.groups,
+                            onTap: () => _pickExtraPlayer(
+                              title: 'Partner protivnika',
+                              selected: _opponentPartner,
+                              onSelected: (player) =>
+                                  setState(() => _opponentPartner = player),
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        AppSelectField(
                           label: 'Turnir (opciono)',
                           value: _tournament?.name ?? 'Bez turnira',
                           icon: Icons.emoji_events,
@@ -1173,6 +1244,33 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
               ],
             ),
     );
+  }
+
+  Future<void> _pickExtraPlayer({
+    required String title,
+    required Player? selected,
+    required ValueChanged<Player> onSelected,
+  }) async {
+    final usedIds = {
+      widget.currentPlayerId,
+      _opponent?.id,
+      _partner?.id,
+      _opponentPartner?.id,
+    };
+    final options = _players
+        .where(
+          (player) => player.id == selected?.id || !usedIds.contains(player.id),
+        )
+        .toList();
+    if (options.isEmpty) return;
+    final value = await showAppOptionPicker<Player>(
+      context: context,
+      title: title,
+      selected: selected ?? options.first,
+      options: options,
+      labelBuilder: (player) => player.fullName,
+    );
+    if (value != null) onSelected(value);
   }
 }
 
@@ -1262,7 +1360,7 @@ class _SubmitResultScreenState extends State<SubmitResultScreen> {
                 ),
                 const SizedBox(height: 18),
                 Text(
-                  '${p1.fullName} vs ${p2.fullName}',
+                  '${widget.match.team1Name} vs ${widget.match.team2Name}',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w900,
@@ -1562,7 +1660,7 @@ class _AdminResolveScreenState extends State<AdminResolveScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           Text(
-            '${widget.match.player1.fullName} vs ${widget.match.player2.fullName}',
+            '${widget.match.team1Name} vs ${widget.match.team2Name}',
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 12),

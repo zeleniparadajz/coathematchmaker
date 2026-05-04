@@ -83,19 +83,26 @@ class _TournamentsScreenState extends State<TournamentsScreen> {
               await _future;
             },
             child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: snapshot.data!.map((tournament) {
-                return Card(
-                  child: ListTile(
-                    leading: const Icon(
-                      Icons.emoji_events,
-                      color: AppTheme.clay,
-                    ),
-                    title: Text(tournament.name),
-                    subtitle: Text(
-                      '${tournament.location}  |  ${tournament.surface}  |  ${tournament.category}',
-                    ),
-                    trailing: Chip(label: Text(tournament.status)),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+              children: [
+                Text(
+                  'Turniri',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Žrijebovi, učesnici i galerije turnira.',
+                  style: TextStyle(
+                    color: AppTheme.ink.withValues(alpha: .58),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                ...snapshot.data!.map((tournament) {
+                  return _TournamentListCard(
+                    tournament: tournament,
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => TournamentDetailsScreen(
@@ -106,13 +113,178 @@ class _TournamentsScreenState extends State<TournamentsScreen> {
                         ),
                       ),
                     ),
-                  ),
-                );
-              }).toList(),
+                  );
+                }),
+              ],
             ),
           ),
         );
       },
+    );
+  }
+}
+
+class _TournamentListCard extends StatelessWidget {
+  const _TournamentListCard({required this.tournament, required this.onTap});
+
+  final Tournament tournament;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(26),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.ink.withValues(alpha: .07),
+            blurRadius: 22,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(26),
+        child: Material(
+          color: Colors.white,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          color: AppTheme.lime,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: const Icon(
+                          Icons.emoji_events,
+                          color: AppTheme.ink,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              tournament.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w900),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              '${tournament.location}  |  ${tournament.category}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: AppTheme.ink.withValues(alpha: .58),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      _TournamentStatusPill(status: tournament.status),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _TournamentMiniPill(
+                        icon: Icons.grass,
+                        label: tournament.surface,
+                      ),
+                      _TournamentMiniPill(
+                        icon: Icons.account_tree,
+                        label: _TournamentHero._formatLabel(tournament.format),
+                      ),
+                      _TournamentMiniPill(
+                        icon: Icons.groups,
+                        label: '${tournament.participants.length} igrača',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TournamentStatusPill extends StatelessWidget {
+  const _TournamentStatusPill({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (status) {
+      'active' => AppTheme.court,
+      'finished' => AppTheme.cream,
+      _ => AppTheme.lime,
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        status,
+        style: const TextStyle(
+          color: AppTheme.ink,
+          fontSize: 12,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+}
+
+class _TournamentMiniPill extends StatelessWidget {
+  const _TournamentMiniPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppTheme.ink.withValues(alpha: .045),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: AppTheme.ink.withValues(alpha: .65)),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: AppTheme.ink.withValues(alpha: .72),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -366,9 +538,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
                       Icons.sports_tennis,
                       color: AppTheme.court,
                     ),
-                    title: Text(
-                      '${match.player1.fullName} vs ${match.player2.fullName}',
-                    ),
+                    title: Text('${match.team1Name} vs ${match.team2Name}'),
                     subtitle: Text('${match.round}  |  ${match.status}'),
                     trailing: Text(
                       match.scoreText.isEmpty ? '-' : match.scoreText,
@@ -720,6 +890,7 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
   final _surface = TextEditingController(text: 'Tvrda podloga');
   DateTime _startDate = DateTime.now();
   DateTime _endDate = DateTime.now().add(const Duration(days: 2));
+  String _discipline = 'singles';
   String _format = 'elimination';
   String _status = 'upcoming';
   bool _saving = false;
@@ -744,6 +915,7 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
       _location.text = tournament.location;
       _category.text = tournament.category;
       _surface.text = tournament.surface;
+      _discipline = tournament.discipline;
       _startDate = tournament.startDate;
       _endDate = tournament.endDate;
       _format = tournament.format;
@@ -757,6 +929,7 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
       if (widget.tournament == null) {
         await widget.league.createTournament(
           name: _name.text.trim(),
+          discipline: _discipline,
           location: _location.text.trim(),
           surface: _surface.text.trim(),
           category: _category.text.trim(),
@@ -769,6 +942,7 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
         await widget.league.updateTournament(
           id: widget.tournament!.id,
           name: _name.text.trim(),
+          discipline: _discipline,
           location: _location.text.trim(),
           surface: _surface.text.trim(),
           category: _category.text.trim(),
@@ -889,6 +1063,23 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
                         child: _field(_category, 'Kategorija', Icons.category),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 12),
+                  AppSelectField(
+                    label: 'Disciplina',
+                    value: _discipline == 'doubles' ? 'Dubl' : 'Singl',
+                    icon: Icons.sports_tennis,
+                    onTap: () async {
+                      final value = await showAppOptionPicker<String>(
+                        context: context,
+                        title: 'Disciplina',
+                        selected: _discipline,
+                        options: const ['singles', 'doubles'],
+                        labelBuilder: (value) =>
+                            value == 'doubles' ? 'Dubl' : 'Singl',
+                      );
+                      if (value != null) setState(() => _discipline = value);
+                    },
                   ),
                 ],
               ),

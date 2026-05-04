@@ -181,9 +181,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ...snapshot.data!.disputed.map(
               (match) => Card(
                 child: ListTile(
-                  title: Text(
-                    '${match.player1.fullName} vs ${match.player2.fullName}',
-                  ),
+                  title: Text('${match.team1Name} vs ${match.team2Name}'),
                   subtitle: Text(
                     match.scoreText.isEmpty ? 'Bez rezultata' : match.scoreText,
                   ),

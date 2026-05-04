@@ -64,11 +64,69 @@ class _RankingsScreenState extends State<RankingsScreen> {
             await _future;
           },
           child: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: rankings.length,
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+            itemCount: rankings.length + 1,
             itemBuilder: (context, index) {
-              final player = rankings[index];
-              final podium = index < 3;
+              if (index == 0) {
+                final leader = rankings.isNotEmpty ? rankings.first : null;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: AppTheme.lime,
+                    borderRadius: BorderRadius.circular(28),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppTheme.court.withValues(alpha: .18),
+                        blurRadius: 22,
+                        offset: const Offset(0, 12),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 52,
+                        height: 52,
+                        decoration: const BoxDecoration(
+                          color: AppTheme.court,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.leaderboard,
+                          color: AppTheme.ink,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Generalna rang lista',
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(fontWeight: FontWeight.w900),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              leader == null
+                                  ? 'Još nema rangiranih igrača.'
+                                  : 'Lider: ${leader.fullName} sa ${leader.totalPoints} pts',
+                              style: TextStyle(
+                                color: AppTheme.ink.withValues(alpha: .68),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              final rankingIndex = index - 1;
+              final player = rankings[rankingIndex];
+              final podium = rankingIndex < 3;
               return Container(
                 margin: const EdgeInsets.only(bottom: 12),
                 decoration: BoxDecoration(
@@ -81,7 +139,7 @@ class _RankingsScreenState extends State<RankingsScreen> {
                         )
                       : null,
                   color: podium ? null : Colors.white,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
                       color: AppTheme.ink.withValues(alpha: .05),
@@ -103,7 +161,7 @@ class _RankingsScreenState extends State<RankingsScreen> {
                         radius: 13,
                         backgroundColor: podium ? AppTheme.clay : AppTheme.ink,
                         child: Text(
-                          '${index + 1}',
+                          '${rankingIndex + 1}',
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 12,

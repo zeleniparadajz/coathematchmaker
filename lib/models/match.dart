@@ -24,6 +24,7 @@ class TennisMatch {
   const TennisMatch({
     required this.id,
     required this.tournament,
+    required this.discipline,
     required this.player1,
     required this.player2,
     required this.sets,
@@ -31,6 +32,8 @@ class TennisMatch {
     required this.status,
     this.location,
     this.images = const [],
+    this.player1Partner,
+    this.player2Partner,
     this.acceptedAt,
     this.resultSubmittedBy,
     this.winner,
@@ -38,8 +41,11 @@ class TennisMatch {
 
   final String id;
   final Tournament? tournament;
+  final String discipline;
   final Player player1;
   final Player player2;
+  final Player? player1Partner;
+  final Player? player2Partner;
   final List<SetScore> sets;
   final Player? winner;
   final String round;
@@ -52,14 +58,31 @@ class TennisMatch {
   String get scoreText =>
       sets.map((set) => '${set.player1Games}-${set.player2Games}').join(', ');
 
+  bool get isDoubles => discipline == 'doubles';
+
+  String get team1Name => player1Partner == null
+      ? player1.fullName
+      : '${player1.fullName} / ${player1Partner!.fullName}';
+
+  String get team2Name => player2Partner == null
+      ? player2.fullName
+      : '${player2.fullName} / ${player2Partner!.fullName}';
+
   factory TennisMatch.fromJson(Map<String, dynamic> json) {
     return TennisMatch(
       id: (json['_id'] ?? json['id']).toString(),
       tournament: json['tournament'] is Map<String, dynamic>
           ? Tournament.fromJson(json['tournament'])
           : null,
+      discipline: json['discipline'] ?? 'singles',
       player1: Player.fromJson(json['player1'] ?? <String, dynamic>{}),
       player2: Player.fromJson(json['player2'] ?? <String, dynamic>{}),
+      player1Partner: json['player1Partner'] is Map<String, dynamic>
+          ? Player.fromJson(json['player1Partner'])
+          : null,
+      player2Partner: json['player2Partner'] is Map<String, dynamic>
+          ? Player.fromJson(json['player2Partner'])
+          : null,
       sets: (json['sets'] as List? ?? [])
           .whereType<Map<String, dynamic>>()
           .map(SetScore.fromJson)

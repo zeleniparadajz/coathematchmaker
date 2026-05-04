@@ -77,7 +77,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
             await _future;
           },
           child: ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
             children: [
               AppTextField(
                 controller: _search,
@@ -85,24 +85,25 @@ class _PlayersScreenState extends State<PlayersScreen> {
                 icon: Icons.search,
                 onChanged: (value) => setState(() => _query = value),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
+              Text(
+                'Pronađi partnera za meč',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 8),
               ...players.map(
-                (player) => Card(
-                  child: ListTile(
-                    leading: PlayerAvatar(player: player, api: widget.api),
-                    title: Text(player.fullName),
-                    subtitle: Text(
-                      '${player.club ?? player.country}  |  ${player.wins}-${player.losses}',
-                    ),
-                    trailing: Text('${player.totalPoints} pts'),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => PlayerProfileScreen(
-                          playerId: player.id,
-                          league: widget.league,
-                          api: widget.api,
-                          auth: widget.auth,
-                        ),
+                (player) => _PlayerDiscoveryCard(
+                  player: player,
+                  api: widget.api,
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => PlayerProfileScreen(
+                        playerId: player.id,
+                        league: widget.league,
+                        api: widget.api,
+                        auth: widget.auth,
                       ),
                     ),
                   ),
@@ -112,6 +113,237 @@ class _PlayersScreenState extends State<PlayersScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+class _PlayerDiscoveryCard extends StatelessWidget {
+  const _PlayerDiscoveryCard({
+    required this.player,
+    required this.api,
+    required this.onTap,
+  });
+
+  final Player player;
+  final ApiClient api;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 252,
+      margin: const EdgeInsets.only(top: 14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.ink.withValues(alpha: .08),
+            blurRadius: 22,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: Material(
+          color: Colors.white,
+          child: InkWell(
+            onTap: onTap,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                _PlayerCardBackdrop(player: player, api: api),
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        AppTheme.ink.withValues(alpha: .78),
+                        AppTheme.ink.withValues(alpha: .18),
+                        Colors.transparent,
+                      ],
+                      begin: Alignment.bottomLeft,
+                      end: Alignment.topRight,
+                      stops: const [0, .52, 1],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          _CardPill(
+                            icon: Icons.location_on_outlined,
+                            label: player.country,
+                          ),
+                          const Spacer(),
+                          _CardPill(
+                            icon: Icons.bolt,
+                            label: player.active ? 'Aktivan' : 'Neaktivan',
+                            bright: player.active,
+                          ),
+                        ],
+                      ),
+                      const Spacer(),
+                      Text(
+                        player.fullName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: _PlayerCardTypography.name,
+                      ),
+                      const SizedBox(height: 5),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              player.club ?? 'Individual',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: _PlayerCardTypography.meta,
+                            ),
+                          ),
+                          const SizedBox(width: 7),
+                          Text('|', style: _PlayerCardTypography.meta),
+                          const SizedBox(width: 7),
+                          Icon(
+                            Icons.sports_tennis,
+                            color: Colors.white.withValues(alpha: .84),
+                            size: 13,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          _CardPill(
+                            icon: Icons.sports_tennis,
+                            label: '${player.matchesPlayed} susret',
+                          ),
+                          _CardPill(
+                            icon: Icons.bar_chart,
+                            label: '${player.wins}W ${player.losses}L',
+                          ),
+                          _CardPill(icon: Icons.person, label: player.sport),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PlayerCardTypography {
+  static final name = TextStyle(
+    color: Colors.white,
+    fontFamily: 'Avenir Next',
+    fontSize: 23,
+    height: .95,
+    fontWeight: FontWeight.w800,
+    letterSpacing: 0,
+    shadows: [
+      Shadow(
+        color: Colors.black.withValues(alpha: .30),
+        blurRadius: 10,
+        offset: const Offset(0, 2),
+      ),
+    ],
+  );
+
+  static final meta = TextStyle(
+    color: Colors.white.withValues(alpha: .92),
+    fontFamily: 'Avenir Next',
+    fontSize: 12,
+    height: 1,
+    fontWeight: FontWeight.w800,
+    letterSpacing: .05,
+    shadows: [
+      Shadow(
+        color: Colors.black.withValues(alpha: .28),
+        blurRadius: 8,
+        offset: const Offset(0, 2),
+      ),
+    ],
+  );
+}
+
+class _PlayerCardBackdrop extends StatelessWidget {
+  const _PlayerCardBackdrop({required this.player, required this.api});
+
+  final Player player;
+  final ApiClient api;
+
+  @override
+  Widget build(BuildContext context) {
+    final url = api.imageUrl(player.profileImage);
+    if (url.isEmpty) {
+      return Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [AppTheme.court, AppTheme.lime],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Icon(
+          Icons.sports_tennis,
+          size: 76,
+          color: Colors.white.withValues(alpha: .24),
+        ),
+      );
+    }
+
+    return Image.network(url, fit: BoxFit.cover);
+  }
+}
+
+class _CardPill extends StatelessWidget {
+  const _CardPill({
+    required this.icon,
+    required this.label,
+    this.bright = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool bright;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: bright
+            ? AppTheme.lime.withValues(alpha: .92)
+            : Colors.white.withValues(alpha: .92),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: AppTheme.ink),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppTheme.ink,
+              fontFamily: 'Avenir Next',
+              fontSize: 11.5,
+              height: 1,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -212,7 +444,9 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                 player.fullName,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w900,
+                  fontFamily: 'Avenir Next',
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0,
                 ),
               ),
               Text(
