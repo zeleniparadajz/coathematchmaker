@@ -281,96 +281,25 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              Container(
-                padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [AppTheme.court, AppTheme.lime],
-                  ),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      tournament.name,
-                      style: Theme.of(context).textTheme.headlineSmall
-                          ?.copyWith(
-                            fontWeight: FontWeight.w900,
-                            color: AppTheme.ink,
-                          ),
-                    ),
-                    Text(
-                      '${tournament.location}  |  ${tournament.surface}  |  ${tournament.category}',
-                    ),
-                    Text('Format: ${tournament.format}'),
-                    const SizedBox(height: 8),
-                    Text(
-                      '${tournament.startDate.toLocal().toString().split(' ').first} - ${tournament.endDate.toLocal().toString().split(' ').first}',
-                    ),
-                  ],
-                ),
-              ),
-              const SectionHeader('Galerija'),
-              if (tournament.images.isEmpty)
-                const Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text('Još nema slika za ovaj turnir.'),
-                  ),
-                )
-              else
-                GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: 10,
-                  crossAxisSpacing: 10,
-                  children: tournament.images
-                      .map(
-                        (image) => ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.network(
-                            widget.api.imageUrl(image),
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                      )
-                      .toList(),
-                ),
+              _TournamentHero(tournament: tournament),
               const SizedBox(height: 14),
-              if (tournament.isUpcoming && !registered)
-                FilledButton.icon(
-                  onPressed: _register,
-                  icon: const Icon(Icons.person_add),
-                  label: const Text('Prijavi se na turnir'),
-                ),
-              if (registered)
-                const Chip(
-                  avatar: Icon(Icons.check),
-                  label: Text('Prijavljen si'),
-                ),
-              if ((widget.auth.isAdmin || registered) &&
-                  tournament.images.length < 5)
-                FilledButton.tonalIcon(
-                  onPressed: _uploadingImage
-                      ? null
-                      : () => _pickTournamentImage(tournament),
-                  icon: _uploadingImage
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.add_photo_alternate),
-                  label: const Text('Dodaj sliku turnira'),
-                ),
-              if (widget.auth.isAdmin)
-                FilledButton.icon(
-                  onPressed: _generateDraw,
-                  icon: const Icon(Icons.account_tree),
-                  label: const Text('Automatski formiraj žrijeb'),
-                ),
+              _TournamentGallery(
+                tournament: tournament,
+                api: widget.api,
+                canUpload:
+                    (widget.auth.isAdmin || registered) &&
+                    tournament.images.length < 5,
+                uploading: _uploadingImage,
+                onUpload: () => _pickTournamentImage(tournament),
+              ),
+              const SizedBox(height: 14),
+              _TournamentActions(
+                isAdmin: widget.auth.isAdmin,
+                isUpcoming: tournament.isUpcoming,
+                registered: registered,
+                onRegister: _register,
+                onGenerateDraw: _generateDraw,
+              ),
               if (widget.auth.isAdmin && availablePlayers.isNotEmpty) ...[
                 const SectionHeader('Dodaj igrača'),
                 AppSelectField(
@@ -451,6 +380,307 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
           );
         },
       ),
+    );
+  }
+}
+
+class _TournamentHero extends StatelessWidget {
+  const _TournamentHero({required this.tournament});
+
+  final Tournament tournament;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppTheme.ink, AppTheme.court],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.court.withValues(alpha: .20),
+            blurRadius: 24,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppTheme.lime.withValues(alpha: .18),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.emoji_events, color: AppTheme.lime),
+              ),
+              const Spacer(),
+              _HeroBadge(label: tournament.status),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Text(
+            tournament.name,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _HeroMeta(icon: Icons.place, label: tournament.location),
+              _HeroMeta(icon: Icons.grass, label: tournament.surface),
+              _HeroMeta(icon: Icons.category, label: tournament.category),
+              _HeroMeta(
+                icon: Icons.account_tree,
+                label: _formatLabel(tournament.format),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              const Icon(Icons.calendar_month, color: Colors.white70, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '${_dateLabel(tournament.startDate)} - ${_dateLabel(tournament.endDate)}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _dateLabel(DateTime date) {
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    return '$day.$month.${date.year}';
+  }
+
+  static String _formatLabel(String value) {
+    return switch (value) {
+      'elimination' => 'Eliminacija',
+      'round_robin' => 'Round-robin',
+      'qualification' => 'Kvalifikacije',
+      'group_knockout' => 'Grupe + knockout',
+      'double_elimination' => 'Double elimination',
+      'compass' => 'Compass draw',
+      'swiss' => 'Swiss',
+      _ => value,
+    };
+  }
+}
+
+class _HeroBadge extends StatelessWidget {
+  const _HeroBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: .16),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+}
+
+class _HeroMeta extends StatelessWidget {
+  const _HeroMeta({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: .12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: Colors.white70, size: 15),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TournamentGallery extends StatelessWidget {
+  const _TournamentGallery({
+    required this.tournament,
+    required this.api,
+    required this.canUpload,
+    required this.uploading,
+    required this.onUpload,
+  });
+
+  final Tournament tournament;
+  final ApiClient api;
+  final bool canUpload;
+  final bool uploading;
+  final VoidCallback onUpload;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.photo_library_outlined, color: AppTheme.court),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Galerija',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                Text('${tournament.images.length}/5'),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (tournament.images.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: AppTheme.court.withValues(alpha: .055),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text('Još nema slika za ovaj turnir.'),
+              )
+            else
+              SizedBox(
+                height: 170,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: tournament.images.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 10),
+                  itemBuilder: (context, index) {
+                    final image = tournament.images[index];
+                    return ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: AspectRatio(
+                        aspectRatio: 1,
+                        child: Image.network(
+                          api.imageUrl(image),
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            if (canUpload) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.tonalIcon(
+                  onPressed: uploading ? null : onUpload,
+                  icon: uploading
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.add_photo_alternate),
+                  label: const Text('Dodaj sliku turnira'),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TournamentActions extends StatelessWidget {
+  const _TournamentActions({
+    required this.isAdmin,
+    required this.isUpcoming,
+    required this.registered,
+    required this.onRegister,
+    required this.onGenerateDraw,
+  });
+
+  final bool isAdmin;
+  final bool isUpcoming;
+  final bool registered;
+  final VoidCallback onRegister;
+  final VoidCallback onGenerateDraw;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: [
+        if (isUpcoming && !registered)
+          FilledButton.icon(
+            onPressed: onRegister,
+            icon: const Icon(Icons.person_add),
+            label: const Text('Prijavi se na turnir'),
+          ),
+        if (registered)
+          Chip(
+            avatar: const Icon(Icons.check, size: 18),
+            label: const Text('Prijavljen si'),
+            backgroundColor: AppTheme.court.withValues(alpha: .10),
+          ),
+        if (isAdmin)
+          FilledButton.icon(
+            onPressed: onGenerateDraw,
+            icon: const Icon(Icons.account_tree),
+            label: const Text('Formiraj žrijeb'),
+          ),
+      ],
     );
   }
 }

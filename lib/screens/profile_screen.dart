@@ -328,12 +328,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _pickBirthDate() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
+    final picked = await showAppBirthDatePicker(
       context: context,
       initialDate: _birthDate,
-      firstDate: DateTime(now.year - 90),
-      lastDate: DateTime(now.year - 5, 12, 31),
+      minimumAge: 5,
     );
 
     if (picked != null) {

@@ -156,6 +156,24 @@ Future<String?> showAppLocationPicker({
   );
 }
 
+Future<DateTime?> showAppBirthDatePicker({
+  required BuildContext context,
+  required DateTime initialDate,
+  int minimumAge = 8,
+}) {
+  final now = DateTime.now();
+  return showModalBottomSheet<DateTime>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _BirthDatePickerSheet(
+      initialDate: initialDate,
+      firstYear: now.year - 90,
+      lastYear: now.year - minimumAge,
+    ),
+  );
+}
+
 class _OptionPickerSheet<T> extends StatelessWidget {
   const _OptionPickerSheet({
     required this.title,
@@ -387,6 +405,167 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _BirthDatePickerSheet extends StatefulWidget {
+  const _BirthDatePickerSheet({
+    required this.initialDate,
+    required this.firstYear,
+    required this.lastYear,
+  });
+
+  final DateTime initialDate;
+  final int firstYear;
+  final int lastYear;
+
+  @override
+  State<_BirthDatePickerSheet> createState() => _BirthDatePickerSheetState();
+}
+
+class _BirthDatePickerSheetState extends State<_BirthDatePickerSheet> {
+  late int _day = widget.initialDate.day;
+  late int _month = widget.initialDate.month;
+  late int _year = widget.initialDate.year.clamp(
+    widget.firstYear,
+    widget.lastYear,
+  );
+
+  static const _months = [
+    'Januar',
+    'Februar',
+    'Mart',
+    'April',
+    'Maj',
+    'Jun',
+    'Jul',
+    'Avgust',
+    'Septembar',
+    'Oktobar',
+    'Novembar',
+    'Decembar',
+  ];
+
+  int get _daysInMonth => DateTime(_year, _month + 1, 0).day;
+
+  @override
+  Widget build(BuildContext context) {
+    if (_day > _daysInMonth) {
+      _day = _daysInMonth;
+    }
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xfff7faf4),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppTheme.ink.withValues(alpha: .16),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                'Datum rođenja',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _pickerDropdown<int>(
+                      label: 'Dan',
+                      value: _day,
+                      values: List.generate(_daysInMonth, (index) => index + 1),
+                      labelFor: (value) => value.toString().padLeft(2, '0'),
+                      onChanged: (value) => setState(() => _day = value),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 2,
+                    child: _pickerDropdown<int>(
+                      label: 'Mjesec',
+                      value: _month,
+                      values: List.generate(12, (index) => index + 1),
+                      labelFor: (value) => _months[value - 1],
+                      onChanged: (value) => setState(() => _month = value),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _pickerDropdown<int>(
+                      label: 'Godina',
+                      value: _year,
+                      values: [
+                        for (
+                          var year = widget.lastYear;
+                          year >= widget.firstYear;
+                          year--
+                        )
+                          year,
+                      ],
+                      labelFor: (value) => value.toString(),
+                      onChanged: (value) => setState(() => _year = value),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: FilledButton(
+                  onPressed: () =>
+                      Navigator.of(context).pop(DateTime(_year, _month, _day)),
+                  child: const Text('Sačuvaj datum'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _pickerDropdown<T>({
+    required String label,
+    required T value,
+    required List<T> values,
+    required String Function(T value) labelFor,
+    required ValueChanged<T> onChanged,
+  }) {
+    return DropdownButtonFormField<T>(
+      initialValue: value,
+      isExpanded: true,
+      decoration: appInputDecoration(label, Icons.expand_more),
+      items: values
+          .map(
+            (item) => DropdownMenuItem<T>(
+              value: item,
+              child: Text(labelFor(item), overflow: TextOverflow.ellipsis),
+            ),
+          )
+          .toList(),
+      onChanged: (value) {
+        if (value != null) onChanged(value);
+      },
     );
   }
 }
