@@ -258,7 +258,7 @@ class _AuthScreenState extends State<AuthScreen>
               busy: _busy,
               onCountryChanged: (value) => setState(() => _country = value),
               onSportChanged: (value) => setState(() => _sport = value),
-              onPickBirthDate: _pickBirthDate,
+              onPickBirthDate: () => _pickBirthDate(context),
               onSubmit: _submit,
               onSwitchToLogin: () => setState(() => _register = false),
             ),
@@ -268,13 +268,17 @@ class _AuthScreenState extends State<AuthScreen>
     );
   }
 
-  Future<void> _pickBirthDate() async {
+  Future<void> _pickBirthDate(BuildContext context) async {
     final now = DateTime.now();
-    final picked = await showDatePicker(
+    final picked = await showModalBottomSheet<DateTime>(
       context: context,
-      initialDate: _dateOfBirth,
-      firstDate: DateTime(now.year - 90),
-      lastDate: DateTime(now.year - 8, 12, 31),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _BirthDatePickerSheet(
+        initialDate: _dateOfBirth,
+        firstYear: now.year - 90,
+        lastYear: now.year - 8,
+      ),
     );
 
     if (picked != null) {
@@ -354,7 +358,7 @@ class _AuthFormCard extends StatelessWidget {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
+                padding: const EdgeInsets.fromLTRB(18, 20, 18, 22),
                 child: Form(
                   key: formKey,
                   child: Column(
@@ -375,28 +379,44 @@ class _AuthFormCard extends StatelessWidget {
                           color: AppTheme.ink.withValues(alpha: .62),
                         ),
                       ),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 20),
                       if (register) ...[
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _field(
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            final compact = constraints.maxWidth < 360;
+                            final fields = [
+                              _field(
                                 firstName,
                                 'Ime',
                                 icon: Icons.person,
                                 validator: _required,
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _field(
+                              _field(
                                 lastName,
                                 'Prezime',
                                 icon: Icons.badge,
                                 validator: _required,
                               ),
-                            ),
-                          ],
+                            ];
+
+                            if (compact) {
+                              return Column(
+                                children: [
+                                  fields[0],
+                                  const SizedBox(height: 14),
+                                  fields[1],
+                                ],
+                              );
+                            }
+
+                            return Row(
+                              children: [
+                                Expanded(child: fields[0]),
+                                const SizedBox(width: 12),
+                                Expanded(child: fields[1]),
+                              ],
+                            );
+                          },
                         ),
                         const SizedBox(height: 14),
                       ],
@@ -417,44 +437,40 @@ class _AuthFormCard extends StatelessWidget {
                       ),
                       if (register) ...[
                         const SizedBox(height: 14),
-                        InkWell(
-                          borderRadius: BorderRadius.circular(12),
+                        _SelectionField(
+                          label: 'Datum rođenja',
+                          value: _dateLabel(dateOfBirth),
+                          icon: Icons.cake,
                           onTap: onPickBirthDate,
-                          child: InputDecorator(
-                            decoration: _decoration(
-                              'Datum rođenja',
-                              Icons.cake,
-                            ),
-                            child: Text(_dateLabel(dateOfBirth)),
-                          ),
                         ),
                         const SizedBox(height: 14),
-                        DropdownButtonFormField<String>(
-                          initialValue: country,
-                          decoration: _decoration('Država', Icons.flag),
-                          items: countries
-                              .map(
-                                (item) => DropdownMenuItem(
-                                  value: item,
-                                  child: Text(item),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: (value) {
+                        _SelectionField(
+                          label: 'Država',
+                          value: country,
+                          icon: Icons.flag,
+                          onTap: () async {
+                            final value = await _pickStringOption(
+                              context: context,
+                              title: 'Država',
+                              selected: country,
+                              options: countries,
+                            );
                             if (value != null) onCountryChanged(value);
                           },
                         ),
                         const SizedBox(height: 14),
-                        DropdownButtonFormField<String>(
-                          initialValue: sport,
-                          decoration: _decoration('Sport', Icons.sports_tennis),
-                          items: const [
-                            DropdownMenuItem(
-                              value: 'tennis',
-                              child: Text('Tenis'),
-                            ),
-                          ],
-                          onChanged: (value) {
+                        _SelectionField(
+                          label: 'Sport',
+                          value: _sportLabel(sport),
+                          icon: Icons.sports_tennis,
+                          onTap: () async {
+                            final value = await _pickStringOption(
+                              context: context,
+                              title: 'Sport',
+                              selected: sport,
+                              options: const ['tennis'],
+                              labelBuilder: _sportLabel,
+                            );
                             if (value != null) onSportChanged(value);
                           },
                         ),
@@ -476,9 +492,10 @@ class _AuthFormCard extends StatelessWidget {
                           required: false,
                         ),
                       ],
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 22),
                       SizedBox(
                         width: double.infinity,
+                        height: 54,
                         child: FilledButton.icon(
                           onPressed: busy ? null : onSubmit,
                           icon: busy
@@ -513,6 +530,28 @@ class _AuthFormCard extends StatelessWidget {
     );
   }
 
+  static Future<String?> _pickStringOption({
+    required BuildContext context,
+    required String title,
+    required String selected,
+    required List<String> options,
+    String Function(String value)? labelBuilder,
+  }) {
+    return showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return _OptionPickerSheet(
+          title: title,
+          selected: selected,
+          options: options,
+          labelBuilder: labelBuilder,
+        );
+      },
+    );
+  }
+
   static String? _required(String? value) {
     return value == null || value.trim().isEmpty ? 'Obavezno polje' : null;
   }
@@ -533,6 +572,13 @@ class _AuthFormCard extends StatelessWidget {
     return '$day.$month.${date.year}';
   }
 
+  static String _sportLabel(String value) {
+    return switch (value) {
+      'tennis' => 'Tenis',
+      _ => value,
+    };
+  }
+
   static InputDecoration _decoration(
     String label,
     IconData icon, {
@@ -541,20 +587,29 @@ class _AuthFormCard extends StatelessWidget {
     return InputDecoration(
       labelText: label,
       hintText: hint,
-      prefixIcon: Icon(icon),
+      prefixIcon: Icon(icon, size: 22),
       filled: true,
-      fillColor: Colors.white,
+      fillColor: AppTheme.court.withValues(alpha: .035),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         borderSide: BorderSide.none,
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: AppTheme.court.withValues(alpha: .08)),
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: AppTheme.ink.withValues(alpha: .08)),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppTheme.court, width: 1.3),
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: AppTheme.court, width: 1.5),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: AppTheme.clay, width: 1.2),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: AppTheme.clay, width: 1.4),
       ),
     );
   }
@@ -581,6 +636,317 @@ class _AuthFormCard extends StatelessWidget {
                     ? 'Obavezno polje'
                     : null
               : null),
+    );
+  }
+}
+
+class _SelectionField extends StatelessWidget {
+  const _SelectionField({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppTheme.court.withValues(alpha: .035),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: InputDecorator(
+          decoration: _AuthFormCard._decoration(label, icon),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  value,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+              Icon(
+                Icons.keyboard_arrow_down,
+                color: AppTheme.ink.withValues(alpha: .58),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OptionPickerSheet extends StatelessWidget {
+  const _OptionPickerSheet({
+    required this.title,
+    required this.selected,
+    required this.options,
+    this.labelBuilder,
+  });
+
+  final String title;
+  final String selected;
+  final List<String> options;
+  final String Function(String value)? labelBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * .78,
+      ),
+      decoration: const BoxDecoration(
+        color: Color(0xfff7faf4),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 10),
+            Container(
+              width: 42,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppTheme.ink.withValues(alpha: .16),
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 10),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+            ),
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 18),
+                itemCount: options.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 6),
+                itemBuilder: (context, index) {
+                  final value = options[index];
+                  final active = value == selected;
+                  return ListTile(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    tileColor: active
+                        ? AppTheme.court.withValues(alpha: .10)
+                        : Colors.white,
+                    title: Text(
+                      labelBuilder?.call(value) ?? value,
+                      style: TextStyle(
+                        fontWeight: active ? FontWeight.w900 : FontWeight.w600,
+                      ),
+                    ),
+                    trailing: active
+                        ? const Icon(Icons.check_circle, color: AppTheme.court)
+                        : null,
+                    onTap: () => Navigator.of(context).pop(value),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BirthDatePickerSheet extends StatefulWidget {
+  const _BirthDatePickerSheet({
+    required this.initialDate,
+    required this.firstYear,
+    required this.lastYear,
+  });
+
+  final DateTime initialDate;
+  final int firstYear;
+  final int lastYear;
+
+  @override
+  State<_BirthDatePickerSheet> createState() => _BirthDatePickerSheetState();
+}
+
+class _BirthDatePickerSheetState extends State<_BirthDatePickerSheet> {
+  late int _day = widget.initialDate.day;
+  late int _month = widget.initialDate.month;
+  late int _year = widget.initialDate.year.clamp(
+    widget.firstYear,
+    widget.lastYear,
+  );
+
+  static const _months = [
+    'Januar',
+    'Februar',
+    'Mart',
+    'April',
+    'Maj',
+    'Jun',
+    'Jul',
+    'Avgust',
+    'Septembar',
+    'Oktobar',
+    'Novembar',
+    'Decembar',
+  ];
+
+  int get _daysInMonth => DateTime(_year, _month + 1, 0).day;
+
+  @override
+  Widget build(BuildContext context) {
+    if (_day > _daysInMonth) {
+      _day = _daysInMonth;
+    }
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xfff7faf4),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppTheme.ink.withValues(alpha: .16),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                'Datum rođenja',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _pickerDropdown<int>(
+                      label: 'Dan',
+                      value: _day,
+                      values: List.generate(_daysInMonth, (index) => index + 1),
+                      labelFor: (value) => value.toString().padLeft(2, '0'),
+                      onChanged: (value) => setState(() => _day = value),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 2,
+                    child: _pickerDropdown<int>(
+                      label: 'Mjesec',
+                      value: _month,
+                      values: List.generate(12, (index) => index + 1),
+                      labelFor: (value) => _months[value - 1],
+                      onChanged: (value) => setState(() => _month = value),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _pickerDropdown<int>(
+                      label: 'Godina',
+                      value: _year,
+                      values: [
+                        for (
+                          var year = widget.lastYear;
+                          year >= widget.firstYear;
+                          year--
+                        )
+                          year,
+                      ],
+                      labelFor: (value) => value.toString(),
+                      onChanged: (value) => setState(() => _year = value),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: FilledButton(
+                  onPressed: () =>
+                      Navigator.of(context).pop(DateTime(_year, _month, _day)),
+                  child: const Text('Sačuvaj datum'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _pickerDropdown<T>({
+    required String label,
+    required T value,
+    required List<T> values,
+    required String Function(T value) labelFor,
+    required ValueChanged<T> onChanged,
+  }) {
+    return DropdownButtonFormField<T>(
+      initialValue: value,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: label,
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 16,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide.none,
+        ),
+      ),
+      items: values
+          .map(
+            (item) => DropdownMenuItem<T>(
+              value: item,
+              child: Text(labelFor(item), overflow: TextOverflow.ellipsis),
+            ),
+          )
+          .toList(),
+      onChanged: (value) {
+        if (value != null) onChanged(value);
+      },
     );
   }
 }
