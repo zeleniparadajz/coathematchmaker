@@ -343,7 +343,7 @@ class _ProfileMenu extends StatelessWidget {
             children: [
               Icon(Icons.sports_tennis),
               SizedBox(width: 10),
-              Text('Status za meč'),
+              Text('Status'),
             ],
           ),
         ),

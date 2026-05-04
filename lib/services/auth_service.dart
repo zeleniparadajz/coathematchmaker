@@ -54,6 +54,10 @@ class AuthService extends ChangeNotifier {
     await api.postJson('/api/auth/resend-verification', {'email': email});
   }
 
+  Future<void> forgotPassword(String email) async {
+    await api.postJson('/api/auth/forgot-password', {'email': email});
+  }
+
   Future<void> refreshMe() async {
     final data = await api.getJson('/api/auth/me');
     currentPlayer = Player.fromJson(data['player']);

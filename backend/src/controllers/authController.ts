@@ -3,6 +3,7 @@ import { env } from "../config/env";
 import { Player } from "../models/Player";
 import { AppError } from "../middleware/errorHandler";
 import { signAuthToken } from "../services/tokenService";
+import { sendPasswordResetEmail } from "../services/emailService";
 import { asyncHandler } from "../middleware/asyncHandler";
 import {
   createEmailVerificationToken,
@@ -30,6 +31,15 @@ export const loginSchema = z.object({
 
 export const resendVerificationSchema = z.object({
   email: z.string().email()
+});
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().email()
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  password: z.string().min(8)
 });
 
 const emailFailureMessage = (error: unknown): string => {
@@ -146,6 +156,120 @@ export const resendVerification = asyncHandler(async (req, res) => {
   }
 
   res.json({ message: "Verification email sent" });
+});
+
+export const forgotPassword = asyncHandler(async (req, res) => {
+  const player = await Player.findOne({ email: req.body.email }).select(
+    "+passwordResetToken +passwordResetExpires"
+  );
+
+  if (!player) {
+    return res.json({
+      message: "Ako nalog postoji, poslali smo email za reset lozinke."
+    });
+  }
+
+  const reset = createEmailVerificationToken();
+  const resetUrl = `${env.appUrl}/api/auth/reset-password?token=${reset.rawToken}`;
+
+  player.passwordResetToken = reset.hashedToken;
+  player.passwordResetExpires = new Date(Date.now() + 30 * 60 * 1000);
+  await player.save();
+
+  try {
+    await sendPasswordResetEmail({
+      to: player.email,
+      name: player.firstName,
+      resetUrl
+    });
+  } catch (error) {
+    player.passwordResetToken = undefined;
+    player.passwordResetExpires = undefined;
+    await player.save();
+    console.error("Password reset email failed", error);
+    throw new AppError(
+      502,
+      "Reset email nije poslat. Provjeri RESEND_API_KEY, EMAIL_FROM i verifikovan domen."
+    );
+  }
+
+  res.json({ message: "Ako nalog postoji, poslali smo email za reset lozinke." });
+});
+
+export const resetPassword = asyncHandler(async (req, res) => {
+  const player = await Player.findOne({
+    passwordResetToken: hashEmailVerificationToken(req.body.token),
+    passwordResetExpires: { $gt: new Date() }
+  }).select("+password +passwordResetToken +passwordResetExpires");
+
+  if (!player) {
+    throw new AppError(400, "Reset link je nevažeći ili je istekao");
+  }
+
+  player.password = req.body.password;
+  player.passwordResetToken = undefined;
+  player.passwordResetExpires = undefined;
+  await player.save();
+
+  res.json({ message: "Password je promijenjen. Možeš se prijaviti." });
+});
+
+export const resetPasswordPage = asyncHandler(async (req, res) => {
+  const token = typeof req.query.token === "string" ? req.query.token : "";
+
+  if (!token) {
+    throw new AppError(400, "Reset token is required");
+  }
+
+  res.type("html").send(`
+    <!doctype html>
+    <html lang="sr">
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Reset passworda</title>
+        <style>
+          body{margin:0;font-family:Arial,sans-serif;background:#f5f8ef;color:#17211c;display:grid;min-height:100vh;place-items:center;padding:20px}
+          main{width:min(420px,100%);background:white;border-radius:24px;padding:28px;box-shadow:0 20px 60px rgba(23,33,28,.12)}
+          h1{margin:0 0 8px;font-size:28px}
+          p{color:#657166;line-height:1.45}
+          label{display:block;font-weight:700;margin:18px 0 8px}
+          input{box-sizing:border-box;width:100%;border:1px solid #dbe8dc;border-radius:16px;padding:16px;font-size:16px}
+          button{width:100%;margin-top:18px;border:0;border-radius:999px;padding:15px 18px;background:#1f8a5b;color:white;font-weight:800;font-size:16px}
+          #msg{margin-top:14px;font-weight:700}
+        </style>
+      </head>
+      <body>
+        <main>
+          <h1>Reset passworda</h1>
+          <p>Unesi novi password. Mora imati najmanje 8 karaktera.</p>
+          <form id="form">
+            <label for="password">Novi password</label>
+            <input id="password" name="password" type="password" minlength="8" required autocomplete="new-password" />
+            <button type="submit">Sačuvaj novi password</button>
+          </form>
+          <p id="msg"></p>
+        </main>
+        <script>
+          const form = document.getElementById('form');
+          const msg = document.getElementById('msg');
+          form.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            msg.textContent = 'Šaljem...';
+            const response = await fetch('/api/auth/reset-password', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ token: ${JSON.stringify(token)}, password: form.password.value })
+            });
+            const data = await response.json().catch(() => ({}));
+            msg.textContent = data.message || (response.ok ? 'Password je promijenjen.' : 'Reset nije uspio.');
+            msg.style.color = response.ok ? '#1f8a5b' : '#c3422f';
+            if (response.ok) form.reset();
+          });
+        </script>
+      </body>
+    </html>
+  `);
 });
 
 export const me = asyncHandler(async (req, res) => {

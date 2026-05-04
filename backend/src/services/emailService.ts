@@ -6,9 +6,23 @@ interface SendVerificationEmailParams {
   verificationUrl: string;
 }
 
-export const sendVerificationEmail = async ({ to, name, verificationUrl }: SendVerificationEmailParams): Promise<void> => {
+interface SendPasswordResetEmailParams {
+  to: string;
+  name: string;
+  resetUrl: string;
+}
+
+const sendEmail = async ({
+  to,
+  subject,
+  html
+}: {
+  to: string;
+  subject: string;
+  html: string;
+}): Promise<void> => {
   if (!env.resendApiKey) {
-    console.log(`Email verification link for ${to}: ${verificationUrl}`);
+    console.log(`${subject} for ${to}: ${html}`);
     return;
   }
 
@@ -21,8 +35,22 @@ export const sendVerificationEmail = async ({ to, name, verificationUrl }: SendV
     body: JSON.stringify({
       from: env.emailFrom,
       to,
-      subject: "Potvrdi Coa The Matchmaker nalog",
-      html: `
+      subject,
+      html
+    })
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Failed to send email: ${text}`);
+  }
+};
+
+export const sendVerificationEmail = async ({ to, name, verificationUrl }: SendVerificationEmailParams): Promise<void> => {
+  await sendEmail({
+    to,
+    subject: "Potvrdi Coa The Matchmaker nalog",
+    html: `
         <div style="font-family:Arial,sans-serif;line-height:1.5;color:#17211c">
           <h2>Zdravo ${name},</h2>
           <p>Potvrdi email adresu da aktiviraš nalog.</p>
@@ -31,11 +59,22 @@ export const sendVerificationEmail = async ({ to, name, verificationUrl }: SendV
           <p>${verificationUrl}</p>
         </div>
       `
-    })
   });
+};
 
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Failed to send verification email: ${text}`);
-  }
+export const sendPasswordResetEmail = async ({ to, name, resetUrl }: SendPasswordResetEmailParams): Promise<void> => {
+  await sendEmail({
+    to,
+    subject: "Resetuj Coa password",
+    html: `
+        <div style="font-family:Arial,sans-serif;line-height:1.5;color:#17211c">
+          <h2>Zdravo ${name},</h2>
+          <p>Dobili smo zahtjev za reset lozinke. Link traje 30 minuta.</p>
+          <p><a href="${resetUrl}" style="background:#1f8a5b;color:white;padding:12px 18px;border-radius:8px;text-decoration:none">Resetuj password</a></p>
+          <p>Ako nisi tražio reset, samo ignoriši ovaj email.</p>
+          <p>Ako dugme ne radi, otvori ovaj link:</p>
+          <p>${resetUrl}</p>
+        </div>
+      `
+  });
 };

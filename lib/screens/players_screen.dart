@@ -177,8 +177,8 @@ class _PlayerDiscoveryCard extends StatelessWidget {
                           _CardPill(
                             icon: Icons.bolt,
                             label: player.isAvailableForMatch
-                                ? 'Spreman za meč'
-                                : 'Ne prima pozive',
+                                ? 'Aktivan'
+                                : 'Neaktivan',
                             bright: player.isAvailableForMatch,
                           ),
                         ],

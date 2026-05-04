@@ -96,16 +96,23 @@ class _TournamentsScreenState extends State<TournamentsScreen> {
                 ...snapshot.data!.map((tournament) {
                   return _TournamentListCard(
                     tournament: tournament,
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => TournamentDetailsScreen(
-                          tournamentId: tournament.id,
-                          league: widget.league,
-                          api: widget.api,
-                          auth: widget.auth,
+                    onTap: () async {
+                      await Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => TournamentDetailsScreen(
+                            tournamentId: tournament.id,
+                            league: widget.league,
+                            api: widget.api,
+                            auth: widget.auth,
+                          ),
                         ),
-                      ),
-                    ),
+                      );
+                      if (context.mounted) {
+                        setState(() {
+                          _future = widget.league.tournaments();
+                        });
+                      }
+                    },
                   );
                 }),
               ],
@@ -422,6 +429,20 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
     }
   }
 
+  Future<void> _editTournament(Tournament tournament) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            TournamentFormScreen(league: widget.league, tournament: tournament),
+      ),
+    );
+    if (mounted) {
+      setState(() {
+        _future = _load();
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -463,6 +484,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
                 isUpcoming: tournament.isUpcoming,
                 registered: registered,
                 onRegister: _register,
+                onEdit: () => _editTournament(tournament),
                 onGenerateDraw: _generateDraw,
               ),
               if (widget.auth.isAdmin && availablePlayers.isNotEmpty) ...[
@@ -810,6 +832,7 @@ class _TournamentActions extends StatelessWidget {
     required this.isUpcoming,
     required this.registered,
     required this.onRegister,
+    required this.onEdit,
     required this.onGenerateDraw,
   });
 
@@ -817,6 +840,7 @@ class _TournamentActions extends StatelessWidget {
   final bool isUpcoming;
   final bool registered;
   final VoidCallback onRegister;
+  final VoidCallback onEdit;
   final VoidCallback onGenerateDraw;
 
   @override
@@ -836,6 +860,12 @@ class _TournamentActions extends StatelessWidget {
             avatar: const Icon(Icons.check, size: 18),
             label: const Text('Prijavljen si'),
             backgroundColor: AppTheme.court.withValues(alpha: .10),
+          ),
+        if (isAdmin)
+          FilledButton.tonalIcon(
+            onPressed: onEdit,
+            icon: const Icon(Icons.edit),
+            label: const Text('Uredi turnir'),
           ),
         if (isAdmin)
           FilledButton.icon(

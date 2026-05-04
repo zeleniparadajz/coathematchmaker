@@ -17,6 +17,8 @@ export interface PlayerAttrs {
   emailVerified: boolean;
   emailVerificationToken?: string;
   emailVerificationExpires?: Date;
+  passwordResetToken?: string;
+  passwordResetExpires?: Date;
   role: PlayerRole;
   active: boolean;
   playStatus: PlayerPlayStatus;
@@ -49,6 +51,8 @@ const playerSchema = new Schema<PlayerAttrs, PlayerModel, PlayerMethods>(
     emailVerified: { type: Boolean, default: false },
     emailVerificationToken: { type: String, select: false },
     emailVerificationExpires: { type: Date, select: false },
+    passwordResetToken: { type: String, select: false },
+    passwordResetExpires: { type: Date, select: false },
     role: { type: String, enum: ["player", "admin"], default: "player" },
     active: { type: Boolean, default: true },
     playStatus: { type: String, enum: ["available", "unavailable"], default: "available" },
@@ -66,6 +70,8 @@ const playerSchema = new Schema<PlayerAttrs, PlayerModel, PlayerMethods>(
         delete (ret as Partial<PlayerAttrs> & { __v?: number }).password;
         delete (ret as Partial<PlayerAttrs>).emailVerificationToken;
         delete (ret as Partial<PlayerAttrs>).emailVerificationExpires;
+        delete (ret as Partial<PlayerAttrs>).passwordResetToken;
+        delete (ret as Partial<PlayerAttrs>).passwordResetExpires;
         delete (ret as { __v?: number }).__v;
         return ret;
       }

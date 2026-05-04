@@ -33,6 +33,7 @@ class _AuthScreenState extends State<AuthScreen>
   String _country = 'Montenegro';
   String _sport = 'tennis';
   bool _resendingVerification = false;
+  bool _sendingPasswordReset = false;
 
   static const _countries = [
     'Montenegro',
@@ -190,6 +191,29 @@ class _AuthScreenState extends State<AuthScreen>
     }
   }
 
+  Future<void> _forgotPassword() async {
+    if (_sendingPasswordReset) return;
+    final email = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ForgotPasswordSheet(initialEmail: _email.text.trim()),
+    );
+    if (email == null || email.isEmpty) return;
+
+    setState(() => _sendingPasswordReset = true);
+    try {
+      await widget.auth.forgotPassword(email);
+      if (mounted) {
+        _showInfo('Ako nalog postoji, poslali smo email za reset passworda.');
+      }
+    } on ApiException catch (error) {
+      if (mounted) _showInfo(error.message);
+    } finally {
+      if (mounted) setState(() => _sendingPasswordReset = false);
+    }
+  }
+
   void _showAuthError(String message) {
     final needsVerification =
         message.toLowerCase().contains('potvrdi email') ||
@@ -261,6 +285,7 @@ class _AuthScreenState extends State<AuthScreen>
               onSportChanged: (value) => setState(() => _sport = value),
               onPickBirthDate: () => _pickBirthDate(context),
               onSubmit: _submit,
+              onForgotPassword: _forgotPassword,
               onSwitchToLogin: () => setState(() => _register = false),
             ),
           ],
@@ -307,6 +332,7 @@ class _AuthFormCard extends StatelessWidget {
     required this.onSportChanged,
     required this.onPickBirthDate,
     required this.onSubmit,
+    required this.onForgotPassword,
     required this.onSwitchToLogin,
   });
 
@@ -327,6 +353,7 @@ class _AuthFormCard extends StatelessWidget {
   final ValueChanged<String> onSportChanged;
   final VoidCallback onPickBirthDate;
   final VoidCallback onSubmit;
+  final VoidCallback onForgotPassword;
   final VoidCallback onSwitchToLogin;
 
   @override
@@ -519,6 +546,15 @@ class _AuthFormCard extends StatelessWidget {
                             child: const Text('Već imaš nalog? Prijavi se'),
                           ),
                         ),
+                      ] else ...[
+                        const SizedBox(height: 10),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: onForgotPassword,
+                            child: const Text('Zaboravio si password?'),
+                          ),
+                        ),
                       ],
                     ],
                   ),
@@ -615,6 +651,105 @@ class _BirthDatePickerSheet extends StatefulWidget {
 
   @override
   State<_BirthDatePickerSheet> createState() => _BirthDatePickerSheetState();
+}
+
+class _ForgotPasswordSheet extends StatefulWidget {
+  const _ForgotPasswordSheet({required this.initialEmail});
+
+  final String initialEmail;
+
+  @override
+  State<_ForgotPasswordSheet> createState() => _ForgotPasswordSheetState();
+}
+
+class _ForgotPasswordSheetState extends State<_ForgotPasswordSheet> {
+  final _form = GlobalKey<FormState>();
+  late final TextEditingController _email = TextEditingController(
+    text: widget.initialEmail,
+  );
+
+  @override
+  void dispose() {
+    _email.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!_form.currentState!.validate()) return;
+    Navigator.of(context).pop(_email.text.trim());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xfff7faf4),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            18,
+            10,
+            18,
+            MediaQuery.of(context).viewInsets.bottom + 18,
+          ),
+          child: Form(
+            key: _form,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppTheme.ink.withValues(alpha: .16),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'Reset passworda',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Upiši email naloga. Poslaćemo link za novi password.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppTheme.ink.withValues(alpha: .62),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                AppTextField(
+                  controller: _email,
+                  label: 'Email adresa',
+                  icon: Icons.mail,
+                  keyboardType: TextInputType.emailAddress,
+                  validator: _AuthFormCard._emailValidator,
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: FilledButton.icon(
+                    onPressed: _submit,
+                    icon: const Icon(Icons.mark_email_read),
+                    label: const Text('Pošalji reset link'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _BirthDatePickerSheetState extends State<_BirthDatePickerSheet> {

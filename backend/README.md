@@ -94,6 +94,9 @@ Email potvrda:
 
 - `GET /api/auth/verify-email?token=<token>` - potvrđuje email
 - `POST /api/auth/resend-verification` - šalje novi verification link
+- `POST /api/auth/forgot-password` - šalje email za reset lozinke
+- `GET /api/auth/reset-password?token=<token>` - otvara formu za novi password
+- `POST /api/auth/reset-password` - API reset lozinke, body: `{ "token": "...", "password": "newPassword123" }`
 
 U development modu, ako `RESEND_API_KEY` nije podešen, verification link se ispisuje u backend log. Za online testiranje podesi:
 

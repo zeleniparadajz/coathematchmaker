@@ -79,6 +79,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
           final active = data.tournaments
               .where((t) => t.status == 'active')
               .length;
+          final myTournaments = data.tournaments
+              .where(
+                (tournament) =>
+                    tournament.participants.any((player) => player.id == me.id),
+              )
+              .length;
           final top = data.rankings.take(5).toList();
 
           return ListView(
@@ -114,11 +120,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             children: [
                               Text(
                                 me.fullName,
-                                style: Theme.of(context).textTheme.titleLarge
-                                    ?.copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w900,
-                                    ),
+                                style: _DashboardTypography.heroName,
                               ),
                               const SizedBox(height: 4),
                               Container(
@@ -134,7 +136,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   '${me.totalPoints} pts  |  ${me.wins}W ${me.losses}L',
                                   style: const TextStyle(
                                     color: Colors.white,
-                                    fontWeight: FontWeight.w800,
+                                    fontFamily: 'Avenir Next Rounded',
+                                    fontFamilyFallback: [
+                                      'Avenir Next',
+                                      'SF Pro Text',
+                                    ],
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
                                   ),
                                 ),
                               ),
@@ -184,7 +192,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   : 'Nema aktivnih turnira trenutno',
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontWeight: FontWeight.w800,
+                                fontFamily: 'Avenir Next Rounded',
+                                fontFamilyFallback: [
+                                  'Avenir Next',
+                                  'SF Pro Text',
+                                ],
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
                           ),
@@ -195,12 +208,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
               const SizedBox(height: 18),
-              Text(
-                'Liga danas',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-              ),
+              Text('Liga danas', style: _DashboardTypography.section),
               const SizedBox(height: 10),
               GridView.count(
                 shrinkWrap: true,
@@ -216,8 +224,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     icon: Icons.groups,
                   ),
                   StatCard(
-                    label: 'Aktivni turniri',
-                    value: '$active',
+                    label: 'Moji turniri',
+                    value: '$myTournaments',
                     icon: Icons.emoji_events,
                     color: AppTheme.clay,
                   ),
@@ -235,12 +243,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
               ),
               const SizedBox(height: 18),
-              Text(
-                'Top 5 ranking',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-              ),
+              Text('Top 5 ranking', style: _DashboardTypography.section),
               const SizedBox(height: 10),
               ...top.asMap().entries.map((entry) {
                 final player = entry.value;
@@ -282,9 +285,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           children: [
                             Text(
                               player.fullName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w900,
-                              ),
+                              style: _DashboardTypography.rankingName,
                             ),
                             const SizedBox(height: 3),
                             Text(
@@ -308,7 +309,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                         child: Text(
                           '${player.totalPoints} pts',
-                          style: const TextStyle(fontWeight: FontWeight.w900),
+                          style: _DashboardTypography.pointsPill,
                         ),
                       ),
                     ],
@@ -354,12 +355,21 @@ class _HeroMiniStat extends StatelessWidget {
                   value,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontWeight: FontWeight.w900,
+                    fontFamily: 'Avenir Next Rounded',
+                    fontFamilyFallback: ['Avenir Next', 'SF Pro Text'],
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
                 Text(
                   label,
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontFamily: 'Avenir Next Rounded',
+                    fontFamilyFallback: ['Avenir Next', 'SF Pro Text'],
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ],
             ),
@@ -368,6 +378,39 @@ class _HeroMiniStat extends StatelessWidget {
       ),
     );
   }
+}
+
+class _DashboardTypography {
+  static const heroName = TextStyle(
+    color: Colors.white,
+    fontFamily: 'Avenir Next Rounded',
+    fontFamilyFallback: ['Avenir Next', 'SF Pro Display'],
+    fontSize: 22,
+    height: 1,
+    fontWeight: FontWeight.w700,
+  );
+
+  static const section = TextStyle(
+    color: AppTheme.ink,
+    fontFamily: 'Avenir Next Rounded',
+    fontFamilyFallback: ['Avenir Next', 'SF Pro Display'],
+    fontSize: 21,
+    height: 1.05,
+    fontWeight: FontWeight.w700,
+  );
+
+  static const rankingName = TextStyle(
+    fontFamily: 'Avenir Next Rounded',
+    fontFamilyFallback: ['Avenir Next', 'SF Pro Text'],
+    fontSize: 14.5,
+    fontWeight: FontWeight.w700,
+  );
+
+  static const pointsPill = TextStyle(
+    fontFamily: 'Avenir Next Rounded',
+    fontFamilyFallback: ['Avenir Next', 'SF Pro Text'],
+    fontWeight: FontWeight.w700,
+  );
 }
 
 class _DashboardData {

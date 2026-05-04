@@ -50,9 +50,9 @@ class _PlayStatusScreenState extends State<PlayStatusScreen> {
       await widget.league.updateMyPlayStatus(status);
       await widget.auth.refreshMe();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Status za meč je promijenjen')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Status je promijenjen')));
       }
     } on ApiException catch (error) {
       if (mounted) {
@@ -71,7 +71,7 @@ class _PlayStatusScreenState extends State<PlayStatusScreen> {
     final status = player?.playStatus ?? 'available';
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Status za meč')),
+      appBar: AppBar(title: const Text('Status')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -112,7 +112,7 @@ class _PlayStatusScreenState extends State<PlayStatusScreen> {
             selected: status == 'available',
             saving: _saving,
             icon: Icons.sports_tennis,
-            title: 'Spreman za meč',
+            title: 'Aktivan',
             subtitle:
                 'Prikazuješ se kao igrač koji je voljan i spreman da primi challenge ili dogovor za termin.',
             onTap: () => _setStatus('available'),
@@ -122,7 +122,7 @@ class _PlayStatusScreenState extends State<PlayStatusScreen> {
             selected: status == 'unavailable',
             saving: _saving,
             icon: Icons.do_not_disturb_on_outlined,
-            title: 'Ne primam pozive',
+            title: 'Neaktivan',
             subtitle:
                 'Drugi igrači vide da trenutno ne želiš pozive za meč. Profil i nalog ostaju normalno aktivni.',
             onTap: () => _setStatus('unavailable'),
