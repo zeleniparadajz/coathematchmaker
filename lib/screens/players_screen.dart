@@ -82,18 +82,11 @@ class _PlayersScreenState extends State<PlayersScreen> {
             children: [
               AppTextField(
                 controller: _search,
-                label: 'Pretraga igrača',
+                label: 'Pronađi',
                 icon: Icons.search,
                 onChanged: (value) => setState(() => _query = value),
               ),
-              const SizedBox(height: 10),
-              Text(
-                'Pronađi partnera za meč',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-              ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 2),
               ...players.map(
                 (player) => _PlayerDiscoveryCard(
                   player: player,
@@ -178,12 +171,15 @@ class _PlayerDiscoveryCard extends StatelessWidget {
                           _CardPill(
                             icon: Icons.location_on_outlined,
                             label: player.country,
+                            glass: true,
                           ),
                           const Spacer(),
                           _CardPill(
                             icon: Icons.bolt,
-                            label: player.active ? 'Aktivan' : 'Neaktivan',
-                            bright: player.active,
+                            label: player.isAvailableForMatch
+                                ? 'Spreman za meč'
+                                : 'Ne prima pozive',
+                            bright: player.isAvailableForMatch,
                           ),
                         ],
                       ),
@@ -337,18 +333,22 @@ class _CardPill extends StatelessWidget {
     required this.icon,
     required this.label,
     this.bright = false,
+    this.glass = false,
   });
 
   final IconData icon;
   final String label;
   final bool bright;
+  final bool glass;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
       decoration: BoxDecoration(
-        color: bright
+        color: glass
+            ? Colors.black.withValues(alpha: .20)
+            : bright
             ? AppTheme.lime.withValues(alpha: .92)
             : Colors.white.withValues(alpha: .92),
         borderRadius: BorderRadius.circular(999),
@@ -356,14 +356,14 @@ class _CardPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 13, color: AppTheme.ink),
+          Icon(icon, size: 13, color: glass ? Colors.white : AppTheme.ink),
           const SizedBox(width: 4),
           Text(
             label,
-            style: const TextStyle(
-              color: AppTheme.ink,
+            style: TextStyle(
+              color: glass ? Colors.white : AppTheme.ink,
               fontFamily: 'Avenir Next Rounded',
-              fontFamilyFallback: ['Avenir Next', 'SF Pro Text'],
+              fontFamilyFallback: const ['Avenir Next', 'SF Pro Text'],
               fontSize: 10.5,
               height: 1,
               fontWeight: FontWeight.w700,

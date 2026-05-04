@@ -3,6 +3,8 @@ import {
   getMyProfile,
   getPlayer,
   listPlayers,
+  updateMyPlayStatus,
+  updateMyPlayStatusSchema,
   updateMyProfile,
   updatePlayer,
   updatePlayerSchema,
@@ -18,6 +20,7 @@ playerRoutes.use(authenticate);
 
 playerRoutes.get("/me", getMyProfile);
 playerRoutes.patch("/me", validate(updatePlayerSchema), updateMyProfile);
+playerRoutes.patch("/me/play-status", validate(updateMyPlayStatusSchema), updateMyPlayStatus);
 playerRoutes.post(
   "/me/profile-image",
   express.raw({ type: "multipart/form-data", limit: "6mb" }),

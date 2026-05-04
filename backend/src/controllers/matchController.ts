@@ -241,6 +241,14 @@ export const createChallenge = asyncHandler(async (req, res) => {
   }
 
   await ensurePlayersAndTournament(player1, player2, player1Partner, player2Partner, req.body.tournamentId);
+  const challengedPlayers = await Player.find({
+    _id: { $in: [player2, player2Partner].filter(Boolean) },
+    playStatus: "unavailable"
+  });
+
+  if (challengedPlayers.length > 0 && !isAdmin(req.user!.role)) {
+    throw new AppError(400, "This player is not receiving match challenges right now");
+  }
 
   const match = await Match.create({
     tournament: req.body.tournamentId,

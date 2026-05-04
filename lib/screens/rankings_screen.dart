@@ -2,20 +2,24 @@ import 'package:flutter/material.dart';
 
 import '../models/player.dart';
 import '../services/api_client.dart';
+import '../services/auth_service.dart';
 import '../services/league_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/player_avatar.dart';
+import 'players_screen.dart';
 
 class RankingsScreen extends StatefulWidget {
   const RankingsScreen({
     super.key,
     required this.league,
     required this.api,
+    required this.auth,
     this.refreshTick = 0,
   });
 
   final LeagueService league;
   final ApiClient api;
+  final AuthService auth;
   final int refreshTick;
 
   @override
@@ -49,12 +53,7 @@ class _RankingsScreenState extends State<RankingsScreen> {
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        final rankings = [...snapshot.data!]
-          ..sort(
-            (a, b) => b.totalPoints.compareTo(a.totalPoints) == 0
-                ? b.wins.compareTo(a.wins)
-                : b.totalPoints.compareTo(a.totalPoints),
-          );
+        final rankings = [...snapshot.data!]..sort(_comparePlayers);
 
         return RefreshIndicator(
           onRefresh: () async {
@@ -68,7 +67,6 @@ class _RankingsScreenState extends State<RankingsScreen> {
             itemCount: rankings.length + 1,
             itemBuilder: (context, index) {
               if (index == 0) {
-                final leader = rankings.isNotEmpty ? rankings.first : null;
                 return Container(
                   margin: const EdgeInsets.only(bottom: 16),
                   padding: const EdgeInsets.all(18),
@@ -103,19 +101,9 @@ class _RankingsScreenState extends State<RankingsScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Generalna rang lista',
+                              'Rang lista',
                               style: Theme.of(context).textTheme.titleLarge
-                                  ?.copyWith(fontWeight: FontWeight.w900),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              leader == null
-                                  ? 'Još nema rangiranih igrača.'
-                                  : 'Lider: ${leader.fullName} sa ${leader.totalPoints} pts',
-                              style: TextStyle(
-                                color: AppTheme.ink.withValues(alpha: .68),
-                                fontWeight: FontWeight.w700,
-                              ),
+                                  ?.copyWith(fontWeight: FontWeight.w700),
                             ),
                           ],
                         ),
@@ -126,70 +114,18 @@ class _RankingsScreenState extends State<RankingsScreen> {
               }
               final rankingIndex = index - 1;
               final player = rankings[rankingIndex];
-              final podium = rankingIndex < 3;
-              return Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  gradient: podium
-                      ? LinearGradient(
-                          colors: [
-                            AppTheme.lime.withValues(alpha: .34),
-                            Colors.white,
-                          ],
-                        )
-                      : null,
-                  color: podium ? null : Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppTheme.ink.withValues(alpha: .05),
-                      blurRadius: 18,
-                      offset: const Offset(0, 8),
+              return _RankingPlayerCard(
+                player: player,
+                rank: rankingIndex + 1,
+                api: widget.api,
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => PlayerProfileScreen(
+                      playerId: player.id,
+                      league: widget.league,
+                      api: widget.api,
+                      auth: widget.auth,
                     ),
-                  ],
-                ),
-                child: ListTile(
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  leading: Stack(
-                    alignment: Alignment.bottomRight,
-                    children: [
-                      PlayerAvatar(player: player, api: widget.api, radius: 27),
-                      CircleAvatar(
-                        radius: 13,
-                        backgroundColor: podium ? AppTheme.clay : AppTheme.ink,
-                        child: Text(
-                          '${rankingIndex + 1}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  title: Text(
-                    player.fullName,
-                    style: const TextStyle(fontWeight: FontWeight.w900),
-                  ),
-                  subtitle: Text(
-                    '${player.wins}W - ${player.losses}L  |  ${player.matchesPlayed} mečeva',
-                  ),
-                  trailing: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        '${player.totalPoints}',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const Text('pts'),
-                    ],
                   ),
                 ),
               );
@@ -197,6 +133,227 @@ class _RankingsScreenState extends State<RankingsScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+class _RankingPlayerCard extends StatelessWidget {
+  const _RankingPlayerCard({
+    required this.player,
+    required this.rank,
+    required this.api,
+    required this.onTap,
+  });
+
+  final Player player;
+  final int rank;
+  final ApiClient api;
+  final VoidCallback onTap;
+
+  static const _gradients = [
+    [Color(0xFF6EC6FF), Color(0xFF7B8CFF)],
+    [Color(0xFFFFB15F), Color(0xFFFF8A45)],
+    [Color(0xFFFF5B8F), Color(0xFFE94C78)],
+    [Color(0xFFB45DFF), Color(0xFF726CFF)],
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = _gradients[(rank - 1) % _gradients.length];
+    return Container(
+      height: 124,
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: colors.last.withValues(alpha: .22),
+            blurRadius: 18,
+            offset: const Offset(0, 9),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        colors.first.withValues(alpha: .86),
+                        colors.last.withValues(alpha: .78),
+                      ],
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                    ),
+                  ),
+                ),
+                Positioned(
+                  right: -28,
+                  top: -18,
+                  bottom: -18,
+                  child: Container(
+                    width: 126,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: .16),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 13, 12, 13),
+                  child: Row(
+                    children: [
+                      PlayerAvatar(player: player, api: api, radius: 26),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              player.fullName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              '${player.totalPoints} pts',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: .88),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                _RankingMiniStat(
+                                  value: '${player.wins}',
+                                  label: 'Wins',
+                                ),
+                                _RankingMiniStat(
+                                  value: '${player.matchesPlayed}',
+                                  label: 'Mečevi',
+                                ),
+                                _RankingMiniStat(
+                                  value: '${player.tournamentsWon}',
+                                  label: 'Titule',
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(
+                        width: 58,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.more_horiz,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              '$rank',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            Text(
+                              'Ranking',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: .82),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+int _comparePlayers(Player a, Player b) {
+  final points = b.totalPoints.compareTo(a.totalPoints);
+  if (points != 0) return points;
+
+  final wins = b.wins.compareTo(a.wins);
+  if (wins != 0) return wins;
+
+  final losses = a.losses.compareTo(b.losses);
+  if (losses != 0) return losses;
+
+  final matches = a.matchesPlayed.compareTo(b.matchesPlayed);
+  if (matches != 0) return matches;
+
+  return a.fullName.compareTo(b.fullName);
+}
+
+class _RankingMiniStat extends StatelessWidget {
+  const _RankingMiniStat({required this.value, required this.label});
+
+  final String value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: SizedBox(
+        height: 24,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10.5,
+                  height: .95,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              Text(
+                label,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: .72),
+                  fontSize: 8.5,
+                  height: .95,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

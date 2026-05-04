@@ -14,7 +14,12 @@ export const updatePlayerSchema = z.object({
   sport: z.string().min(1).optional(),
   profileImage: z.string().url().optional(),
   active: z.boolean().optional(),
+  playStatus: z.enum(["available", "unavailable"]).optional(),
   role: z.enum(["player", "admin"]).optional()
+});
+
+export const updateMyPlayStatusSchema = z.object({
+  playStatus: z.enum(["available", "unavailable"])
 });
 
 export const listPlayers = asyncHandler(async (req, res) => {
@@ -72,6 +77,23 @@ export const updateMyProfile = asyncHandler(async (req, res) => {
     new: true,
     runValidators: true
   }).select("-password");
+
+  if (!player) {
+    throw new AppError(404, "Player not found");
+  }
+
+  res.json({ player });
+});
+
+export const updateMyPlayStatus = asyncHandler(async (req, res) => {
+  const player = await Player.findByIdAndUpdate(
+    req.user!.id,
+    {
+      playStatus: req.body.playStatus,
+      playStatusUpdatedAt: new Date()
+    },
+    { new: true, runValidators: true }
+  ).select("-password");
 
   if (!player) {
     throw new AppError(404, "Player not found");

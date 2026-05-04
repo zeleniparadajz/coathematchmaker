@@ -86,13 +86,6 @@ class _TournamentsScreenState extends State<TournamentsScreen> {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
               children: [
                 Text(
-                  'Turniri',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
                   'Žrijebovi, učesnici i galerije turnira.',
                   style: TextStyle(
                     color: AppTheme.ink.withValues(alpha: .58),

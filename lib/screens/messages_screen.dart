@@ -42,12 +42,16 @@ class _MessagesScreenState extends State<MessagesScreen> {
   void didUpdateWidget(covariant MessagesScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.refreshTick != widget.refreshTick) {
-      setState(() => _future = widget.league.conversations());
+      setState(() {
+        _future = widget.league.conversations();
+      });
     }
   }
 
   Future<void> _refresh() async {
-    setState(() => _future = widget.league.conversations());
+    setState(() {
+      _future = widget.league.conversations();
+    });
     await _future;
     widget.onChanged?.call();
   }
@@ -105,13 +109,6 @@ class _MessagesScreenState extends State<MessagesScreen> {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
               children: [
-                Text(
-                  'Poruke',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 4),
                 Text(
                   'Dogovori meč, termin ili trening direktno sa igračima.',
                   style: TextStyle(
@@ -265,7 +262,9 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       await widget.league.sendMessage(widget.conversation.id, text);
       _message.clear();
-      setState(() => _future = _load());
+      setState(() {
+        _future = _load();
+      });
       await _future;
     } on ApiException catch (error) {
       if (mounted) {

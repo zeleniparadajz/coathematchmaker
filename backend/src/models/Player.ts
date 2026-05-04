@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { Schema, model, type HydratedDocument, type Model } from "mongoose";
 
 export type PlayerRole = "player" | "admin";
+export type PlayerPlayStatus = "available" | "unavailable";
 
 export interface PlayerAttrs {
   firstName: string;
@@ -18,6 +19,8 @@ export interface PlayerAttrs {
   emailVerificationExpires?: Date;
   role: PlayerRole;
   active: boolean;
+  playStatus: PlayerPlayStatus;
+  playStatusUpdatedAt?: Date;
   totalPoints: number;
   wins: number;
   losses: number;
@@ -48,6 +51,8 @@ const playerSchema = new Schema<PlayerAttrs, PlayerModel, PlayerMethods>(
     emailVerificationExpires: { type: Date, select: false },
     role: { type: String, enum: ["player", "admin"], default: "player" },
     active: { type: Boolean, default: true },
+    playStatus: { type: String, enum: ["available", "unavailable"], default: "available" },
+    playStatusUpdatedAt: { type: Date },
     totalPoints: { type: Number, default: 0 },
     wins: { type: Number, default: 0 },
     losses: { type: Number, default: 0 },

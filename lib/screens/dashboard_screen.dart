@@ -141,11 +141,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ],
                           ),
                         ),
-                        IconButton.filledTonal(
-                          tooltip: 'Logout',
-                          onPressed: widget.auth.logout,
-                          icon: const Icon(Icons.logout),
-                        ),
                       ],
                     ),
                     const SizedBox(height: 18),

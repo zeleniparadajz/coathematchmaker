@@ -8,6 +8,7 @@ class Player {
     required this.country,
     required this.sport,
     required this.active,
+    required this.playStatus,
     required this.totalPoints,
     required this.wins,
     required this.losses,
@@ -29,6 +30,7 @@ class Player {
   final String? club;
   final String? profileImage;
   final bool active;
+  final String playStatus;
   final int totalPoints;
   final int wins;
   final int losses;
@@ -38,6 +40,7 @@ class Player {
 
   String get fullName => _titleCaseWords('$firstName $lastName');
   bool get isAdmin => role == 'admin';
+  bool get isAvailableForMatch => playStatus == 'available';
 
   static String _titleCaseWords(String value) {
     return value
@@ -71,6 +74,7 @@ class Player {
       club: json['club'],
       profileImage: json['profileImage'],
       active: json['active'] ?? false,
+      playStatus: json['playStatus'] ?? 'available',
       totalPoints: json['totalPoints'] ?? 0,
       wins: json['wins'] ?? 0,
       losses: json['losses'] ?? 0,

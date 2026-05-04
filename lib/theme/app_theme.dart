@@ -18,12 +18,33 @@ class AppTheme {
       tertiary: lime,
       surface: Colors.white,
     );
+    const textTheme = TextTheme(
+      headlineSmall: TextStyle(
+        fontSize: 22,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0,
+      ),
+      titleLarge: TextStyle(
+        fontSize: 20,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0,
+      ),
+      titleMedium: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0,
+      ),
+      bodyLarge: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+      bodyMedium: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+      bodySmall: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+    );
 
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
       scaffoldBackgroundColor: mist,
       fontFamily: 'Roboto',
+      textTheme: textTheme,
       appBarTheme: const AppBarTheme(
         backgroundColor: mist,
         foregroundColor: ink,

@@ -43,6 +43,13 @@ class LeagueService {
     return Player.fromJson(data['player']);
   }
 
+  Future<Player> updateMyPlayStatus(String playStatus) async {
+    final data = await api.patchJson('/api/players/me/play-status', {
+      'playStatus': playStatus,
+    });
+    return Player.fromJson(data['player']);
+  }
+
   Future<List<Player>> rankings() async {
     final data = await api.getJson('/api/rankings');
     return (data['rankings'] as List)

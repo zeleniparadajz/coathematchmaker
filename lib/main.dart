@@ -15,6 +15,7 @@ import 'services/api_client.dart';
 import 'services/auth_service.dart';
 import 'services/league_service.dart';
 import 'theme/app_theme.dart';
+import 'widgets/player_avatar.dart';
 
 void main() {
   runApp(const CoaMatchmakerApp());
@@ -179,6 +180,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       RankingsScreen(
         league: widget.league,
         api: widget.api,
+        auth: widget.auth,
         refreshTick: _refreshVersion,
       ),
       MessagesScreen(
@@ -188,7 +190,6 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         onChanged: () => _refreshVisibleData(),
         refreshTick: _refreshVersion,
       ),
-      ProfileScreen(auth: widget.auth, league: widget.league, api: widget.api),
       if (widget.auth.isAdmin)
         SettingsScreen(league: widget.league, refreshTick: _refreshVersion),
     ];
@@ -199,7 +200,6 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       'Challenges',
       'Ranking',
       'Poruke',
-      'Profil',
       if (widget.auth.isAdmin) 'Podešavanja',
     ];
     final destinations = [
@@ -233,7 +233,6 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         ),
         label: 'Poruke',
       ),
-      const NavigationDestination(icon: Icon(Icons.person), label: 'Profil'),
       if (widget.auth.isAdmin)
         const NavigationDestination(
           icon: Icon(Icons.settings),
@@ -246,34 +245,33 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         title: _BrandTitle(section: titles[_index]),
         actions: [
           Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: IconButton(
-              tooltip: 'Logout',
-              onPressed: widget.auth.logout,
-              icon: const Icon(Icons.logout),
+            padding: const EdgeInsets.only(right: 10),
+            child: _ProfileMenu(
+              auth: widget.auth,
+              league: widget.league,
+              api: widget.api,
             ),
           ),
         ],
       ),
-      extendBody: true,
+      extendBody: false,
       body: IndexedStack(index: _index, children: pages),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Container(
-          margin: const EdgeInsets.fromLTRB(18, 0, 18, 12),
-          decoration: BoxDecoration(
-            color: AppTheme.lime,
-            borderRadius: BorderRadius.circular(999),
-            boxShadow: [
-              BoxShadow(
-                color: AppTheme.ink.withValues(alpha: .16),
-                blurRadius: 22,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: AppTheme.lime,
+          boxShadow: [
+            BoxShadow(
+              color: AppTheme.ink.withValues(alpha: .12),
+              blurRadius: 16,
+              offset: const Offset(0, -6),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          top: false,
+          minimum: const EdgeInsets.fromLTRB(6, 0, 6, 6),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(999),
+            borderRadius: BorderRadius.circular(24),
             child: NavigationBar(
               selectedIndex: _index,
               onDestinationSelected: (index) {
@@ -284,6 +282,81 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ProfileMenu extends StatelessWidget {
+  const _ProfileMenu({
+    required this.auth,
+    required this.league,
+    required this.api,
+  });
+
+  final AuthService auth;
+  final LeagueService league;
+  final ApiClient api;
+
+  @override
+  Widget build(BuildContext context) {
+    final player = auth.currentPlayer!;
+    return PopupMenuButton<String>(
+      tooltip: 'Profil',
+      offset: const Offset(0, 44),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      onSelected: (value) {
+        if (value == 'profile') {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) =>
+                  ProfileScreen(auth: auth, league: league, api: api),
+            ),
+          );
+        }
+        if (value == 'status') {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) =>
+                  PlayStatusScreen(auth: auth, league: league, api: api),
+            ),
+          );
+        }
+        if (value == 'logout') {
+          auth.logout();
+        }
+      },
+      itemBuilder: (context) => const [
+        PopupMenuItem(
+          value: 'profile',
+          child: Row(
+            children: [
+              Icon(Icons.person_outline),
+              SizedBox(width: 10),
+              Text('Profil'),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'status',
+          child: Row(
+            children: [
+              Icon(Icons.sports_tennis),
+              SizedBox(width: 10),
+              Text('Status za meč'),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'logout',
+          child: Row(
+            children: [Icon(Icons.logout), SizedBox(width: 10), Text('Logout')],
+          ),
+        ),
+      ],
+      child: Padding(
+        padding: const EdgeInsets.all(6),
+        child: PlayerAvatar(player: player, api: api, radius: 18),
       ),
     );
   }
@@ -318,6 +391,18 @@ class _BrandTitle extends StatelessWidget {
             ],
           ),
         ),
+        if (section.isNotEmpty) ...[
+          const SizedBox(width: 8),
+          Text(
+            '- $section',
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: AppTheme.ink,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ],
     );
   }

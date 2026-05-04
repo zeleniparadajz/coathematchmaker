@@ -499,17 +499,37 @@ class _ScoreSummary extends StatelessWidget {
             ),
           ),
           if (match.winner != null)
-            Flexible(child: _WinnerBanner(name: match.winner!.fullName)),
+            Flexible(
+              child: _WinnerBanner(
+                name: match.winner!.fullName,
+                score: _teamSetScore(match),
+              ),
+            ),
         ],
       ),
     );
   }
+
+  String _teamSetScore(TennisMatch match) {
+    if (match.winner == null || match.sets.isEmpty) return '';
+    var team1Sets = 0;
+    var team2Sets = 0;
+    for (final set in match.sets) {
+      if (set.player1Games > set.player2Games) {
+        team1Sets++;
+      } else if (set.player2Games > set.player1Games) {
+        team2Sets++;
+      }
+    }
+    return '$team1Sets-$team2Sets';
+  }
 }
 
 class _WinnerBanner extends StatelessWidget {
-  const _WinnerBanner({required this.name});
+  const _WinnerBanner({required this.name, this.score});
 
   final String name;
+  final String? score;
 
   @override
   Widget build(BuildContext context) {
@@ -524,6 +544,17 @@ class _WinnerBanner extends StatelessWidget {
         children: [
           const Icon(Icons.emoji_events, size: 15, color: AppTheme.clay),
           const SizedBox(width: 5),
+          if ((score ?? '').isNotEmpty) ...[
+            Text(
+              score!,
+              style: const TextStyle(
+                color: AppTheme.clay,
+                fontWeight: FontWeight.w900,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(width: 6),
+          ],
           Flexible(
             child: Text(
               name,
