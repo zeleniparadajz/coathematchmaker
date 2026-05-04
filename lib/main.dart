@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'screens/auth_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/matches_screen.dart';
+import 'screens/messages_screen.dart';
 import 'screens/players_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/rankings_screen.dart';
@@ -81,6 +82,7 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   int _index = 0;
   int _pendingChallengeCount = 0;
+  int _unreadMessageCount = 0;
   int _refreshVersion = 0;
   Timer? _refreshTimer;
 
@@ -122,9 +124,23 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _loadUnreadMessageCount() async {
+    try {
+      final count = await widget.league.unreadMessageCount();
+      if (mounted) {
+        setState(() => _unreadMessageCount = count);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _unreadMessageCount = 0);
+      }
+    }
+  }
+
   Future<void> _refreshVisibleData() async {
     await Future.wait([
       _loadPendingChallengeCount(),
+      _loadUnreadMessageCount(),
       widget.auth.refreshMe().catchError((_) {}),
     ]);
     if (!mounted) return;
@@ -165,6 +181,13 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         api: widget.api,
         refreshTick: _refreshVersion,
       ),
+      MessagesScreen(
+        league: widget.league,
+        auth: widget.auth,
+        api: widget.api,
+        onChanged: () => _refreshVisibleData(),
+        refreshTick: _refreshVersion,
+      ),
       ProfileScreen(auth: widget.auth, league: widget.league, api: widget.api),
       if (widget.auth.isAdmin)
         SettingsScreen(league: widget.league, refreshTick: _refreshVersion),
@@ -175,6 +198,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       'Turniri',
       'Challenges',
       'Ranking',
+      'Poruke',
       'Profil',
       if (widget.auth.isAdmin) 'Podešavanja',
     ];
@@ -196,6 +220,18 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       const NavigationDestination(
         icon: Icon(Icons.leaderboard),
         label: 'Ranking',
+      ),
+      NavigationDestination(
+        icon: _BadgeIcon(
+          icon: Icons.chat_bubble_outline,
+          count: _unreadMessageCount,
+        ),
+        selectedIcon: _BadgeIcon(
+          icon: Icons.chat_bubble,
+          count: _unreadMessageCount,
+          selected: true,
+        ),
+        label: 'Poruke',
       ),
       const NavigationDestination(icon: Icon(Icons.person), label: 'Profil'),
       if (widget.auth.isAdmin)
@@ -319,6 +355,31 @@ class _ChallengeTabIcon extends StatelessWidget {
         textColor: Colors.white,
         child: icon,
       ),
+    );
+  }
+}
+
+class _BadgeIcon extends StatelessWidget {
+  const _BadgeIcon({
+    required this.icon,
+    required this.count,
+    this.selected = false,
+  });
+
+  final IconData icon;
+  final int count;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final child = Icon(icon, color: selected ? AppTheme.court : null);
+    if (count == 0) return child;
+
+    return Badge.count(
+      count: count,
+      backgroundColor: AppTheme.clay,
+      textColor: Colors.white,
+      child: child,
     );
   }
 }

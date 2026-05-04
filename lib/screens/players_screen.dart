@@ -9,6 +9,7 @@ import '../theme/app_theme.dart';
 import '../widgets/app_form_fields.dart';
 import '../widgets/player_avatar.dart';
 import '../widgets/stat_card.dart';
+import 'messages_screen.dart';
 
 class PlayersScreen extends StatefulWidget {
   const PlayersScreen({
@@ -187,11 +188,31 @@ class _PlayerDiscoveryCard extends StatelessWidget {
                         ],
                       ),
                       const Spacer(),
-                      Text(
-                        player.fullName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: _PlayerCardTypography.name,
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              player.fullName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: _PlayerCardTypography.name,
+                            ),
+                          ),
+                          const SizedBox(width: 2),
+                          Transform.rotate(
+                            angle: -.55,
+                            child: Container(
+                              width: 13,
+                              height: 8,
+                              margin: const EdgeInsets.only(bottom: 2),
+                              decoration: BoxDecoration(
+                                color: AppTheme.court,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 5),
                       Row(
@@ -214,7 +235,7 @@ class _PlayerDiscoveryCard extends StatelessWidget {
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 11),
                       Wrap(
                         spacing: 6,
                         runSpacing: 6,
@@ -227,7 +248,10 @@ class _PlayerDiscoveryCard extends StatelessWidget {
                             icon: Icons.bar_chart,
                             label: '${player.wins}W ${player.losses}L',
                           ),
-                          _CardPill(icon: Icons.person, label: player.sport),
+                          const _CardPill(
+                            icon: Icons.person_outline,
+                            label: 'Singl / Dubl',
+                          ),
                         ],
                       ),
                     ],
@@ -245,10 +269,11 @@ class _PlayerDiscoveryCard extends StatelessWidget {
 class _PlayerCardTypography {
   static final name = TextStyle(
     color: Colors.white,
-    fontFamily: 'Avenir Next',
-    fontSize: 23,
-    height: .95,
-    fontWeight: FontWeight.w800,
+    fontFamily: 'Avenir Next Rounded',
+    fontFamilyFallback: const ['Avenir Next', 'SF Pro Display'],
+    fontSize: 20,
+    height: 1,
+    fontWeight: FontWeight.w700,
     letterSpacing: 0,
     shadows: [
       Shadow(
@@ -261,10 +286,11 @@ class _PlayerCardTypography {
 
   static final meta = TextStyle(
     color: Colors.white.withValues(alpha: .92),
-    fontFamily: 'Avenir Next',
-    fontSize: 12,
+    fontFamily: 'Avenir Next Rounded',
+    fontFamilyFallback: const ['Avenir Next', 'SF Pro Text'],
+    fontSize: 11,
     height: 1,
-    fontWeight: FontWeight.w800,
+    fontWeight: FontWeight.w700,
     letterSpacing: .05,
     shadows: [
       Shadow(
@@ -320,7 +346,7 @@ class _CardPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
       decoration: BoxDecoration(
         color: bright
             ? AppTheme.lime.withValues(alpha: .92)
@@ -336,10 +362,11 @@ class _CardPill extends StatelessWidget {
             label,
             style: const TextStyle(
               color: AppTheme.ink,
-              fontFamily: 'Avenir Next',
-              fontSize: 11.5,
+              fontFamily: 'Avenir Next Rounded',
+              fontFamilyFallback: ['Avenir Next', 'SF Pro Text'],
+              fontSize: 10.5,
               height: 1,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],
@@ -453,6 +480,29 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                 '${player.country}  |  ${player.club ?? 'Bez kluba'}',
                 textAlign: TextAlign.center,
               ),
+              if (!canEdit) ...[
+                const SizedBox(height: 14),
+                FilledButton.icon(
+                  onPressed: () async {
+                    final conversation = await widget.league.startConversation(
+                      player.id,
+                    );
+                    if (!context.mounted) return;
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => ChatScreen(
+                          league: widget.league,
+                          api: widget.api,
+                          auth: widget.auth,
+                          conversation: conversation,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.chat_bubble_outline),
+                  label: const Text('Pošalji poruku'),
+                ),
+              ],
               const SizedBox(height: 18),
               GridView.count(
                 shrinkWrap: true,

@@ -1,6 +1,7 @@
 import 'package:image_picker/image_picker.dart';
 
 import '../models/match.dart';
+import '../models/dm.dart';
 import '../models/league_settings.dart';
 import '../models/player.dart';
 import '../models/tournament.dart';
@@ -174,6 +175,46 @@ class LeagueService {
     return (data['matches'] as List)
         .map((item) => TennisMatch.fromJson(item))
         .toList();
+  }
+
+  Future<List<Conversation>> conversations() async {
+    final data = await api.getJson('/api/messages/conversations');
+    return (data['conversations'] as List)
+        .map((item) => Conversation.fromJson(item))
+        .toList();
+  }
+
+  Future<int> unreadMessageCount() async {
+    final data = await api.getJson('/api/messages/unread-count');
+    return data['unreadCount'] ?? 0;
+  }
+
+  Future<Conversation> startConversation(String participantId) async {
+    final data = await api.postJson('/api/messages/conversations', {
+      'participantId': participantId,
+    });
+    return Conversation.fromJson(data['conversation']);
+  }
+
+  Future<List<DirectMessage>> messages(String conversationId) async {
+    final data = await api.getJson(
+      '/api/messages/conversations/$conversationId/messages',
+    );
+    return (data['messages'] as List)
+        .map((item) => DirectMessage.fromJson(item))
+        .toList();
+  }
+
+  Future<DirectMessage> sendMessage(String conversationId, String text) async {
+    final data = await api.postJson(
+      '/api/messages/conversations/$conversationId/messages',
+      {'text': text},
+    );
+    return DirectMessage.fromJson(data['message']);
+  }
+
+  Future<void> markConversationRead(String conversationId) async {
+    await api.patchJson('/api/messages/conversations/$conversationId/read', {});
   }
 
   Future<void> challengeMatch({
