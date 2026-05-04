@@ -60,6 +60,7 @@ class _TournamentsScreenState extends State<TournamentsScreen> {
         return Scaffold(
           floatingActionButton: widget.auth.isAdmin
               ? FloatingActionButton.extended(
+                  heroTag: 'tournaments-create-fab',
                   onPressed: () async {
                     await Navigator.of(context).push(
                       MaterialPageRoute(

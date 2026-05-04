@@ -31,6 +31,7 @@ export const createMatchSchema = z.object({
   winner: z.string().optional(),
   round: z.string().min(1).default("Challenge"),
   location: z.string().optional(),
+  scheduledAt: z.coerce.date().optional(),
   status: z
     .enum(["pending", "accepted", "waiting_confirmation", "confirmed", "rejected", "disputed", "cancelled"])
     .default("pending")
@@ -43,7 +44,8 @@ export const challengeMatchSchema = z.object({
   discipline: z.enum(["singles", "doubles"]).default("singles"),
   tournamentId: z.string().min(1).optional(),
   round: z.string().min(1).default("Challenge"),
-  location: z.string().optional()
+  location: z.string().optional(),
+  scheduledAt: z.coerce.date().optional()
 });
 
 export const submitResultSchema = resultSchema;
@@ -107,6 +109,27 @@ const ensurePlayersAndTournament = async (
 
   if (!playerIds.every((id) => participantIds.includes(id))) {
     throw new AppError(400, "All match players must be tournament participants");
+  }
+};
+
+const ensureScheduledAtWithinTournament = async (
+  tournamentId?: string,
+  scheduledAt?: Date
+): Promise<void> => {
+  if (!tournamentId || !scheduledAt) return;
+
+  const tournament = await Tournament.findById(tournamentId);
+  if (!tournament) {
+    throw new AppError(404, "Tournament not found");
+  }
+
+  const start = new Date(tournament.startDate);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(tournament.endDate);
+  end.setHours(23, 59, 59, 999);
+
+  if (scheduledAt < start || scheduledAt > end) {
+    throw new AppError(400, "Match date must be inside tournament dates");
   }
 };
 
@@ -241,6 +264,7 @@ export const createChallenge = asyncHandler(async (req, res) => {
   }
 
   await ensurePlayersAndTournament(player1, player2, player1Partner, player2Partner, req.body.tournamentId);
+  await ensureScheduledAtWithinTournament(req.body.tournamentId, req.body.scheduledAt);
   const challengedPlayers = await Player.find({
     _id: { $in: [player2, player2Partner].filter(Boolean) },
     playStatus: "unavailable"
@@ -259,6 +283,7 @@ export const createChallenge = asyncHandler(async (req, res) => {
     player2Partner,
     round: req.body.round,
     location: req.body.location,
+    scheduledAt: req.body.scheduledAt,
     status: "pending",
     challengedBy: req.user!.playerId
   });
@@ -455,6 +480,7 @@ export const createMatch = asyncHandler(async (req, res) => {
     throw new AppError(400, "Doubles matches require four players");
   }
   await ensurePlayersAndTournament(req.body.player1, req.body.player2, req.body.player1Partner, req.body.player2Partner, req.body.tournament);
+  await ensureScheduledAtWithinTournament(req.body.tournament, req.body.scheduledAt);
   validateWinner(req.body.player1, req.body.player2, req.body.winner);
 
   if (req.body.status === "confirmed" && !req.body.winner) {
@@ -494,6 +520,7 @@ export const updateMatch = asyncHandler(async (req, res) => {
   const nextWinner = req.body.winner ?? match.winner?.toString();
   const nextStatus = req.body.status ?? match.status;
   const nextDiscipline = req.body.discipline ?? match.discipline;
+  const nextScheduledAt = req.body.scheduledAt ?? match.scheduledAt;
 
   if (match.statsApplied) {
     const identityChanged =
@@ -514,6 +541,7 @@ export const updateMatch = asyncHandler(async (req, res) => {
     throw new AppError(400, "Doubles matches require four players");
   }
   await ensurePlayersAndTournament(nextPlayer1, nextPlayer2, nextPlayer1Partner, nextPlayer2Partner, nextTournament);
+  await ensureScheduledAtWithinTournament(nextTournament, nextScheduledAt);
   validateWinner(nextPlayer1, nextPlayer2, nextWinner);
 
   if (nextStatus === "confirmed" && !nextWinner) {

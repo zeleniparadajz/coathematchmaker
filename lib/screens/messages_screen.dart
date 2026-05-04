@@ -93,6 +93,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
     final currentPlayerId = widget.auth.currentPlayer!.id;
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'messages-new-conversation-fab',
         onPressed: _newConversation,
         icon: const Icon(Icons.edit),
         label: const Text('Poruka'),

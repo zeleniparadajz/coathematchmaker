@@ -32,6 +32,7 @@ class MatchesScreen extends StatefulWidget {
 class _MatchesScreenState extends State<MatchesScreen> {
   late Future<_MatchesData> _future;
   String _statusFilter = 'all';
+  String _sortBy = 'scheduled_asc';
 
   static const _filters = [
     'all',
@@ -91,6 +92,7 @@ class _MatchesScreenState extends State<MatchesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'matches-create-challenge-fab',
         onPressed: () async {
           await Navigator.of(context).push(
             MaterialPageRoute(
@@ -117,6 +119,7 @@ class _MatchesScreenState extends State<MatchesScreen> {
               : data.matches
                     .where((match) => match.status == _statusFilter)
                     .toList();
+          _sortMatches(matches);
 
           return RefreshIndicator(
             onRefresh: _refresh,
@@ -127,6 +130,11 @@ class _MatchesScreenState extends State<MatchesScreen> {
                   statuses: _filters,
                   selected: _statusFilter,
                   onSelected: (value) => setState(() => _statusFilter = value),
+                ),
+                const SizedBox(height: 10),
+                _MatchSortBar(
+                  selected: _sortBy,
+                  onSelected: (value) => setState(() => _sortBy = value),
                 ),
                 const SizedBox(height: 12),
                 if (matches.isEmpty)
@@ -193,6 +201,28 @@ class _MatchesScreenState extends State<MatchesScreen> {
         },
       ),
     );
+  }
+
+  void _sortMatches(List<TennisMatch> matches) {
+    int compareDate(DateTime? a, DateTime? b, {bool descending = false}) {
+      final left = a ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final right = b ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return descending ? right.compareTo(left) : left.compareTo(right);
+    }
+
+    matches.sort((a, b) {
+      return switch (_sortBy) {
+        'newest' => compareDate(a.createdAt, b.createdAt, descending: true),
+        'status' => a.status.compareTo(b.status),
+        'tournament' => (a.tournament?.name ?? 'Challenge').compareTo(
+          b.tournament?.name ?? 'Challenge',
+        ),
+        _ => compareDate(
+          a.scheduledAt ?? a.createdAt,
+          b.scheduledAt ?? b.createdAt,
+        ),
+      };
+    });
   }
 }
 
@@ -266,6 +296,11 @@ class _MatchCard extends StatelessWidget {
                     label: match.tournament?.name ?? 'Challenge',
                   ),
                   _MetaPill(icon: Icons.label, label: match.round),
+                  if (match.scheduledAt != null)
+                    _MetaPill(
+                      icon: Icons.event_available,
+                      label: _dateTimeLabel(match.scheduledAt!),
+                    ),
                   if ((match.location ?? '').isNotEmpty)
                     _MetaPill(icon: Icons.place, label: match.location!),
                   if (match.images.isNotEmpty)
@@ -366,6 +401,15 @@ class _MatchCard extends StatelessWidget {
         ? earliest.difference(DateTime.now()).inMinutes + 1
         : 0;
   }
+
+  String _dateTimeLabel(DateTime value) {
+    final local = value.toLocal();
+    final day = local.day.toString().padLeft(2, '0');
+    final month = local.month.toString().padLeft(2, '0');
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$day.$month.${local.year}  $hour:$minute';
+  }
 }
 
 class _StatusFilterBar extends StatelessWidget {
@@ -404,6 +448,80 @@ class _StatusFilterBar extends StatelessWidget {
             onSelected: (_) => onSelected(status),
           );
         },
+      ),
+    );
+  }
+}
+
+class _MatchSortBar extends StatelessWidget {
+  const _MatchSortBar({required this.selected, required this.onSelected});
+
+  final String selected;
+  final ValueChanged<String> onSelected;
+
+  static const _options = {
+    'scheduled_asc': 'Termin',
+    'newest': 'Najnovije',
+    'status': 'Status',
+    'tournament': 'Turnir',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: PopupMenuButton<String>(
+        initialValue: selected,
+        onSelected: onSelected,
+        itemBuilder: (context) => _options.entries
+            .map(
+              (entry) => PopupMenuItem<String>(
+                value: entry.key,
+                child: Row(
+                  children: [
+                    Icon(
+                      selected == entry.key
+                          ? Icons.check_circle
+                          : Icons.circle_outlined,
+                      size: 18,
+                      color: selected == entry.key
+                          ? AppTheme.court
+                          : AppTheme.ink.withValues(alpha: .46),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(entry.value),
+                  ],
+                ),
+              ),
+            )
+            .toList(),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppTheme.court.withValues(alpha: .10),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.sort, size: 18, color: AppTheme.court),
+              const SizedBox(width: 8),
+              Text(
+                'Sort: ${_options[selected] ?? 'Termin'}',
+                style: const TextStyle(
+                  color: AppTheme.court,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(
+                Icons.keyboard_arrow_down,
+                size: 18,
+                color: AppTheme.court,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -683,6 +801,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       appBar: AppBar(title: const Text('Detalji meča')),
       floatingActionButton: canUpload
           ? FloatingActionButton.extended(
+              heroTag: 'match-detail-upload-image-fab-${_match.id}',
               onPressed: _uploading ? null : _pickImage,
               icon: _uploading
                   ? const SizedBox(
@@ -724,6 +843,14 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                   '${_match.tournament?.name ?? 'Challenge'}  |  ${_match.round}',
                   style: const TextStyle(color: Colors.white70),
                 ),
+                if (_match.scheduledAt != null)
+                  Text(
+                    'Termin: ${_matchDateTimeLabel(_match.scheduledAt!)}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 if ((_match.location ?? '').isNotEmpty)
                   Text(
                     _match.location!,
@@ -805,6 +932,15 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         ],
       ),
     );
+  }
+
+  String _matchDateTimeLabel(DateTime value) {
+    final local = value.toLocal();
+    final day = local.day.toString().padLeft(2, '0');
+    final month = local.month.toString().padLeft(2, '0');
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$day.$month.${local.year} u $hour:$minute';
   }
 }
 
@@ -977,6 +1113,7 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
   Player? _partner;
   Player? _opponentPartner;
   Tournament? _tournament;
+  DateTime? _scheduledAt;
   String _discipline = 'singles';
   bool _loading = true;
   bool _saving = false;
@@ -1018,6 +1155,30 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
       );
       return;
     }
+    if (_tournament != null && _scheduledAt != null) {
+      final start = DateTime(
+        _tournament!.startDate.year,
+        _tournament!.startDate.month,
+        _tournament!.startDate.day,
+      );
+      final end = DateTime(
+        _tournament!.endDate.year,
+        _tournament!.endDate.month,
+        _tournament!.endDate.day,
+        23,
+        59,
+      );
+      if (_scheduledAt!.isBefore(start) || _scheduledAt!.isAfter(end)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Termin mora biti u okviru turnira: ${_dateOnly(_tournament!.startDate)} - ${_dateOnly(_tournament!.endDate)}.',
+            ),
+          ),
+        );
+        return;
+      }
+    }
     setState(() => _saving = true);
     try {
       await widget.league.challengeMatch(
@@ -1030,6 +1191,7 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
         tournamentId: _tournament?.id,
         round: _round.text.trim().isEmpty ? 'Challenge' : _round.text.trim(),
         location: _location.text.trim().isEmpty ? null : _location.text.trim(),
+        scheduledAt: _scheduledAt,
       );
       if (mounted) {
         ScaffoldMessenger.of(
@@ -1223,9 +1385,54 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
                                   labelBuilder: (value) =>
                                       value?.name ?? 'Bez turnira',
                                 );
-                            setState(() => _tournament = value);
+                            setState(() {
+                              _tournament = value;
+                              if (value != null && _scheduledAt != null) {
+                                final start = DateTime(
+                                  value.startDate.year,
+                                  value.startDate.month,
+                                  value.startDate.day,
+                                );
+                                final end = DateTime(
+                                  value.endDate.year,
+                                  value.endDate.month,
+                                  value.endDate.day,
+                                  23,
+                                  59,
+                                );
+                                if (_scheduledAt!.isBefore(start) ||
+                                    _scheduledAt!.isAfter(end)) {
+                                  _scheduledAt = start.add(
+                                    const Duration(hours: 18),
+                                  );
+                                }
+                              }
+                            });
                           },
                         ),
+                        const SizedBox(height: 12),
+                        AppSelectField(
+                          label: 'Datum i vrijeme',
+                          value: _scheduledAt == null
+                              ? 'Izaberi termin meča'
+                              : _dateTimeLabel(_scheduledAt!),
+                          icon: Icons.event_available,
+                          onTap: _pickScheduledAt,
+                        ),
+                        if (_tournament != null) ...[
+                          const SizedBox(height: 6),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'Turnirski meč mora biti između ${_dateOnly(_tournament!.startDate)} i ${_dateOnly(_tournament!.endDate)}.',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: AppTheme.ink.withValues(alpha: .58),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 12),
                         AppTextField(
                           controller: _round,
@@ -1302,6 +1509,59 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
       labelBuilder: (player) => player.fullName,
     );
     if (value != null) onSelected(value);
+  }
+
+  Future<void> _pickScheduledAt() async {
+    final now = DateTime.now();
+    final firstDate = _tournament?.startDate ?? now;
+    final lastDate = _tournament?.endDate ?? now.add(const Duration(days: 365));
+    final initialDate = _scheduledAt ?? firstDate;
+    final safeInitialDate = initialDate.isBefore(firstDate)
+        ? firstDate
+        : initialDate.isAfter(lastDate)
+        ? lastDate
+        : initialDate;
+
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: safeInitialDate,
+      firstDate: DateTime(firstDate.year, firstDate.month, firstDate.day),
+      lastDate: DateTime(lastDate.year, lastDate.month, lastDate.day),
+    );
+    if (pickedDate == null) return;
+
+    if (!mounted) return;
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(
+        _scheduledAt ?? DateTime(now.year, now.month, now.day, 18),
+      ),
+    );
+    if (pickedTime == null) return;
+
+    setState(() {
+      _scheduledAt = DateTime(
+        pickedDate.year,
+        pickedDate.month,
+        pickedDate.day,
+        pickedTime.hour,
+        pickedTime.minute,
+      );
+    });
+  }
+
+  String _dateOnly(DateTime value) {
+    final local = value.toLocal();
+    final day = local.day.toString().padLeft(2, '0');
+    final month = local.month.toString().padLeft(2, '0');
+    return '$day.$month.${local.year}';
+  }
+
+  String _dateTimeLabel(DateTime value) {
+    final local = value.toLocal();
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '${_dateOnly(local)} u $hour:$minute';
   }
 }
 

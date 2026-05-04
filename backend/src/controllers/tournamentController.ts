@@ -40,7 +40,8 @@ export const createTournamentMatchSchema = z.object({
   player1Partner: z.string().min(1).optional(),
   player2Partner: z.string().min(1).optional(),
   discipline: z.enum(["singles", "doubles"]).default("singles"),
-  round: z.enum(["Q", "R32", "R16", "QF", "SF", "F", "RR"]).default("R16")
+  round: z.enum(["Q", "R32", "R16", "QF", "SF", "F", "RR"]).default("R16"),
+  scheduledAt: z.coerce.date().optional()
 });
 
 export const listTournaments = asyncHandler(async (req, res) => {
@@ -196,6 +197,17 @@ export const createTournamentMatch = asyncHandler(async (req, res) => {
     throw new AppError(400, "All match players must be tournament participants");
   }
 
+  if (req.body.scheduledAt) {
+    const start = new Date(tournament.startDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(tournament.endDate);
+    end.setHours(23, 59, 59, 999);
+
+    if (req.body.scheduledAt < start || req.body.scheduledAt > end) {
+      throw new AppError(400, "Match date must be inside tournament dates");
+    }
+  }
+
   const match = await Match.create({
     tournament: tournament._id,
     discipline: req.body.discipline,
@@ -204,6 +216,7 @@ export const createTournamentMatch = asyncHandler(async (req, res) => {
     player1Partner: req.body.player1Partner,
     player2Partner: req.body.player2Partner,
     round: req.body.round,
+    scheduledAt: req.body.scheduledAt,
     status: "accepted",
     acceptedAt: new Date()
   });

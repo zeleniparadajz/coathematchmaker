@@ -552,7 +552,7 @@ class _AuthFormCard extends StatelessWidget {
                           alignment: Alignment.centerRight,
                           child: TextButton(
                             onPressed: onForgotPassword,
-                            child: const Text('Zaboravio si password?'),
+                            child: const Text('Zaboravljen password?'),
                           ),
                         ),
                       ],

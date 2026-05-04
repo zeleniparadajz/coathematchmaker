@@ -31,6 +31,8 @@ class TennisMatch {
     required this.round,
     required this.status,
     this.location,
+    this.scheduledAt,
+    this.createdAt,
     this.images = const [],
     this.player1Partner,
     this.player2Partner,
@@ -51,6 +53,8 @@ class TennisMatch {
   final String round;
   final String status;
   final String? location;
+  final DateTime? scheduledAt;
+  final DateTime? createdAt;
   final List<String> images;
   final DateTime? acceptedAt;
   final Player? resultSubmittedBy;
@@ -93,6 +97,8 @@ class TennisMatch {
       round: json['round'] ?? '',
       status: json['status'] ?? 'pending',
       location: json['location'],
+      scheduledAt: DateTime.tryParse(json['scheduledAt'] ?? ''),
+      createdAt: DateTime.tryParse(json['createdAt'] ?? ''),
       images: (json['images'] as List? ?? [])
           .map((item) => item.toString())
           .toList(),

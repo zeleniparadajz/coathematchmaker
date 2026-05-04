@@ -232,6 +232,7 @@ class LeagueService {
     String? tournamentId,
     String round = 'Challenge',
     String? location,
+    DateTime? scheduledAt,
   }) async {
     await api.postJson('/api/matches/challenge', {
       'opponentId': opponentId,
@@ -241,6 +242,7 @@ class LeagueService {
       'tournamentId': ?tournamentId,
       'round': round,
       'location': ?location,
+      'scheduledAt': ?scheduledAt?.toIso8601String(),
     });
   }
 
@@ -309,6 +311,7 @@ class LeagueService {
     required String winner,
     required String round,
     required List<SetScore> sets,
+    DateTime? scheduledAt,
   }) async {
     await api.postJson('/api/matches', {
       'tournament': tournament,
@@ -319,6 +322,7 @@ class LeagueService {
       'player2Partner': ?player2Partner,
       'winner': winner,
       'round': round,
+      'scheduledAt': ?scheduledAt?.toIso8601String(),
       'sets': sets.map((set) => set.toJson()).toList(),
       'status': 'confirmed',
     });
