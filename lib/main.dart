@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'screens/auth_screen.dart';
@@ -45,8 +47,8 @@ class _CoaMatchmakerAppState extends State<CoaMatchmakerApp> {
       home: auth.loading
           ? const _SplashScreen()
           : auth.isLoggedIn
-              ? MainShell(auth: auth, league: league, api: api)
-              : AuthScreen(auth: auth),
+          ? MainShell(auth: auth, league: league, api: api)
+          : AuthScreen(auth: auth),
     );
   }
 }
@@ -56,9 +58,7 @@ class _SplashScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: CircularProgressIndicator()),
-    );
+    return const Scaffold(body: Center(child: CircularProgressIndicator()));
   }
 }
 
@@ -78,14 +78,35 @@ class MainShell extends StatefulWidget {
   State<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   int _index = 0;
   int _pendingChallengeCount = 0;
+  int _refreshVersion = 0;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
-    _loadPendingChallengeCount();
+    WidgetsBinding.instance.addObserver(this);
+    _refreshVisibleData();
+    _refreshTimer = Timer.periodic(
+      const Duration(seconds: 25),
+      (_) => _refreshVisibleData(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshVisibleData();
+    }
   }
 
   Future<void> _loadPendingChallengeCount() async {
@@ -101,20 +122,52 @@ class _MainShellState extends State<MainShell> {
     }
   }
 
+  Future<void> _refreshVisibleData() async {
+    await Future.wait([
+      _loadPendingChallengeCount(),
+      widget.auth.refreshMe().catchError((_) {}),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _refreshVersion++;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final pages = [
-      DashboardScreen(auth: widget.auth, league: widget.league, api: widget.api),
-      PlayersScreen(league: widget.league, api: widget.api, auth: widget.auth),
-      TournamentsScreen(league: widget.league, api: widget.api, auth: widget.auth),
+      DashboardScreen(
+        auth: widget.auth,
+        league: widget.league,
+        api: widget.api,
+        refreshTick: _refreshVersion,
+      ),
+      PlayersScreen(
+        league: widget.league,
+        api: widget.api,
+        auth: widget.auth,
+        refreshTick: _refreshVersion,
+      ),
+      TournamentsScreen(
+        league: widget.league,
+        api: widget.api,
+        auth: widget.auth,
+        refreshTick: _refreshVersion,
+      ),
       MatchesScreen(
         league: widget.league,
         auth: widget.auth,
-        onChanged: _loadPendingChallengeCount,
+        onChanged: () => _refreshVisibleData(),
+        refreshTick: _refreshVersion,
       ),
-      RankingsScreen(league: widget.league, api: widget.api),
+      RankingsScreen(
+        league: widget.league,
+        api: widget.api,
+        refreshTick: _refreshVersion,
+      ),
       ProfileScreen(auth: widget.auth, league: widget.league, api: widget.api),
-      if (widget.auth.isAdmin) SettingsScreen(league: widget.league),
+      if (widget.auth.isAdmin)
+        SettingsScreen(league: widget.league, refreshTick: _refreshVersion),
     ];
     final titles = [
       'Dashboard',
@@ -128,16 +181,28 @@ class _MainShellState extends State<MainShell> {
     final destinations = [
       const NavigationDestination(icon: Icon(Icons.dashboard), label: 'Home'),
       const NavigationDestination(icon: Icon(Icons.groups), label: 'Igrači'),
-      const NavigationDestination(icon: Icon(Icons.emoji_events), label: 'Turniri'),
+      const NavigationDestination(
+        icon: Icon(Icons.emoji_events),
+        label: 'Turniri',
+      ),
       NavigationDestination(
         icon: _ChallengeTabIcon(count: _pendingChallengeCount),
-        selectedIcon: _ChallengeTabIcon(count: _pendingChallengeCount, selected: true),
+        selectedIcon: _ChallengeTabIcon(
+          count: _pendingChallengeCount,
+          selected: true,
+        ),
         label: 'Mečevi',
       ),
-      const NavigationDestination(icon: Icon(Icons.leaderboard), label: 'Ranking'),
+      const NavigationDestination(
+        icon: Icon(Icons.leaderboard),
+        label: 'Ranking',
+      ),
       const NavigationDestination(icon: Icon(Icons.person), label: 'Profil'),
       if (widget.auth.isAdmin)
-        const NavigationDestination(icon: Icon(Icons.settings), label: 'Settings'),
+        const NavigationDestination(
+          icon: Icon(Icons.settings),
+          label: 'Settings',
+        ),
     ];
 
     return Scaffold(
@@ -159,7 +224,7 @@ class _MainShellState extends State<MainShell> {
         selectedIndex: _index,
         onDestinationSelected: (index) {
           setState(() => _index = index);
-          _loadPendingChallengeCount();
+          _refreshVisibleData();
         },
         destinations: destinations,
       ),
@@ -168,10 +233,7 @@ class _MainShellState extends State<MainShell> {
 }
 
 class _ChallengeTabIcon extends StatelessWidget {
-  const _ChallengeTabIcon({
-    required this.count,
-    this.selected = false,
-  });
+  const _ChallengeTabIcon({required this.count, this.selected = false});
 
   final int count;
   final bool selected;

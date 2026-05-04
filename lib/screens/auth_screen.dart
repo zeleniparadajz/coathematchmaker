@@ -25,10 +25,13 @@ class _AuthScreenState extends State<AuthScreen>
   late final AnimationController _logoController;
   late final Animation<double> _logoScale;
   late final Animation<double> _logoGlow;
+  late final Animation<double> _logoRotation;
   bool _register = false;
   bool _busy = false;
   DateTime _dateOfBirth = DateTime(1995);
   String _country = 'Montenegro';
+  String _sport = 'tennis';
+  bool _resendingVerification = false;
 
   static const _countries = [
     'Montenegro',
@@ -59,43 +62,68 @@ class _AuthScreenState extends State<AuthScreen>
     super.initState();
     _logoController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 3200),
-    )..repeat(reverse: true, period: const Duration(milliseconds: 6200));
+      duration: const Duration(milliseconds: 3600),
+    )..repeat(period: const Duration(milliseconds: 4600));
     _logoScale = TweenSequence<double>([
-      TweenSequenceItem(tween: ConstantTween(1), weight: 48),
+      TweenSequenceItem(tween: ConstantTween(1), weight: 34),
       TweenSequenceItem(
         tween: Tween<double>(
           begin: 1,
-          end: 1.045,
+          end: 1.12,
         ).chain(CurveTween(curve: Curves.easeOutCubic)),
-        weight: 20,
+        weight: 18,
       ),
       TweenSequenceItem(
         tween: Tween<double>(
-          begin: 1.045,
+          begin: 1.12,
           end: 1,
-        ).chain(CurveTween(curve: Curves.easeInOutCubic)),
-        weight: 20,
+        ).chain(CurveTween(curve: Curves.elasticOut)),
+        weight: 28,
       ),
-      TweenSequenceItem(tween: ConstantTween(1), weight: 12),
+      TweenSequenceItem(tween: ConstantTween(1), weight: 20),
     ]).animate(_logoController);
     _logoGlow = TweenSequence<double>([
-      TweenSequenceItem(tween: ConstantTween(.22), weight: 48),
+      TweenSequenceItem(tween: ConstantTween(.22), weight: 34),
       TweenSequenceItem(
         tween: Tween(
           begin: .22,
-          end: .48,
+          end: .72,
         ).chain(CurveTween(curve: Curves.easeOut)),
-        weight: 20,
+        weight: 18,
       ),
       TweenSequenceItem(
         tween: Tween(
-          begin: .48,
+          begin: .72,
           end: .22,
         ).chain(CurveTween(curve: Curves.easeIn)),
-        weight: 20,
+        weight: 28,
       ),
-      TweenSequenceItem(tween: ConstantTween(.22), weight: 12),
+      TweenSequenceItem(tween: ConstantTween(.22), weight: 20),
+    ]).animate(_logoController);
+    _logoRotation = TweenSequence<double>([
+      TweenSequenceItem(tween: ConstantTween(0), weight: 32),
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: 0,
+          end: -0.035,
+        ).chain(CurveTween(curve: Curves.easeOutCubic)),
+        weight: 10,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: -0.035,
+          end: 0.035,
+        ).chain(CurveTween(curve: Curves.easeInOutCubic)),
+        weight: 16,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: 0.035,
+          end: 0,
+        ).chain(CurveTween(curve: Curves.easeOutBack)),
+        weight: 18,
+      ),
+      TweenSequenceItem(tween: ConstantTween(0), weight: 24),
     ]).animate(_logoController);
   }
 
@@ -117,7 +145,7 @@ class _AuthScreenState extends State<AuthScreen>
 
     try {
       if (_register) {
-        await widget.auth.register({
+        final data = await widget.auth.register({
           'firstName': _firstName.text.trim(),
           'lastName': _lastName.text.trim(),
           'email': _email.text.trim(),
@@ -125,23 +153,61 @@ class _AuthScreenState extends State<AuthScreen>
           'birthDate': _dateOfBirth.toIso8601String(),
           'country': _country,
           'club': _club.text.trim().isEmpty ? 'Individual' : _club.text.trim(),
+          'sport': _sport,
         });
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Provjeri email i potvrdi nalog.')),
+          final needsVerification = data['emailVerificationRequired'] == true;
+          setState(() => _register = false);
+          _showInfo(
+            needsVerification
+                ? 'Poslali smo ti email za potvrdu naloga. Otvori link, pa se prijavi.'
+                : 'Nalog je kreiran. Možeš se prijaviti.',
           );
         }
       } else {
         await widget.auth.login(_email.text.trim(), _password.text);
       }
     } on ApiException catch (error) {
-      if (mounted) _showError(error.message);
+      if (mounted) _showAuthError(error.message);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
-  void _showError(String message) {
+  Future<void> _resendVerification() async {
+    final email = _email.text.trim();
+    if (email.isEmpty || _resendingVerification) return;
+
+    setState(() => _resendingVerification = true);
+    try {
+      await widget.auth.resendVerification(email);
+      if (mounted) _showInfo('Poslali smo novi verification link.');
+    } on ApiException catch (error) {
+      if (mounted) _showInfo(error.message);
+    } finally {
+      if (mounted) setState(() => _resendingVerification = false);
+    }
+  }
+
+  void _showAuthError(String message) {
+    final needsVerification =
+        message.toLowerCase().contains('potvrdi email') ||
+        message.toLowerCase().contains('verify');
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        action: needsVerification
+            ? SnackBarAction(
+                label: _resendingVerification ? 'Šaljem...' : 'Pošalji opet',
+                onPressed: _resendVerification,
+              )
+            : null,
+      ),
+    );
+  }
+
+  void _showInfo(String message) {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
@@ -160,11 +226,12 @@ class _AuthScreenState extends State<AuthScreen>
                 child: _AnimatedCoaLogo(
                   scale: _logoScale,
                   glow: _logoGlow,
-                  size: 122,
+                  rotation: _logoRotation,
+                  size: 152,
                 ),
               ),
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 14),
             SegmentedButton<bool>(
               segments: const [
                 ButtonSegment(value: false, label: Text('Login')),
@@ -185,10 +252,12 @@ class _AuthScreenState extends State<AuthScreen>
               phone: _phone,
               club: _club,
               country: _country,
+              sport: _sport,
               countries: _countries,
               dateOfBirth: _dateOfBirth,
               busy: _busy,
               onCountryChanged: (value) => setState(() => _country = value),
+              onSportChanged: (value) => setState(() => _sport = value),
               onPickBirthDate: _pickBirthDate,
               onSubmit: _submit,
               onSwitchToLogin: () => setState(() => _register = false),
@@ -225,10 +294,12 @@ class _AuthFormCard extends StatelessWidget {
     required this.phone,
     required this.club,
     required this.country,
+    required this.sport,
     required this.countries,
     required this.dateOfBirth,
     required this.busy,
     required this.onCountryChanged,
+    required this.onSportChanged,
     required this.onPickBirthDate,
     required this.onSubmit,
     required this.onSwitchToLogin,
@@ -243,10 +314,12 @@ class _AuthFormCard extends StatelessWidget {
   final TextEditingController phone;
   final TextEditingController club;
   final String country;
+  final String sport;
   final List<String> countries;
   final DateTime dateOfBirth;
   final bool busy;
   final ValueChanged<String> onCountryChanged;
+  final ValueChanged<String> onSportChanged;
   final VoidCallback onPickBirthDate;
   final VoidCallback onSubmit;
   final VoidCallback onSwitchToLogin;
@@ -369,6 +442,20 @@ class _AuthFormCard extends StatelessWidget {
                               .toList(),
                           onChanged: (value) {
                             if (value != null) onCountryChanged(value);
+                          },
+                        ),
+                        const SizedBox(height: 14),
+                        DropdownButtonFormField<String>(
+                          initialValue: sport,
+                          decoration: _decoration('Sport', Icons.sports_tennis),
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'tennis',
+                              child: Text('Tenis'),
+                            ),
+                          ],
+                          onChanged: (value) {
+                            if (value != null) onSportChanged(value);
                           },
                         ),
                         const SizedBox(height: 14),
@@ -502,11 +589,13 @@ class _AnimatedCoaLogo extends StatelessWidget {
   const _AnimatedCoaLogo({
     required this.scale,
     required this.glow,
+    required this.rotation,
     this.size = 78,
   });
 
   final Animation<double> scale;
   final Animation<double> glow;
+  final Animation<double> rotation;
   final double size;
 
   @override
@@ -514,31 +603,39 @@ class _AnimatedCoaLogo extends StatelessWidget {
     return AnimatedBuilder(
       animation: scale,
       builder: (context, child) {
-        return Transform.scale(
-          scale: scale.value,
-          child: Container(
-            width: size,
-            height: size,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.ink.withValues(alpha: glow.value * .45),
-                  blurRadius: 30,
-                  spreadRadius: 2,
+        return Transform.rotate(
+          angle: rotation.value,
+          child: Transform.scale(
+            scale: scale.value,
+            child: Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.clay.withValues(alpha: glow.value * .34),
+                    blurRadius: 42,
+                    spreadRadius: 5,
+                  ),
+                  BoxShadow(
+                    color: AppTheme.court.withValues(alpha: glow.value * .30),
+                    blurRadius: 34,
+                    spreadRadius: 3,
+                  ),
+                  BoxShadow(
+                    color: AppTheme.ink.withValues(alpha: .18),
+                    blurRadius: 22,
+                    offset: const Offset(0, 14),
+                  ),
+                ],
+              ),
+              child: ClipOval(
+                child: Image.asset(
+                  'assets/images/coa.png',
+                  fit: BoxFit.cover,
+                  filterQuality: FilterQuality.high,
                 ),
-                BoxShadow(
-                  color: AppTheme.ink.withValues(alpha: .16),
-                  blurRadius: 18,
-                  offset: const Offset(0, 12),
-                ),
-              ],
-            ),
-            child: ClipOval(
-              child: Image.asset(
-                'assets/images/coa.png',
-                fit: BoxFit.cover,
-                filterQuality: FilterQuality.high,
               ),
             ),
           ),

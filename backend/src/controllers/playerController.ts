@@ -9,10 +9,11 @@ export const updatePlayerSchema = z.object({
   lastName: z.string().min(1).optional(),
   birthDate: z.coerce.date().optional(),
   birthYear: z.number().int().min(1900).max(new Date().getFullYear()).optional(),
-    country: z.string().min(1).optional(),
-    club: z.string().optional(),
-    profileImage: z.string().url().optional(),
-    active: z.boolean().optional(),
+  country: z.string().min(1).optional(),
+  club: z.string().optional(),
+  sport: z.string().min(1).optional(),
+  profileImage: z.string().url().optional(),
+  active: z.boolean().optional(),
   role: z.enum(["player", "admin"]).optional()
 });
 
@@ -63,7 +64,8 @@ export const updateMyProfile = asyncHandler(async (req, res) => {
     lastName: req.body.lastName,
     birthDate: req.body.birthDate ?? (req.body.birthYear ? new Date(`${req.body.birthYear}-01-01`) : undefined),
     country: req.body.country,
-    club: req.body.club
+    club: req.body.club,
+    sport: req.body.sport
   };
 
   const player = await Player.findByIdAndUpdate(req.user!.id, allowedFields, {

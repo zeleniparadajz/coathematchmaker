@@ -33,6 +33,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _saving = false;
   bool _uploading = false;
   String _country = 'Montenegro';
+  String _sport = 'tennis';
   DateTime _birthDate = DateTime(1995);
 
   static const _countries = [
@@ -81,6 +82,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _birthDate = player.birthDate;
     _birthYear.text = _dateLabel(player.birthDate);
     _club.text = player.club ?? '';
+    _sport = player.sport;
     _country = _countries.contains(player.country)
         ? player.country
         : 'Montenegro';
@@ -95,6 +97,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         lastName: _lastName.text.trim(),
         birthDate: _birthDate,
         country: _country,
+        sport: _sport,
         club: _club.text.trim(),
       );
       await widget.auth.refreshMe();
@@ -237,6 +240,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         .toList(),
                     onChanged: (value) =>
                         setState(() => _country = value ?? _country),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: _sport,
+                    decoration: const InputDecoration(
+                      labelText: 'Sport',
+                      prefixIcon: Icon(Icons.sports_tennis),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'tennis', child: Text('Tenis')),
+                    ],
+                    onChanged: (value) =>
+                        setState(() => _sport = value ?? _sport),
                   ),
                   const SizedBox(height: 12),
                   TextFormField(

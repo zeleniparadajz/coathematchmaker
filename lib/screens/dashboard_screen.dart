@@ -16,11 +16,13 @@ class DashboardScreen extends StatefulWidget {
     required this.auth,
     required this.league,
     required this.api,
+    this.refreshTick = 0,
   });
 
   final AuthService auth;
   final LeagueService league;
   final ApiClient api;
+  final int refreshTick;
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -33,6 +35,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _future = _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant DashboardScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshTick != widget.refreshTick) {
+      setState(() => _future = _load());
+    }
   }
 
   Future<_DashboardData> _load() async {
@@ -60,7 +70,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           final data = snapshot.data!;
-          final active = data.tournaments.where((t) => t.status == 'active').length;
+          final active = data.tournaments
+              .where((t) => t.status == 'active')
+              .length;
           final top = data.rankings.take(5).toList();
 
           return ListView(
@@ -86,7 +98,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         children: [
                           Text(
                             'Zdravo, ${me.firstName}',
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w900,
                                 ),
@@ -115,10 +128,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 crossAxisSpacing: 10,
                 childAspectRatio: 1.35,
                 children: [
-                  StatCard(label: 'Igrača', value: '${data.players.length}', icon: Icons.groups),
-                  StatCard(label: 'Aktivni turniri', value: '$active', icon: Icons.emoji_events, color: AppTheme.clay),
-                  StatCard(label: 'Moji mečevi', value: '${me.matchesPlayed}', icon: Icons.sports_score),
-                  StatCard(label: 'Titule', value: '${me.tournamentsWon}', icon: Icons.workspace_premium, color: AppTheme.clay),
+                  StatCard(
+                    label: 'Igrača',
+                    value: '${data.players.length}',
+                    icon: Icons.groups,
+                  ),
+                  StatCard(
+                    label: 'Aktivni turniri',
+                    value: '$active',
+                    icon: Icons.emoji_events,
+                    color: AppTheme.clay,
+                  ),
+                  StatCard(
+                    label: 'Moji mečevi',
+                    value: '${me.matchesPlayed}',
+                    icon: Icons.sports_score,
+                  ),
+                  StatCard(
+                    label: 'Titule',
+                    value: '${me.tournamentsWon}',
+                    icon: Icons.workspace_premium,
+                    color: AppTheme.clay,
+                  ),
                 ],
               ),
               const SectionHeader('Top 5 ranking'),

@@ -98,17 +98,28 @@ Email potvrda:
 U development modu, ako `RESEND_API_KEY` nije podešen, verification link se ispisuje u backend log. Za online testiranje podesi:
 
 ```text
-APP_URL=https://tvoj-backend-url.com
+APP_URL=http://161.97.74.146:4000
 REQUIRE_EMAIL_VERIFICATION=true
 RESEND_API_KEY=...
 EMAIL_FROM=Coa The Matchmaker <verified-sender@tvoj-domen.com>
 ```
+
+`APP_URL` mora biti javni URL backend API-ja, jer se taj link šalje u emailu. Ako testiraš sa telefona i backend je u Dockeru na Linux serveru, ostavi IP ili domen servera, npr. `http://161.97.74.146:4000`. Za produkciju je bolje staviti domen sa HTTPS-om.
+
+Za Resend slanje:
+
+- `RESEND_API_KEY` mora biti validan API key iz Resend naloga
+- `EMAIL_FROM` treba da bude verifikovan sender/domen, npr. `Coa The Matchmaker <noreply@tvoj-domen.com>`
+- `onboarding@resend.dev` je dobar samo za ograničeno testiranje i može biti blokiran za slanje na tuđe email adrese
+- poslije izmjene `.env` restartuj Docker containere
 
 Ako želiš privremeno testiranje bez blokiranja login-a prije email potvrde:
 
 ```text
 REQUIRE_EMAIL_VERIFICATION=false
 ```
+
+Kad je `REQUIRE_EMAIL_VERIFICATION=true`, običan igrač dobija email nakon registracije i ne može koristiti JWT/login dok ne otvori verification link. Admin nalozi kreirani sa validnim `adminCode` su odmah potvrđeni.
 
 Odgovor vraća JWT token:
 

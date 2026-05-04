@@ -1,4 +1,5 @@
 import { Router } from "express";
+import express from "express";
 import {
   addParticipant,
   addParticipantSchema,
@@ -15,7 +16,8 @@ import {
   removeParticipant,
   registerForTournament,
   updateTournament,
-  updateTournamentSchema
+  updateTournamentSchema,
+  uploadTournamentImage
 } from "../controllers/tournamentController";
 import { tournamentRanking } from "../controllers/rankingController";
 import { authenticate, authorize } from "../middleware/auth";
@@ -36,4 +38,5 @@ tournamentRoutes.post("/:id/matches", authorize("admin"), validate(createTournam
 tournamentRoutes.post("/:id/generate-draw", authorize("admin"), generateDraw);
 tournamentRoutes.post("/:id/advance-round", authorize("admin"), advanceRound);
 tournamentRoutes.post("/:id/finish", authorize("admin"), validate(finishTournamentSchema), finishTournament);
+tournamentRoutes.post("/:id/images", authorize("admin"), express.raw({ type: "multipart/form-data", limit: "9mb" }), uploadTournamentImage);
 tournamentRoutes.get("/:id/rankings", tournamentRanking);

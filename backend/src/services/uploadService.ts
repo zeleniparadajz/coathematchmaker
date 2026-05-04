@@ -2,7 +2,6 @@ import fs from "fs/promises";
 import path from "path";
 import { AppError } from "../middleware/errorHandler";
 
-const uploadDir = path.resolve(process.cwd(), "uploads", "profile-images");
 const allowedMimeTypes = new Map([
   ["image/jpeg", "jpg"],
   ["image/png", "png"],
@@ -15,7 +14,7 @@ interface MultipartFile {
   originalName: string;
 }
 
-const parseMultipartFile = (body: Buffer, contentType?: string): MultipartFile => {
+const parseMultipartFile = (body: Buffer, contentType: string | undefined, fieldName: string): MultipartFile => {
   const boundary = contentType?.match(/boundary=(?:"([^"]+)"|([^;]+))/)?.[1] ?? contentType?.match(/boundary=(?:"([^"]+)"|([^;]+))/)?.[2];
 
   if (!boundary) {
@@ -40,7 +39,7 @@ const parseMultipartFile = (body: Buffer, contentType?: string): MultipartFile =
     const dataStart = headerEnd + 4;
     const nextBoundary = body.indexOf(Buffer.from(`\r\n--${boundary}`), dataStart);
 
-    if (name === "profileImage" && nextBoundary !== -1) {
+    if (name === fieldName && nextBoundary !== -1) {
       return {
         buffer: body.subarray(dataStart, nextBoundary),
         mimeType,
@@ -51,29 +50,69 @@ const parseMultipartFile = (body: Buffer, contentType?: string): MultipartFile =
     start = body.indexOf(delimiter, dataStart);
   }
 
-  throw new AppError(400, "profileImage file is required");
+  throw new AppError(400, `${fieldName} file is required`);
 };
 
-export const saveProfileImage = async (body: Buffer, contentType?: string): Promise<string> => {
-  const file = parseMultipartFile(body, contentType);
-  const extension = allowedMimeTypes.get(file.mimeType);
+const extensionFromContent = (file: MultipartFile): string | undefined => {
+  const byMime = allowedMimeTypes.get(file.mimeType.toLowerCase());
+
+  if (byMime) {
+    return byMime;
+  }
+
+  const lowerName = file.originalName.toLowerCase();
+  const byName = lowerName.match(/\.(jpe?g|png|webp)$/)?.[1]?.replace("jpeg", "jpg");
+
+  if (byName) {
+    return byName;
+  }
+
+  if (file.buffer.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff]))) {
+    return "jpg";
+  }
+
+  if (file.buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    return "png";
+  }
+
+  if (file.buffer.subarray(0, 4).toString("ascii") === "RIFF" && file.buffer.subarray(8, 12).toString("ascii") === "WEBP") {
+    return "webp";
+  }
+
+  return undefined;
+};
+
+export const saveUploadedImage = async (
+  body: Buffer,
+  contentType: string | undefined,
+  options: { fieldName: string; folder: string; maxSizeMb?: number }
+): Promise<string> => {
+  const file = parseMultipartFile(body, contentType, options.fieldName);
+  const extension = extensionFromContent(file);
 
   if (!extension) {
     throw new AppError(400, "Only jpg, png and webp images are allowed");
   }
 
-  if (file.buffer.length > 5 * 1024 * 1024) {
-    throw new AppError(400, "Image must be smaller than 5MB");
+  const maxSizeMb = options.maxSizeMb ?? 5;
+
+  if (file.buffer.length > maxSizeMb * 1024 * 1024) {
+    throw new AppError(400, `Image must be smaller than ${maxSizeMb}MB`);
   }
 
+  const uploadDir = path.resolve(process.cwd(), "uploads", options.folder);
   await fs.mkdir(uploadDir, { recursive: true });
 
   const safeBaseName = file.originalName.replace(/[^a-z0-9.-]/gi, "-").toLowerCase();
-  const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}-${safeBaseName || `profile.${extension}`}`;
+  const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}-${safeBaseName || `image.${extension}`}`;
   const finalName = filename.endsWith(`.${extension}`) ? filename : `${filename}.${extension}`;
   const finalPath = path.join(uploadDir, finalName);
 
   await fs.writeFile(finalPath, file.buffer);
 
-  return `/uploads/profile-images/${finalName}`;
+  return `/uploads/${options.folder}/${finalName}`;
+};
+
+export const saveProfileImage = (body: Buffer, contentType?: string): Promise<string> => {
+  return saveUploadedImage(body, contentType, { fieldName: "profileImage", folder: "profile-images" });
 };

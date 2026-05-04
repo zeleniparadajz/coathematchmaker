@@ -11,6 +11,7 @@ export interface PlayerAttrs {
   birthDate: Date;
   country: string;
   club?: string;
+  sport: string;
   profileImage?: string;
   emailVerified: boolean;
   emailVerificationToken?: string;
@@ -40,6 +41,7 @@ const playerSchema = new Schema<PlayerAttrs, PlayerModel, PlayerMethods>(
     birthDate: { type: Date, required: true },
     country: { type: String, required: true, trim: true },
     club: { type: String, trim: true },
+    sport: { type: String, required: true, trim: true, default: "tennis" },
     profileImage: { type: String, trim: true },
     emailVerified: { type: Boolean, default: false },
     emailVerificationToken: { type: String, select: false },

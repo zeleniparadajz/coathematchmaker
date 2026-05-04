@@ -13,7 +13,9 @@ class LeagueService {
 
   Future<List<Player>> players() async {
     final data = await api.getJson('/api/players');
-    return (data['players'] as List).map((item) => Player.fromJson(item)).toList();
+    return (data['players'] as List)
+        .map((item) => Player.fromJson(item))
+        .toList();
   }
 
   Future<Player> player(String id) async {
@@ -26,6 +28,7 @@ class LeagueService {
     required String lastName,
     required DateTime birthDate,
     required String country,
+    required String sport,
     String? club,
   }) async {
     final data = await api.patchJson('/api/players/me', {
@@ -33,6 +36,7 @@ class LeagueService {
       'lastName': lastName,
       'birthDate': birthDate.toIso8601String(),
       'country': country,
+      'sport': sport,
       'club': club ?? '',
     });
     return Player.fromJson(data['player']);
@@ -40,7 +44,9 @@ class LeagueService {
 
   Future<List<Player>> rankings() async {
     final data = await api.getJson('/api/rankings');
-    return (data['rankings'] as List).map((item) => Player.fromJson(item)).toList();
+    return (data['rankings'] as List)
+        .map((item) => Player.fromJson(item))
+        .toList();
   }
 
   Future<List<Tournament>> tournaments() async {
@@ -106,12 +112,22 @@ class LeagueService {
     return Tournament.fromJson(data['tournament']);
   }
 
-  Future<void> addTournamentParticipant(String tournamentId, String playerId) async {
-    await api.postJson('/api/tournaments/$tournamentId/participants', {'playerId': playerId});
+  Future<void> addTournamentParticipant(
+    String tournamentId,
+    String playerId,
+  ) async {
+    await api.postJson('/api/tournaments/$tournamentId/participants', {
+      'playerId': playerId,
+    });
   }
 
-  Future<void> removeTournamentParticipant(String tournamentId, String playerId) async {
-    await api.deleteJson('/api/tournaments/$tournamentId/participants/$playerId');
+  Future<void> removeTournamentParticipant(
+    String tournamentId,
+    String playerId,
+  ) async {
+    await api.deleteJson(
+      '/api/tournaments/$tournamentId/participants/$playerId',
+    );
   }
 
   Future<void> generateTournamentDraw(String tournamentId) async {
@@ -160,18 +176,24 @@ class LeagueService {
     required String opponentId,
     String? tournamentId,
     String round = 'Challenge',
+    String? location,
   }) async {
     await api.postJson('/api/matches/challenge', {
       'opponentId': opponentId,
       'tournamentId': ?tournamentId,
       'round': round,
+      'location': ?location,
     });
   }
 
-  Future<void> acceptMatch(String id) => api.postJson('/api/matches/$id/accept');
-  Future<void> rejectMatch(String id) => api.postJson('/api/matches/$id/reject');
-  Future<void> confirmResult(String id) => api.postJson('/api/matches/$id/confirm-result');
-  Future<void> disputeResult(String id) => api.postJson('/api/matches/$id/dispute');
+  Future<void> acceptMatch(String id) =>
+      api.postJson('/api/matches/$id/accept');
+  Future<void> rejectMatch(String id) =>
+      api.postJson('/api/matches/$id/reject');
+  Future<void> confirmResult(String id) =>
+      api.postJson('/api/matches/$id/confirm-result');
+  Future<void> disputeResult(String id) =>
+      api.postJson('/api/matches/$id/dispute');
 
   Future<void> submitResult({
     required String matchId,
@@ -241,5 +263,21 @@ class LeagueService {
   Future<Player> uploadProfileImage(XFile file) async {
     final data = await api.uploadProfileImage(file);
     return Player.fromJson(data['player']);
+  }
+
+  Future<TennisMatch> uploadMatchImage(String matchId, XFile file) async {
+    final data = await api.uploadImage('/api/matches/$matchId/images', file);
+    return TennisMatch.fromJson(data['match']);
+  }
+
+  Future<Tournament> uploadTournamentImage(
+    String tournamentId,
+    XFile file,
+  ) async {
+    final data = await api.uploadImage(
+      '/api/tournaments/$tournamentId/images',
+      file,
+    );
+    return Tournament.fromJson(data['tournament']);
   }
 }

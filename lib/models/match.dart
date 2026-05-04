@@ -15,9 +15,9 @@ class SetScore {
   }
 
   Map<String, dynamic> toJson() => {
-        'player1Games': player1Games,
-        'player2Games': player2Games,
-      };
+    'player1Games': player1Games,
+    'player2Games': player2Games,
+  };
 }
 
 class TennisMatch {
@@ -29,6 +29,8 @@ class TennisMatch {
     required this.sets,
     required this.round,
     required this.status,
+    this.location,
+    this.images = const [],
     this.acceptedAt,
     this.resultSubmittedBy,
     this.winner,
@@ -42,6 +44,8 @@ class TennisMatch {
   final Player? winner;
   final String round;
   final String status;
+  final String? location;
+  final List<String> images;
   final DateTime? acceptedAt;
   final Player? resultSubmittedBy;
 
@@ -65,6 +69,10 @@ class TennisMatch {
           : null,
       round: json['round'] ?? '',
       status: json['status'] ?? 'pending',
+      location: json['location'],
+      images: (json['images'] as List? ?? [])
+          .map((item) => item.toString())
+          .toList(),
       acceptedAt: DateTime.tryParse(json['acceptedAt'] ?? ''),
       resultSubmittedBy: json['resultSubmittedBy'] is Map<String, dynamic>
           ? Player.fromJson(json['resultSubmittedBy'])

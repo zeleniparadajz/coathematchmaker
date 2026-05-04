@@ -12,6 +12,7 @@ class Tournament {
     required this.endDate,
     required this.status,
     required this.participants,
+    this.images = const [],
     this.winner,
   });
 
@@ -25,6 +26,7 @@ class Tournament {
   final DateTime endDate;
   final String status;
   final List<Player> participants;
+  final List<String> images;
   final Player? winner;
 
   bool get isUpcoming => status == 'upcoming';
@@ -43,6 +45,9 @@ class Tournament {
       participants: (json['participants'] as List? ?? [])
           .whereType<Map<String, dynamic>>()
           .map(Player.fromJson)
+          .toList(),
+      images: (json['images'] as List? ?? [])
+          .map((item) => item.toString())
           .toList(),
       winner: json['winner'] is Map<String, dynamic>
           ? Player.fromJson(json['winner'])

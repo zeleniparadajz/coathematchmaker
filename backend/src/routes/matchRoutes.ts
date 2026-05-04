@@ -1,4 +1,5 @@
 import { Router } from "express";
+import express from "express";
 import {
   acceptMatch,
   adminResolve,
@@ -18,7 +19,8 @@ import {
   submitResult,
   submitResultSchema,
   updateMatch,
-  updateMatchSchema
+  updateMatchSchema,
+  uploadMatchImage
 } from "../controllers/matchController";
 import { authenticate, authorize } from "../middleware/auth";
 import { validate } from "../middleware/validate";
@@ -41,3 +43,4 @@ matchRoutes.post("/:id/submit-result", validate(submitResultSchema), submitResul
 matchRoutes.post("/:id/confirm-result", confirmResult);
 matchRoutes.post("/:id/dispute", disputeResult);
 matchRoutes.post("/:id/admin-resolve", authorize("admin"), validate(adminResolveSchema), adminResolve);
+matchRoutes.post("/:id/images", express.raw({ type: "multipart/form-data", limit: "9mb" }), uploadMatchImage);

@@ -31,6 +31,10 @@ export const authenticate = (req: Request, _res: Response, next: NextFunction): 
         throw new AppError(403, "Player account is inactive");
       }
 
+      if (env.requireEmailVerification && !player.emailVerified) {
+        throw new AppError(403, "Potvrdi email prije korišćenja aplikacije");
+      }
+
       req.user = {
         id: decoded.sub,
         role: player.role,

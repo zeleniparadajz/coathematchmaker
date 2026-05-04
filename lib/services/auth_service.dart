@@ -42,9 +42,12 @@ class AuthService extends ChangeNotifier {
     await _saveSession(data);
   }
 
-  Future<void> register(Map<String, dynamic> payload) async {
+  Future<Map<String, dynamic>> register(Map<String, dynamic> payload) async {
     final data = await api.postJson('/api/auth/register', payload);
-    await _saveSession(data);
+    if (data['token'] != null) {
+      await _saveSession(data);
+    }
+    return data;
   }
 
   Future<void> resendVerification(String email) async {

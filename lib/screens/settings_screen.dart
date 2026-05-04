@@ -6,9 +6,10 @@ import '../services/api_client.dart';
 import '../services/league_service.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key, required this.league});
+  const SettingsScreen({super.key, required this.league, this.refreshTick = 0});
 
   final LeagueService league;
+  final int refreshTick;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -25,6 +26,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     _future = _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant SettingsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshTick != widget.refreshTick) {
+      setState(() => _future = _load());
+    }
   }
 
   Future<_SettingsData> _load() async {
@@ -46,7 +55,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
       setState(() => _future = _load());
     } on ApiException catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -57,12 +70,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await widget.league.adminResolve(
         matchId: match.id,
         action: action,
-        winner: action == 'confirm' ? match.winner?.id ?? match.player1.id : null,
+        winner: action == 'confirm'
+            ? match.winner?.id ?? match.player1.id
+            : null,
         sets: action == 'confirm' ? match.sets : null,
       );
       setState(() => _future = _load());
     } on ApiException catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
     }
   }
 
@@ -86,10 +105,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 6),
-                  Text(
-                    snapshot.error.toString(),
-                    textAlign: TextAlign.center,
-                  ),
+                  Text(snapshot.error.toString(), textAlign: TextAlign.center),
                   const SizedBox(height: 14),
                   FilledButton.icon(
                     onPressed: () => setState(() => _future = _load()),
@@ -101,7 +117,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           );
         }
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -111,13 +129,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Liga podešavanja', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
+                    Text(
+                      'Liga podešavanja',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
                     const SizedBox(height: 14),
                     _numberField(_delay, 'Minute do unosa rezultata'),
                     const SizedBox(height: 12),
                     _numberField(_matchPoints, 'Poeni za pobjedu'),
                     const SizedBox(height: 12),
-                    _numberField(_tournamentPoints, 'Poeni za osvajanje turnira'),
+                    _numberField(
+                      _tournamentPoints,
+                      'Poeni za osvajanje turnira',
+                    ),
                     const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
@@ -132,15 +158,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
             const SizedBox(height: 18),
-            Text('Disputed mečevi', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
+            Text(
+              'Disputed mečevi',
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+            ),
             const SizedBox(height: 10),
             if (snapshot.data!.disputed.isEmpty)
               const Card(child: ListTile(title: Text('Nema spornih mečeva'))),
             ...snapshot.data!.disputed.map(
               (match) => Card(
                 child: ListTile(
-                  title: Text('${match.player1.fullName} vs ${match.player2.fullName}'),
-                  subtitle: Text(match.scoreText.isEmpty ? 'Bez rezultata' : match.scoreText),
+                  title: Text(
+                    '${match.player1.fullName} vs ${match.player2.fullName}',
+                  ),
+                  subtitle: Text(
+                    match.scoreText.isEmpty ? 'Bez rezultata' : match.scoreText,
+                  ),
                   trailing: PopupMenuButton<String>(
                     onSelected: (action) => _resolve(match, action),
                     itemBuilder: (_) => const [
@@ -162,7 +197,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return TextField(
       controller: controller,
       keyboardType: TextInputType.number,
-      decoration: InputDecoration(labelText: label, prefixIcon: const Icon(Icons.tune)),
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: const Icon(Icons.tune),
+      ),
     );
   }
 }

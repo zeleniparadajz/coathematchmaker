@@ -19,6 +19,7 @@ export const registerSchema = z.object({
   birthYear: z.number().int().min(1900).max(new Date().getFullYear()).optional(),
   country: z.string().min(1),
   club: z.string().optional(),
+  sport: z.string().min(1).default("tennis"),
   adminCode: z.string().optional()
 });
 
@@ -35,6 +36,7 @@ export const register = asyncHandler(async (req, res) => {
   const role = req.body.adminCode && req.body.adminCode === env.adminRegistrationCode ? "admin" : "player";
   const birthDate = req.body.birthDate ?? new Date(`${req.body.birthYear}-01-01`);
   const verification = createEmailVerificationToken();
+  const emailVerified = role === "admin" || !env.requireEmailVerification;
 
   const player = await Player.create({
     firstName: req.body.firstName,
@@ -44,19 +46,30 @@ export const register = asyncHandler(async (req, res) => {
     birthDate,
     country: req.body.country,
     club: req.body.club,
-    emailVerified: role === "admin",
-    emailVerificationToken: role === "admin" ? undefined : verification.hashedToken,
-    emailVerificationExpires: role === "admin" ? undefined : verification.expiresAt,
+    sport: req.body.sport,
+    emailVerified,
+    emailVerificationToken: emailVerified ? undefined : verification.hashedToken,
+    emailVerificationExpires: emailVerified ? undefined : verification.expiresAt,
     role
   });
 
   if (!player.emailVerified) {
-    await sendPlayerVerificationEmail(player, verification.rawToken);
+    try {
+      await sendPlayerVerificationEmail(player, verification.rawToken);
+    } catch (error) {
+      await Player.findByIdAndDelete(player.id);
+      console.error("Email verification send failed", error);
+      throw new AppError(
+        502,
+        "Nalog nije kreiran jer verification email nije poslat. Provjeri RESEND_API_KEY, EMAIL_FROM i verifikovan domen."
+      );
+    }
   }
 
-  const token = signAuthToken(player);
+  const emailVerificationRequired = env.requireEmailVerification && !player.emailVerified;
+  const token = emailVerificationRequired ? undefined : signAuthToken(player);
 
-  res.status(201).json({ token, player, emailVerificationRequired: !player.emailVerified });
+  res.status(201).json({ token, player, emailVerificationRequired });
 });
 
 export const login = asyncHandler(async (req, res) => {
@@ -71,7 +84,7 @@ export const login = asyncHandler(async (req, res) => {
   }
 
   if (env.requireEmailVerification && !player.emailVerified) {
-    throw new AppError(403, "Please verify your email before logging in");
+    throw new AppError(403, "Potvrdi email prije prijave");
   }
 
   const token = signAuthToken(player);
@@ -118,7 +131,15 @@ export const resendVerification = asyncHandler(async (req, res) => {
   player.emailVerificationToken = verification.hashedToken;
   player.emailVerificationExpires = verification.expiresAt;
   await player.save();
-  await sendPlayerVerificationEmail(player, verification.rawToken);
+  try {
+    await sendPlayerVerificationEmail(player, verification.rawToken);
+  } catch (error) {
+    console.error("Email verification resend failed", error);
+    throw new AppError(
+      502,
+      "Verification email nije poslat. Provjeri RESEND_API_KEY, EMAIL_FROM i verifikovan domen."
+    );
+  }
 
   res.json({ message: "Verification email sent" });
 });

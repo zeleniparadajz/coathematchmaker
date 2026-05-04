@@ -6,6 +6,7 @@ import { AppError } from "../middleware/errorHandler";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { awardTournamentWin } from "../services/rankingService";
 import { advanceTournamentRound, generateTournamentDraw } from "../services/bracketService";
+import { saveUploadedImage } from "../services/uploadService";
 
 export const createTournamentSchema = z.object({
   name: z.string().min(1),
@@ -239,4 +240,28 @@ export const finishTournament = asyncHandler(async (req, res) => {
     .populate("winner", "-password");
 
   res.json({ tournament });
+});
+
+export const uploadTournamentImage = asyncHandler(async (req, res) => {
+  const tournament = await Tournament.findById(req.params.id);
+
+  if (!tournament) {
+    throw new AppError(404, "Tournament not found");
+  }
+
+  if (tournament.images.length >= 5) {
+    throw new AppError(400, "Tournament gallery can contain up to 5 images");
+  }
+
+  const image = await saveUploadedImage(req.body as Buffer, req.headers["content-type"], {
+    fieldName: "image",
+    folder: "tournament-images",
+    maxSizeMb: 8
+  });
+
+  tournament.images.push(image);
+  await tournament.save();
+  await tournament.populate("participants", "-password");
+
+  res.json({ image, tournament });
 });

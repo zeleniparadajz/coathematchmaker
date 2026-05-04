@@ -21,6 +21,7 @@ export interface TournamentAttrs {
   status: TournamentStatus;
   participants: Types.ObjectId[];
   matches: Types.ObjectId[];
+  images: string[];
   bracketSize?: number;
   drawGeneratedAt?: Date;
   winner?: Types.ObjectId;
@@ -42,6 +43,7 @@ const tournamentSchema = new Schema<TournamentAttrs>(
     status: { type: String, enum: ["upcoming", "active", "finished"], default: "upcoming" },
     participants: [{ type: Schema.Types.ObjectId, ref: "Player" }],
     matches: [{ type: Schema.Types.ObjectId, ref: "Match" }],
+    images: { type: [String], default: [] },
     bracketSize: { type: Number },
     drawGeneratedAt: { type: Date },
     winner: { type: Schema.Types.ObjectId, ref: "Player" }

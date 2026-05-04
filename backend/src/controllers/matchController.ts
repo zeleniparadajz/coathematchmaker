@@ -7,6 +7,7 @@ import { AppError } from "../middleware/errorHandler";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { applyConfirmedMatchStats } from "../services/rankingService";
 import { getLeagueSettings } from "../services/settingsService";
+import { saveUploadedImage } from "../services/uploadService";
 
 const setScoreSchema = z.object({
   player1Games: z.number().int().min(0),
@@ -26,6 +27,7 @@ export const createMatchSchema = z.object({
   sets: z.array(setScoreSchema).default([]),
   winner: z.string().optional(),
   round: z.string().min(1).default("Challenge"),
+  location: z.string().optional(),
   status: z
     .enum(["pending", "accepted", "waiting_confirmation", "confirmed", "rejected", "disputed", "cancelled"])
     .default("pending")
@@ -34,7 +36,8 @@ export const createMatchSchema = z.object({
 export const challengeMatchSchema = z.object({
   opponentId: z.string().min(1),
   tournamentId: z.string().min(1).optional(),
-  round: z.string().min(1).default("Challenge")
+  round: z.string().min(1).default("Challenge"),
+  location: z.string().optional()
 });
 
 export const submitResultSchema = resultSchema;
@@ -215,6 +218,7 @@ export const createChallenge = asyncHandler(async (req, res) => {
     player1,
     player2,
     round: req.body.round,
+    location: req.body.location,
     status: "pending",
     challengedBy: req.user!.playerId
   });
@@ -481,4 +485,29 @@ export const updateMatch = asyncHandler(async (req, res) => {
   await applyConfirmedMatchStats(match);
 
   res.json({ match: await populateMatch(match._id) });
+});
+
+export const uploadMatchImage = asyncHandler(async (req, res) => {
+  const match = await Match.findById(req.params.id);
+
+  if (!match) {
+    throw new AppError(404, "Match not found");
+  }
+
+  ensureParticipantOrAdmin(match, req.user!.id, req.user!.role);
+
+  if (match.images.length >= 5) {
+    throw new AppError(400, "Match gallery can contain up to 5 images");
+  }
+
+  const image = await saveUploadedImage(req.body as Buffer, req.headers["content-type"], {
+    fieldName: "image",
+    folder: "match-images",
+    maxSizeMb: 8
+  });
+
+  match.images.push(image);
+  await match.save();
+
+  res.json({ image, match: await populateMatch(match._id) });
 });

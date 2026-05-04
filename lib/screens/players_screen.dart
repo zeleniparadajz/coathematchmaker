@@ -15,11 +15,13 @@ class PlayersScreen extends StatefulWidget {
     required this.league,
     required this.api,
     required this.auth,
+    this.refreshTick = 0,
   });
 
   final LeagueService league;
   final ApiClient api;
   final AuthService auth;
+  final int refreshTick;
 
   @override
   State<PlayersScreen> createState() => _PlayersScreenState();
@@ -36,16 +38,30 @@ class _PlayersScreenState extends State<PlayersScreen> {
   }
 
   @override
+  void didUpdateWidget(covariant PlayersScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshTick != widget.refreshTick) {
+      setState(() => _future = widget.league.players());
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<Player>>(
       future: _future,
       builder: (context, snapshot) {
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
         final players = snapshot.data!
-            .where((player) => player.fullName.toLowerCase().contains(_query.toLowerCase()))
+            .where(
+              (player) =>
+                  player.fullName.toLowerCase().contains(_query.toLowerCase()),
+            )
             .toList();
         return RefreshIndicator(
-          onRefresh: () async => setState(() => _future = widget.league.players()),
+          onRefresh: () async =>
+              setState(() => _future = widget.league.players()),
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -62,7 +78,9 @@ class _PlayersScreenState extends State<PlayersScreen> {
                   child: ListTile(
                     leading: PlayerAvatar(player: player, api: widget.api),
                     title: Text(player.fullName),
-                    subtitle: Text('${player.club ?? player.country}  |  ${player.wins}-${player.losses}'),
+                    subtitle: Text(
+                      '${player.club ?? player.country}  |  ${player.wins}-${player.losses}',
+                    ),
                     trailing: Text('${player.totalPoints} pts'),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
@@ -115,7 +133,10 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-    final file = await picker.pickImage(source: ImageSource.gallery, imageQuality: 82);
+    final file = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 82,
+    );
     if (file == null) return;
 
     setState(() => _uploading = true);
@@ -125,7 +146,9 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
       setState(() => _future = widget.league.player(widget.playerId));
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
       }
     } finally {
       if (mounted) setState(() => _uploading = false);
@@ -139,7 +162,9 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
       body: FutureBuilder<Player>(
         future: _future,
         builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
           final player = snapshot.data!;
           final canEdit = widget.auth.currentPlayer?.id == player.id;
           return ListView(
@@ -158,7 +183,9 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                             ? const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             : const Icon(Icons.photo_camera),
                       ),
@@ -169,7 +196,9 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
               Text(
                 player.fullName,
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
               ),
               Text(
                 '${player.country}  |  ${player.club ?? 'Bez kluba'}',
@@ -184,12 +213,39 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                 crossAxisSpacing: 10,
                 childAspectRatio: 1.25,
                 children: [
-                  StatCard(label: 'Poeni', value: '${player.totalPoints}', icon: Icons.leaderboard),
-                  StatCard(label: 'Pobjede', value: '${player.wins}', icon: Icons.check_circle, color: AppTheme.court),
-                  StatCard(label: 'Porazi', value: '${player.losses}', icon: Icons.cancel, color: AppTheme.clay),
-                  StatCard(label: 'Mečevi', value: '${player.matchesPlayed}', icon: Icons.sports_tennis),
-                  StatCard(label: 'Titule', value: '${player.tournamentsWon}', icon: Icons.emoji_events, color: AppTheme.clay),
-                  StatCard(label: 'Godište', value: '${player.birthYear}', icon: Icons.cake),
+                  StatCard(
+                    label: 'Poeni',
+                    value: '${player.totalPoints}',
+                    icon: Icons.leaderboard,
+                  ),
+                  StatCard(
+                    label: 'Pobjede',
+                    value: '${player.wins}',
+                    icon: Icons.check_circle,
+                    color: AppTheme.court,
+                  ),
+                  StatCard(
+                    label: 'Porazi',
+                    value: '${player.losses}',
+                    icon: Icons.cancel,
+                    color: AppTheme.clay,
+                  ),
+                  StatCard(
+                    label: 'Mečevi',
+                    value: '${player.matchesPlayed}',
+                    icon: Icons.sports_tennis,
+                  ),
+                  StatCard(
+                    label: 'Titule',
+                    value: '${player.tournamentsWon}',
+                    icon: Icons.emoji_events,
+                    color: AppTheme.clay,
+                  ),
+                  StatCard(
+                    label: 'Godište',
+                    value: '${player.birthYear}',
+                    icon: Icons.cake,
+                  ),
                 ],
               ),
             ],

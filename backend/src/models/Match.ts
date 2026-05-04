@@ -21,6 +21,7 @@ export interface MatchAttrs {
   sets: SetScore[];
   winner?: Types.ObjectId;
   round: string;
+  location?: string;
   status: MatchStatus;
   challengedBy?: Types.ObjectId;
   acceptedAt?: Date;
@@ -33,6 +34,7 @@ export interface MatchAttrs {
   cancelledAt?: Date;
   adminResolvedBy?: Types.ObjectId;
   adminResolutionNote?: string;
+  images: string[];
   statsApplied: boolean;
 }
 
@@ -52,6 +54,7 @@ const matchSchema = new Schema<MatchAttrs>(
     sets: { type: [setScoreSchema], default: [] },
     winner: { type: Schema.Types.ObjectId, ref: "Player" },
     round: { type: String, required: true, trim: true },
+    location: { type: String, trim: true },
     status: {
       type: String,
       enum: ["pending", "accepted", "waiting_confirmation", "confirmed", "rejected", "disputed", "cancelled"],
@@ -68,6 +71,7 @@ const matchSchema = new Schema<MatchAttrs>(
     cancelledAt: { type: Date },
     adminResolvedBy: { type: Schema.Types.ObjectId, ref: "Player" },
     adminResolutionNote: { type: String, trim: true },
+    images: { type: [String], default: [] },
     statsApplied: { type: Boolean, default: false, select: false }
   },
   {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../models/match.dart';
 import '../models/player.dart';
@@ -16,11 +17,13 @@ class TournamentsScreen extends StatefulWidget {
     required this.league,
     required this.api,
     required this.auth,
+    this.refreshTick = 0,
   });
 
   final LeagueService league;
   final ApiClient api;
   final AuthService auth;
+  final int refreshTick;
 
   @override
   State<TournamentsScreen> createState() => _TournamentsScreenState();
@@ -36,18 +39,29 @@ class _TournamentsScreenState extends State<TournamentsScreen> {
   }
 
   @override
+  void didUpdateWidget(covariant TournamentsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshTick != widget.refreshTick) {
+      setState(() => _future = widget.league.tournaments());
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<Tournament>>(
       future: _future,
       builder: (context, snapshot) {
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
         return Scaffold(
           floatingActionButton: widget.auth.isAdmin
               ? FloatingActionButton.extended(
                   onPressed: () async {
                     await Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => TournamentFormScreen(league: widget.league),
+                        builder: (_) =>
+                            TournamentFormScreen(league: widget.league),
                       ),
                     );
                     setState(() => _future = widget.league.tournaments());
@@ -57,29 +71,35 @@ class _TournamentsScreenState extends State<TournamentsScreen> {
                 )
               : null,
           body: RefreshIndicator(
-            onRefresh: () async => setState(() => _future = widget.league.tournaments()),
+            onRefresh: () async =>
+                setState(() => _future = widget.league.tournaments()),
             child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: snapshot.data!.map((tournament) {
-              return Card(
-                child: ListTile(
-                  leading: const Icon(Icons.emoji_events, color: AppTheme.clay),
-                  title: Text(tournament.name),
-                  subtitle: Text('${tournament.location}  |  ${tournament.surface}  |  ${tournament.category}'),
-                  trailing: Chip(label: Text(tournament.status)),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => TournamentDetailsScreen(
-                        tournamentId: tournament.id,
-                        league: widget.league,
-                        api: widget.api,
-                        auth: widget.auth,
+              padding: const EdgeInsets.all(16),
+              children: snapshot.data!.map((tournament) {
+                return Card(
+                  child: ListTile(
+                    leading: const Icon(
+                      Icons.emoji_events,
+                      color: AppTheme.clay,
+                    ),
+                    title: Text(tournament.name),
+                    subtitle: Text(
+                      '${tournament.location}  |  ${tournament.surface}  |  ${tournament.category}',
+                    ),
+                    trailing: Chip(label: Text(tournament.status)),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => TournamentDetailsScreen(
+                          tournamentId: tournament.id,
+                          league: widget.league,
+                          api: widget.api,
+                          auth: widget.auth,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              );
-            }).toList(),
+                );
+              }).toList(),
             ),
           ),
         );
@@ -103,11 +123,13 @@ class TournamentDetailsScreen extends StatefulWidget {
   final AuthService auth;
 
   @override
-  State<TournamentDetailsScreen> createState() => _TournamentDetailsScreenState();
+  State<TournamentDetailsScreen> createState() =>
+      _TournamentDetailsScreenState();
 }
 
 class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
   late Future<_TournamentDetailsData> _future;
+  bool _uploadingImage = false;
 
   @override
   void initState() {
@@ -117,9 +139,15 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
 
   Future<_TournamentDetailsData> _load() async {
     final tournament = await widget.league.tournament(widget.tournamentId);
-    final rankings = await widget.league.tournamentRankings(widget.tournamentId);
-    final matches = await widget.league.matches(tournamentId: widget.tournamentId);
-    final players = widget.auth.isAdmin ? await widget.league.players() : <Player>[];
+    final rankings = await widget.league.tournamentRankings(
+      widget.tournamentId,
+    );
+    final matches = await widget.league.matches(
+      tournamentId: widget.tournamentId,
+    );
+    final players = widget.auth.isAdmin
+        ? await widget.league.players()
+        : <Player>[];
     return _TournamentDetailsData(tournament, rankings, matches, players);
   }
 
@@ -129,30 +157,71 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
       setState(() => _future = _load());
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
       }
     }
   }
 
   Future<void> _addParticipant(String playerId) async {
     try {
-      await widget.league.addTournamentParticipant(widget.tournamentId, playerId);
+      await widget.league.addTournamentParticipant(
+        widget.tournamentId,
+        playerId,
+      );
       setState(() => _future = _load());
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
       }
     }
   }
 
   Future<void> _removeParticipant(String playerId) async {
     try {
-      await widget.league.removeTournamentParticipant(widget.tournamentId, playerId);
+      await widget.league.removeTournamentParticipant(
+        widget.tournamentId,
+        playerId,
+      );
       setState(() => _future = _load());
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
       }
+    }
+  }
+
+  Future<void> _pickTournamentImage(Tournament tournament) async {
+    if (tournament.images.length >= 5) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Galerija može imati najviše 5 slika.')),
+      );
+      return;
+    }
+
+    final file = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 86,
+    );
+    if (file == null) return;
+
+    setState(() => _uploadingImage = true);
+    try {
+      await widget.league.uploadTournamentImage(tournament.id, file);
+      setState(() => _future = _load());
+    } on ApiException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingImage = false);
     }
   }
 
@@ -162,7 +231,9 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
       setState(() => _future = _load());
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
       }
     }
   }
@@ -174,20 +245,29 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
       body: FutureBuilder<_TournamentDetailsData>(
         future: _future,
         builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
           final tournament = snapshot.data!.tournament;
           final availablePlayers = snapshot.data!.players
-              .where((player) => !tournament.participants.any((participant) => participant.id == player.id))
+              .where(
+                (player) => !tournament.participants.any(
+                  (participant) => participant.id == player.id,
+                ),
+              )
               .toList();
-          final registered = tournament.participants
-              .any((player) => player.id == widget.auth.currentPlayer?.id);
+          final registered = tournament.participants.any(
+            (player) => player.id == widget.auth.currentPlayer?.id,
+          );
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [AppTheme.court, AppTheme.lime]),
+                  gradient: const LinearGradient(
+                    colors: [AppTheme.court, AppTheme.lime],
+                  ),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Column(
@@ -195,18 +275,67 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
                   children: [
                     Text(
                       tournament.name,
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
                             fontWeight: FontWeight.w900,
                             color: AppTheme.ink,
                           ),
                     ),
-                    Text('${tournament.location}  |  ${tournament.surface}  |  ${tournament.category}'),
+                    Text(
+                      '${tournament.location}  |  ${tournament.surface}  |  ${tournament.category}',
+                    ),
                     Text('Format: ${tournament.format}'),
                     const SizedBox(height: 8),
-                    Text('${tournament.startDate.toLocal().toString().split(' ').first} - ${tournament.endDate.toLocal().toString().split(' ').first}'),
+                    Text(
+                      '${tournament.startDate.toLocal().toString().split(' ').first} - ${tournament.endDate.toLocal().toString().split(' ').first}',
+                    ),
+                    const SizedBox(height: 12),
+                    if (widget.auth.isAdmin)
+                      FilledButton.icon(
+                        onPressed: _uploadingImage
+                            ? null
+                            : () => _pickTournamentImage(tournament),
+                        icon: _uploadingImage
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.add_photo_alternate),
+                        label: const Text('Dodaj sliku'),
+                      ),
                   ],
                 ),
               ),
+              const SectionHeader('Galerija'),
+              if (tournament.images.isEmpty)
+                const Card(
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text('Još nema slika za ovaj turnir.'),
+                  ),
+                )
+              else
+                GridView.count(
+                  crossAxisCount: 2,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                  children: tournament.images
+                      .map(
+                        (image) => ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            widget.api.imageUrl(image),
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
               const SizedBox(height: 14),
               if (tournament.isUpcoming && !registered)
                 FilledButton.icon(
@@ -230,7 +359,12 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
                 DropdownButtonFormField<String>(
                   decoration: const InputDecoration(labelText: 'Igrač'),
                   items: availablePlayers
-                      .map((player) => DropdownMenuItem(value: player.id, child: Text(player.fullName)))
+                      .map(
+                        (player) => DropdownMenuItem(
+                          value: player.id,
+                          child: Text(player.fullName),
+                        ),
+                      )
                       .toList(),
                   onChanged: (playerId) {
                     if (playerId != null) _addParticipant(playerId);
@@ -258,9 +392,14 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
               ...snapshot.data!.rankings.map(
                 (ranking) => Card(
                   child: ListTile(
-                    leading: PlayerAvatar(player: ranking.player, api: widget.api),
+                    leading: PlayerAvatar(
+                      player: ranking.player,
+                      api: widget.api,
+                    ),
                     title: Text(ranking.player.fullName),
-                    subtitle: Text('${ranking.wins} pobjeda, ${ranking.losses} poraza'),
+                    subtitle: Text(
+                      '${ranking.wins} pobjeda, ${ranking.losses} poraza',
+                    ),
                     trailing: Text('${ranking.points} pts'),
                   ),
                 ),
@@ -269,10 +408,17 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
               ...snapshot.data!.matches.map(
                 (match) => Card(
                   child: ListTile(
-                    leading: const Icon(Icons.sports_tennis, color: AppTheme.court),
-                    title: Text('${match.player1.fullName} vs ${match.player2.fullName}'),
+                    leading: const Icon(
+                      Icons.sports_tennis,
+                      color: AppTheme.court,
+                    ),
+                    title: Text(
+                      '${match.player1.fullName} vs ${match.player2.fullName}',
+                    ),
                     subtitle: Text('${match.round}  |  ${match.status}'),
-                    trailing: Text(match.scoreText.isEmpty ? '-' : match.scoreText),
+                    trailing: Text(
+                      match.scoreText.isEmpty ? '-' : match.scoreText,
+                    ),
                   ),
                 ),
               ),
@@ -285,7 +431,12 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
 }
 
 class _TournamentDetailsData {
-  const _TournamentDetailsData(this.tournament, this.rankings, this.matches, this.players);
+  const _TournamentDetailsData(
+    this.tournament,
+    this.rankings,
+    this.matches,
+    this.players,
+  );
 
   final Tournament tournament;
   final List<TournamentRanking> rankings;
@@ -294,7 +445,11 @@ class _TournamentDetailsData {
 }
 
 class TournamentFormScreen extends StatefulWidget {
-  const TournamentFormScreen({super.key, required this.league, this.tournament});
+  const TournamentFormScreen({
+    super.key,
+    required this.league,
+    this.tournament,
+  });
 
   final LeagueService league;
   final Tournament? tournament;
@@ -360,7 +515,9 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
       if (mounted) Navigator.of(context).pop();
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -370,7 +527,9 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.tournament == null ? 'Novi turnir' : 'Uredi turnir')),
+      appBar: AppBar(
+        title: Text(widget.tournament == null ? 'Novi turnir' : 'Uredi turnir'),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -392,9 +551,9 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
                 Text(
                   widget.tournament == null ? 'Kreiraj turnir' : 'Uredi turnir',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                      ),
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 const Text(
@@ -418,7 +577,9 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
                     children: [
                       Expanded(child: _field(_surface, 'Podloga', Icons.grass)),
                       const SizedBox(width: 12),
-                      Expanded(child: _field(_category, 'Kategorija', Icons.category)),
+                      Expanded(
+                        child: _field(_category, 'Kategorija', Icons.category),
+                      ),
                     ],
                   ),
                 ],
@@ -435,50 +596,57 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
                   Text(
                     'Format turnira',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                   const SizedBox(height: 10),
                   _formatCard(
                     value: 'elimination',
                     title: 'BYE bracket',
-                    subtitle: 'Klasičan eliminacioni žrijeb. Ako broj nije 8/16/32, sistem dodaje BYE prolaze.',
+                    subtitle:
+                        'Klasičan eliminacioni žrijeb. Ako broj nije 8/16/32, sistem dodaje BYE prolaze.',
                     icon: Icons.account_tree,
                   ),
                   _formatCard(
                     value: 'qualification',
                     title: 'Kvalifikacije',
-                    subtitle: 'Višak igrača igra Q mečeve, a pobjednici ulaze u glavni 2^n bracket.',
+                    subtitle:
+                        'Višak igrača igra Q mečeve, a pobjednici ulaze u glavni 2^n bracket.',
                     icon: Icons.filter_alt,
                   ),
                   _formatCard(
                     value: 'round_robin',
                     title: 'Round-robin',
-                    subtitle: 'Svako igra sa svakim. Najbolje za male grupe i ligu.',
+                    subtitle:
+                        'Svako igra sa svakim. Najbolje za male grupe i ligu.',
                     icon: Icons.all_inclusive,
                   ),
                   _formatCard(
                     value: 'group_knockout',
                     title: 'Grupe + knockout',
-                    subtitle: 'Prvo grupe, zatim najbolji prolaze u eliminacionu fazu.',
+                    subtitle:
+                        'Prvo grupe, zatim najbolji prolaze u eliminacionu fazu.',
                     icon: Icons.grid_view,
                   ),
                   _formatCard(
                     value: 'double_elimination',
                     title: 'Double elimination',
-                    subtitle: 'Igrač ispada tek poslije dva poraza. Više mečeva, manje slučajnosti.',
+                    subtitle:
+                        'Igrač ispada tek poslije dva poraza. Više mečeva, manje slučajnosti.',
                     icon: Icons.restart_alt,
                   ),
                   _formatCard(
                     value: 'compass',
                     title: 'Compass draw',
-                    subtitle: 'Igrači nastavljaju i poslije poraza, dobro za rekreativne turnire.',
+                    subtitle:
+                        'Igrači nastavljaju i poslije poraza, dobro za rekreativne turnire.',
                     icon: Icons.explore,
                   ),
                   _formatCard(
                     value: 'swiss',
                     title: 'Swiss system',
-                    subtitle: 'Kola se uparuju po skoru. Dobro za mnogo igrača i ograničeno vrijeme.',
+                    subtitle:
+                        'Kola se uparuju po skoru. Dobro za mnogo igrača i ograničeno vrijeme.',
                     icon: Icons.swap_horiz,
                   ),
                 ],
@@ -498,15 +666,30 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
                       prefixIcon: Icon(Icons.timeline),
                     ),
                     items: const [
-                      DropdownMenuItem(value: 'upcoming', child: Text('Upcoming')),
+                      DropdownMenuItem(
+                        value: 'upcoming',
+                        child: Text('Upcoming'),
+                      ),
                       DropdownMenuItem(value: 'active', child: Text('Active')),
-                      DropdownMenuItem(value: 'finished', child: Text('Finished')),
+                      DropdownMenuItem(
+                        value: 'finished',
+                        child: Text('Finished'),
+                      ),
                     ],
-                    onChanged: (value) => setState(() => _status = value ?? _status),
+                    onChanged: (value) =>
+                        setState(() => _status = value ?? _status),
                   ),
                   const SizedBox(height: 8),
-                  _dateTile('Datum početka', _startDate, (date) => setState(() => _startDate = date)),
-                  _dateTile('Datum kraja', _endDate, (date) => setState(() => _endDate = date)),
+                  _dateTile(
+                    'Datum početka',
+                    _startDate,
+                    (date) => setState(() => _startDate = date),
+                  ),
+                  _dateTile(
+                    'Datum kraja',
+                    _endDate,
+                    (date) => setState(() => _endDate = date),
+                  ),
                 ],
               ),
             ),
@@ -531,10 +714,7 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
   Widget _field(TextEditingController controller, String label, IconData icon) {
     return TextField(
       controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon),
-      ),
+      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon)),
     );
   }
 
@@ -553,10 +733,14 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: selected ? AppTheme.court.withValues(alpha: .10) : AppTheme.ink.withValues(alpha: .03),
+          color: selected
+              ? AppTheme.court.withValues(alpha: .10)
+              : AppTheme.ink.withValues(alpha: .03),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: selected ? AppTheme.court : AppTheme.ink.withValues(alpha: .08),
+            color: selected
+                ? AppTheme.court
+                : AppTheme.ink.withValues(alpha: .08),
             width: selected ? 1.4 : 1,
           ),
         ),
@@ -571,7 +755,10 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+                  Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
                   const SizedBox(height: 3),
                   Text(subtitle, style: const TextStyle(fontSize: 12)),
                 ],
@@ -587,7 +774,11 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
     );
   }
 
-  Widget _dateTile(String label, DateTime value, ValueChanged<DateTime> onChanged) {
+  Widget _dateTile(
+    String label,
+    DateTime value,
+    ValueChanged<DateTime> onChanged,
+  ) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
       title: Text(label),

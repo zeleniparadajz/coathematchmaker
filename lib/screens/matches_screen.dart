@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../models/league_settings.dart';
 import '../models/match.dart';
@@ -15,11 +16,13 @@ class MatchesScreen extends StatefulWidget {
     required this.league,
     required this.auth,
     this.onChanged,
+    this.refreshTick = 0,
   });
 
   final LeagueService league;
   final AuthService auth;
   final VoidCallback? onChanged;
+  final int refreshTick;
 
   @override
   State<MatchesScreen> createState() => _MatchesScreenState();
@@ -27,11 +30,31 @@ class MatchesScreen extends StatefulWidget {
 
 class _MatchesScreenState extends State<MatchesScreen> {
   late Future<_MatchesData> _future;
+  String _statusFilter = 'all';
+
+  static const _filters = [
+    'all',
+    'pending',
+    'accepted',
+    'waiting_confirmation',
+    'confirmed',
+    'disputed',
+    'rejected',
+    'cancelled',
+  ];
 
   @override
   void initState() {
     super.initState();
     _future = _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant MatchesScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshTick != widget.refreshTick) {
+      setState(() => _future = _load());
+    }
   }
 
   Future<_MatchesData> _load() async {
@@ -54,7 +77,9 @@ class _MatchesScreenState extends State<MatchesScreen> {
       await _refresh();
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
       }
     }
   }
@@ -80,23 +105,44 @@ class _MatchesScreenState extends State<MatchesScreen> {
       body: FutureBuilder<_MatchesData>(
         future: _future,
         builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
           final data = snapshot.data!;
+          final matches = _statusFilter == 'all'
+              ? data.matches
+              : data.matches
+                    .where((match) => match.status == _statusFilter)
+                    .toList();
 
           return RefreshIndicator(
             onRefresh: _refresh,
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                ...data.matches.map((match) => _MatchCard(
+                _StatusFilterBar(
+                  statuses: _filters,
+                  selected: _statusFilter,
+                  onSelected: (value) => setState(() => _statusFilter = value),
+                ),
+                const SizedBox(height: 12),
+                if (matches.isEmpty)
+                  const _EmptyMatches()
+                else
+                  ...matches.map(
+                    (match) => _MatchCard(
                       match: match,
                       settings: data.settings,
                       currentPlayerId: widget.auth.currentPlayer!.id,
                       isAdmin: widget.auth.isAdmin,
-                      onAccept: () => _act(() => widget.league.acceptMatch(match.id)),
-                      onReject: () => _act(() => widget.league.rejectMatch(match.id)),
-                      onConfirm: () => _act(() => widget.league.confirmResult(match.id)),
-                      onDispute: () => _act(() => widget.league.disputeResult(match.id)),
+                      onAccept: () =>
+                          _act(() => widget.league.acceptMatch(match.id)),
+                      onReject: () =>
+                          _act(() => widget.league.rejectMatch(match.id)),
+                      onConfirm: () =>
+                          _act(() => widget.league.confirmResult(match.id)),
+                      onDispute: () =>
+                          _act(() => widget.league.disputeResult(match.id)),
                       onSubmitResult: () async {
                         await Navigator.of(context).push(
                           MaterialPageRoute(
@@ -121,7 +167,22 @@ class _MatchesScreenState extends State<MatchesScreen> {
                               await _refresh();
                             }
                           : null,
-                    )),
+                      onOpen: () async {
+                        await Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => MatchDetailsScreen(
+                              league: widget.league,
+                              match: match,
+                              settings: data.settings,
+                              currentPlayerId: widget.auth.currentPlayer!.id,
+                              isAdmin: widget.auth.isAdmin,
+                            ),
+                          ),
+                        );
+                        await _refresh();
+                      },
+                    ),
+                  ),
                 const SizedBox(height: 80),
               ],
             ),
@@ -144,6 +205,7 @@ class _MatchCard extends StatelessWidget {
     required this.onConfirm,
     required this.onDispute,
     this.onAdminResolve,
+    required this.onOpen,
   });
 
   final TennisMatch match;
@@ -156,6 +218,7 @@ class _MatchCard extends StatelessWidget {
   final VoidCallback onConfirm;
   final VoidCallback onDispute;
   final VoidCallback? onAdminResolve;
+  final VoidCallback onOpen;
 
   bool get _isPlayer2 => match.player2.id == currentPlayerId;
   bool get _isSubmitter => match.resultSubmittedBy?.id == currentPlayerId;
@@ -166,60 +229,102 @@ class _MatchCard extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '${match.player1.fullName} vs ${match.player2.fullName}',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onOpen,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${match.player1.fullName} vs ${match.player2.fullName}',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                   ),
-                ),
-                _StatusBadge(status: match.status),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text('${match.tournament?.name ?? 'Challenge'}  |  ${match.round}'),
-            if (match.scoreText.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text('Rezultat: ${match.scoreText}  |  W: ${match.winner?.fullName ?? '-'}'),
-            ],
-            if (match.status == 'accepted' && tooEarly)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  'Prerano za unos rezultata. Preostalo oko ${_minutesLeft()} min.',
-                  style: const TextStyle(color: AppTheme.clay),
-                ),
+                  _StatusBadge(status: match.status),
+                ],
               ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                if (match.status == 'pending' && (_isPlayer2 || isAdmin)) ...[
-                  FilledButton.tonal(onPressed: onAccept, child: const Text('Accept')),
-                  OutlinedButton(onPressed: onReject, child: const Text('Reject')),
-                ],
-                if (match.status == 'accepted' && (!tooEarly || isAdmin))
-                  FilledButton.icon(
-                    onPressed: onSubmitResult,
-                    icon: const Icon(Icons.sports_score),
-                    label: const Text('Unesi rezultat'),
-                  ),
-                if (match.status == 'waiting_confirmation' && (!_isSubmitter || isAdmin)) ...[
-                  FilledButton(onPressed: onConfirm, child: const Text('Confirm Result')),
-                  OutlinedButton(onPressed: onDispute, child: const Text('Dispute Result')),
-                ],
-                if (isAdmin && (match.status == 'disputed' || match.status == 'waiting_confirmation'))
-                  FilledButton.tonal(onPressed: onAdminResolve, child: const Text('Admin resolve')),
+              const SizedBox(height: 6),
+              Text(
+                '${match.tournament?.name ?? 'Challenge'}  |  ${match.round}',
+              ),
+              if ((match.location ?? '').isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text('Lokacija: ${match.location}'),
               ],
-            ),
-          ],
+              if (match.images.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(Icons.photo_library_outlined, size: 16),
+                    const SizedBox(width: 6),
+                    Text('${match.images.length}/5 slika'),
+                  ],
+                ),
+              ],
+              if (match.scoreText.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Rezultat: ${match.scoreText}  |  W: ${match.winner?.fullName ?? '-'}',
+                ),
+              ],
+              if (match.status == 'accepted' && tooEarly)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    'Prerano za unos rezultata. Preostalo oko ${_minutesLeft()} min.',
+                    style: const TextStyle(color: AppTheme.clay),
+                  ),
+                ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  if (match.status == 'pending' && (_isPlayer2 || isAdmin)) ...[
+                    FilledButton.tonal(
+                      onPressed: onAccept,
+                      child: const Text('Accept'),
+                    ),
+                    OutlinedButton(
+                      onPressed: onReject,
+                      child: const Text('Reject'),
+                    ),
+                  ],
+                  if (match.status == 'accepted' && (!tooEarly || isAdmin))
+                    FilledButton.icon(
+                      onPressed: onSubmitResult,
+                      icon: const Icon(Icons.sports_score),
+                      label: const Text('Unesi rezultat'),
+                    ),
+                  if (match.status == 'waiting_confirmation' &&
+                      (!_isSubmitter || isAdmin)) ...[
+                    FilledButton(
+                      onPressed: onConfirm,
+                      child: const Text('Confirm Result'),
+                    ),
+                    OutlinedButton(
+                      onPressed: onDispute,
+                      child: const Text('Dispute Result'),
+                    ),
+                  ],
+                  if (isAdmin &&
+                      (match.status == 'disputed' ||
+                          match.status == 'waiting_confirmation'))
+                    FilledButton.tonal(
+                      onPressed: onAdminResolve,
+                      child: const Text('Admin resolve'),
+                    ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -227,8 +332,257 @@ class _MatchCard extends StatelessWidget {
 
   int _minutesLeft() {
     if (match.acceptedAt == null) return settings.resultEntryDelayMinutes;
-    final earliest = match.acceptedAt!.add(Duration(minutes: settings.resultEntryDelayMinutes));
-    return earliest.isAfter(DateTime.now()) ? earliest.difference(DateTime.now()).inMinutes + 1 : 0;
+    final earliest = match.acceptedAt!.add(
+      Duration(minutes: settings.resultEntryDelayMinutes),
+    );
+    return earliest.isAfter(DateTime.now())
+        ? earliest.difference(DateTime.now()).inMinutes + 1
+        : 0;
+  }
+}
+
+class _StatusFilterBar extends StatelessWidget {
+  const _StatusFilterBar({
+    required this.statuses,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final List<String> statuses;
+  final String selected;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 44,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: statuses.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final status = statuses[index];
+          return ChoiceChip(
+            selected: selected == status,
+            label: Text(status == 'all' ? 'Svi' : status.replaceAll('_', ' ')),
+            onSelected: (_) => onSelected(status),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _EmptyMatches extends StatelessWidget {
+  const _EmptyMatches();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: const Column(
+        children: [
+          Icon(Icons.sports_tennis, size: 42, color: AppTheme.court),
+          SizedBox(height: 10),
+          Text('Nema mečeva za ovaj filter.'),
+        ],
+      ),
+    );
+  }
+}
+
+class MatchDetailsScreen extends StatefulWidget {
+  const MatchDetailsScreen({
+    super.key,
+    required this.league,
+    required this.match,
+    required this.settings,
+    required this.currentPlayerId,
+    required this.isAdmin,
+  });
+
+  final LeagueService league;
+  final TennisMatch match;
+  final LeagueSettings settings;
+  final String currentPlayerId;
+  final bool isAdmin;
+
+  @override
+  State<MatchDetailsScreen> createState() => _MatchDetailsScreenState();
+}
+
+class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
+  late TennisMatch _match = widget.match;
+  bool _uploading = false;
+
+  Future<void> _pickImage() async {
+    if (_match.images.length >= 5) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Galerija može imati najviše 5 slika.')),
+      );
+      return;
+    }
+
+    final file = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 86,
+    );
+    if (file == null) return;
+
+    setState(() => _uploading = true);
+    try {
+      final updated = await widget.league.uploadMatchImage(_match.id, file);
+      if (mounted) {
+        setState(() => _match = updated);
+      }
+    } on ApiException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final canUpload =
+        widget.isAdmin ||
+        _match.player1.id == widget.currentPlayerId ||
+        _match.player2.id == widget.currentPlayerId;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Detalji meča')),
+      floatingActionButton: canUpload
+          ? FloatingActionButton.extended(
+              onPressed: _uploading ? null : _pickImage,
+              icon: _uploading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.add_photo_alternate),
+              label: const Text('Slika'),
+            )
+          : null,
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AppTheme.ink, AppTheme.court],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _StatusBadge(status: _match.status),
+                const SizedBox(height: 14),
+                Text(
+                  '${_match.player1.fullName} vs ${_match.player2.fullName}',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${_match.tournament?.name ?? 'Challenge'}  |  ${_match.round}',
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                if ((_match.location ?? '').isNotEmpty)
+                  Text(
+                    _match.location!,
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _infoRow(
+                    'Rezultat',
+                    _match.scoreText.isEmpty ? '-' : _match.scoreText,
+                  ),
+                  _infoRow('Pobjednik', _match.winner?.fullName ?? '-'),
+                  _infoRow('Igrač 1', _match.player1.fullName),
+                  _infoRow('Igrač 2', _match.player2.fullName),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Galerija (${_match.images.length}/5)',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 10),
+          if (_match.images.isEmpty)
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('Još nema slika za ovaj meč.'),
+              ),
+            )
+          else
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              children: _match.images
+                  .map(
+                    (image) => ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        widget.league.api.imageUrl(image),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  )
+                  .toList(),
+            ),
+          const SizedBox(height: 82),
+        ],
+      ),
+    );
+  }
+
+  Widget _infoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          SizedBox(width: 92, child: Text(label)),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -257,7 +611,11 @@ class _StatusBadge extends StatelessWidget {
       ),
       child: Text(
         status.replaceAll('_', ' '),
-        style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 12),
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w800,
+          fontSize: 12,
+        ),
       ),
     );
   }
@@ -279,6 +637,7 @@ class ChallengeFormScreen extends StatefulWidget {
 
 class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
   final _round = TextEditingController(text: 'Challenge');
+  final _location = TextEditingController();
   final _search = TextEditingController();
   List<Player> _players = [];
   List<Tournament> _tournaments = [];
@@ -293,10 +652,20 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
     _load();
   }
 
+  @override
+  void dispose() {
+    _round.dispose();
+    _location.dispose();
+    _search.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
     final players = await widget.league.players();
     final tournaments = await widget.league.tournaments();
-    final opponents = players.where((player) => player.id != widget.currentPlayerId).toList();
+    final opponents = players
+        .where((player) => player.id != widget.currentPlayerId)
+        .toList();
     setState(() {
       _players = opponents;
       _tournaments = tournaments;
@@ -313,15 +682,20 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
         opponentId: _opponent!.id,
         tournamentId: _tournament?.id,
         round: _round.text.trim().isEmpty ? 'Challenge' : _round.text.trim(),
+        location: _location.text.trim().isEmpty ? null : _location.text.trim(),
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Challenge je poslat')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Challenge je poslat')));
         Navigator.of(context).pop();
       }
     } on ApiException catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -330,7 +704,11 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
   @override
   Widget build(BuildContext context) {
     final filteredPlayers = _players
-        .where((player) => player.fullName.toLowerCase().contains(_search.text.toLowerCase()))
+        .where(
+          (player) => player.fullName.toLowerCase().contains(
+            _search.text.toLowerCase(),
+          ),
+        )
         .toList();
 
     return Scaffold(
@@ -353,11 +731,16 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.sports_tennis, color: AppTheme.lime, size: 34),
+                      const Icon(
+                        Icons.sports_tennis,
+                        color: AppTheme.lime,
+                        size: 34,
+                      ),
                       const SizedBox(height: 18),
                       Text(
                         'Izazovi igrača',
-                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        style: Theme.of(context).textTheme.headlineSmall
+                            ?.copyWith(
                               color: Colors.white,
                               fontWeight: FontWeight.w900,
                             ),
@@ -379,9 +762,8 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
                       children: [
                         Text(
                           'Protivnik',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w900,
-                              ),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w900),
                         ),
                         const SizedBox(height: 12),
                         TextField(
@@ -399,20 +781,30 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
                             child: Text('Nema dostupnih protivnika.'),
                           )
                         else
-                          ...filteredPlayers.take(8).map(
+                          ...filteredPlayers
+                              .take(8)
+                              .map(
                                 (player) => ListTile(
                                   selected: _opponent?.id == player.id,
-                                  selectedTileColor: AppTheme.court.withValues(alpha: .08),
+                                  selectedTileColor: AppTheme.court.withValues(
+                                    alpha: .08,
+                                  ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),
-                                  onTap: () => setState(() => _opponent = player),
+                                  onTap: () =>
+                                      setState(() => _opponent = player),
                                   title: Text(player.fullName),
                                   subtitle: Text(player.club ?? player.country),
                                   trailing: _opponent?.id == player.id
-                                      ? const Icon(Icons.check_circle, color: AppTheme.court)
+                                      ? const Icon(
+                                          Icons.check_circle,
+                                          color: AppTheme.court,
+                                        )
                                       : const Icon(Icons.circle_outlined),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                  ),
                                 ),
                               ),
                       ],
@@ -436,20 +828,32 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
                         TextField(
                           controller: _round,
                           decoration: const InputDecoration(
-                            labelText: 'Runda',
+                            labelText: 'Naziv meča',
                             prefixIcon: Icon(Icons.flag),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _location,
+                          decoration: const InputDecoration(
+                            labelText: 'Lokacija (opciono)',
+                            prefixIcon: Icon(Icons.place),
                           ),
                         ),
                         const SizedBox(height: 18),
                         SizedBox(
                           width: double.infinity,
                           child: FilledButton.icon(
-                            onPressed: _saving || _opponent == null ? null : _save,
+                            onPressed: _saving || _opponent == null
+                                ? null
+                                : _save,
                             icon: _saving
                                 ? const SizedBox(
                                     width: 18,
                                     height: 18,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
                                   )
                                 : const Icon(Icons.send),
                             label: const Text('Pošalji challenge'),
@@ -466,7 +870,11 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
 }
 
 class SubmitResultScreen extends StatefulWidget {
-  const SubmitResultScreen({super.key, required this.league, required this.match});
+  const SubmitResultScreen({
+    super.key,
+    required this.league,
+    required this.match,
+  });
 
   final LeagueService league;
   final TennisMatch match;
@@ -491,15 +899,21 @@ class _SubmitResultScreenState extends State<SubmitResultScreen> {
         winner: _winner.id,
         round: widget.match.round,
         sets: _sets
-            .map((set) => SetScore(
-                  player1Games: set.player1Games,
-                  player2Games: set.player2Games,
-                ))
+            .map(
+              (set) => SetScore(
+                player1Games: set.player1Games,
+                player2Games: set.player2Games,
+              ),
+            )
             .toList(),
       );
       if (mounted) Navigator.of(context).pop();
     } on ApiException catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -530,7 +944,11 @@ class _SubmitResultScreenState extends State<SubmitResultScreen> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.sports_score, color: AppTheme.lime, size: 34),
+                    const Icon(
+                      Icons.sports_score,
+                      color: AppTheme.lime,
+                      size: 34,
+                    ),
                     const Spacer(),
                     _StatusBadge(status: widget.match.status),
                   ],
@@ -539,9 +957,9 @@ class _SubmitResultScreenState extends State<SubmitResultScreen> {
                 Text(
                   '${p1.fullName} vs ${p2.fullName}',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                      ),
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Text(
@@ -561,8 +979,8 @@ class _SubmitResultScreenState extends State<SubmitResultScreen> {
                   Text(
                     'Pobjednik',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -588,9 +1006,8 @@ class _SubmitResultScreenState extends State<SubmitResultScreen> {
                       Expanded(
                         child: Text(
                           'Setovi',
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w900,
-                              ),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w900),
                         ),
                       ),
                       Text('${p1.lastName} / ${p2.lastName}'),
@@ -598,20 +1015,21 @@ class _SubmitResultScreenState extends State<SubmitResultScreen> {
                   ),
                   const SizedBox(height: 12),
                   ..._sets.asMap().entries.map(
-                        (entry) => _SetScoreEditor(
-                          index: entry.key,
-                          score: entry.value,
-                          player1Label: p1.lastName,
-                          player2Label: p2.lastName,
-                          onChanged: () => setState(() {}),
-                          onRemove: _sets.length > 1
-                              ? () => setState(() => _sets.removeAt(entry.key))
-                              : null,
-                        ),
-                      ),
+                    (entry) => _SetScoreEditor(
+                      index: entry.key,
+                      score: entry.value,
+                      player1Label: p1.lastName,
+                      player2Label: p2.lastName,
+                      onChanged: () => setState(() {}),
+                      onRemove: _sets.length > 1
+                          ? () => setState(() => _sets.removeAt(entry.key))
+                          : null,
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   OutlinedButton.icon(
-                    onPressed: () => setState(() => _sets.add(_EditableSetScore(0, 0))),
+                    onPressed: () =>
+                        setState(() => _sets.add(_EditableSetScore(0, 0))),
                     icon: const Icon(Icons.add),
                     label: const Text('Dodaj set'),
                   ),
@@ -664,10 +1082,14 @@ class _SubmitResultScreenState extends State<SubmitResultScreen> {
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: selected ? AppTheme.court.withValues(alpha: .12) : Colors.white,
+          color: selected
+              ? AppTheme.court.withValues(alpha: .12)
+              : Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: selected ? AppTheme.court : AppTheme.ink.withValues(alpha: .08),
+            color: selected
+                ? AppTheme.court
+                : AppTheme.ink.withValues(alpha: .08),
             width: selected ? 1.4 : 1,
           ),
         ),
@@ -760,7 +1182,12 @@ class _SetScoreEditor extends StatelessWidget {
   Widget _scoreRow(String label, int value, ValueChanged<int> onValueChanged) {
     return Row(
       children: [
-        Expanded(child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700))),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+        ),
         IconButton.filledTonal(
           onPressed: value > 0 ? () => onValueChanged(value - 1) : null,
           icon: const Icon(Icons.remove),
@@ -783,7 +1210,11 @@ class _SetScoreEditor extends StatelessWidget {
 }
 
 class AdminResolveScreen extends StatefulWidget {
-  const AdminResolveScreen({super.key, required this.league, required this.match});
+  const AdminResolveScreen({
+    super.key,
+    required this.league,
+    required this.match,
+  });
 
   final LeagueService league;
   final TennisMatch match;
@@ -800,13 +1231,19 @@ class _AdminResolveScreenState extends State<AdminResolveScreen> {
       await widget.league.adminResolve(
         matchId: widget.match.id,
         action: action,
-        winner: action == 'confirm' ? widget.match.winner?.id ?? widget.match.player1.id : null,
+        winner: action == 'confirm'
+            ? widget.match.winner?.id ?? widget.match.player1.id
+            : null,
         sets: action == 'confirm' ? widget.match.sets : null,
         note: _note.text.trim(),
       );
       if (mounted) Navigator.of(context).pop();
     } on ApiException catch (error) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
     }
   }
 
@@ -817,13 +1254,28 @@ class _AdminResolveScreenState extends State<AdminResolveScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Text('${widget.match.player1.fullName} vs ${widget.match.player2.fullName}', style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            '${widget.match.player1.fullName} vs ${widget.match.player2.fullName}',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
           const SizedBox(height: 12),
-          TextField(controller: _note, decoration: const InputDecoration(labelText: 'Napomena')),
+          TextField(
+            controller: _note,
+            decoration: const InputDecoration(labelText: 'Napomena'),
+          ),
           const SizedBox(height: 16),
-          FilledButton(onPressed: () => _resolve('confirm'), child: const Text('Potvrdi rezultat')),
-          OutlinedButton(onPressed: () => _resolve('reject'), child: const Text('Odbij rezultat')),
-          OutlinedButton(onPressed: () => _resolve('cancel'), child: const Text('Poništi meč')),
+          FilledButton(
+            onPressed: () => _resolve('confirm'),
+            child: const Text('Potvrdi rezultat'),
+          ),
+          OutlinedButton(
+            onPressed: () => _resolve('reject'),
+            child: const Text('Odbij rezultat'),
+          ),
+          OutlinedButton(
+            onPressed: () => _resolve('cancel'),
+            child: const Text('Poništi meč'),
+          ),
         ],
       ),
     );
@@ -846,7 +1298,9 @@ Widget _dropdown<T>(
 ) {
   return DropdownButtonFormField<T>(
     initialValue: value,
-    items: items.map((item) => DropdownMenuItem(value: item, child: Text(title(item)))).toList(),
+    items: items
+        .map((item) => DropdownMenuItem(value: item, child: Text(title(item))))
+        .toList(),
     onChanged: onChanged,
     decoration: InputDecoration(labelText: label),
   );

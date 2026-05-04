@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import '../config/env.dart';
 
 class ApiException implements Exception {
   ApiException(this.message, [this.statusCode]);
@@ -15,7 +16,9 @@ class ApiException implements Exception {
 }
 
 class ApiClient {
-  ApiClient({this.baseUrl = 'http://localhost:4000'});
+  //ApiClient({this.baseUrl = 'http://localhost:4000'});
+
+  ApiClient({String? baseUrl}) : baseUrl = baseUrl ?? Env.apiUrl;
 
   final String baseUrl;
   String? token;
@@ -25,9 +28,9 @@ class ApiClient {
   }
 
   Map<String, String> get headers => {
-        'Content-Type': 'application/json',
-        if (token != null) 'Authorization': 'Bearer $token',
-      };
+    'Content-Type': 'application/json',
+    if (token != null) 'Authorization': 'Bearer $token',
+  };
 
   String imageUrl(String? value) {
     if (value == null || value.isEmpty) return '';
@@ -35,14 +38,18 @@ class ApiClient {
     return '$baseUrl$value';
   }
 
-  Future<Map<String, dynamic>> getJson(String path,
-      [Map<String, String>? query]) async {
+  Future<Map<String, dynamic>> getJson(
+    String path, [
+    Map<String, String>? query,
+  ]) async {
     final response = await http.get(uri(path, query), headers: headers);
     return _decode(response);
   }
 
-  Future<Map<String, dynamic>> postJson(String path,
-      [Map<String, dynamic>? body]) async {
+  Future<Map<String, dynamic>> postJson(
+    String path, [
+    Map<String, dynamic>? body,
+  ]) async {
     final response = await http.post(
       uri(path),
       headers: headers,
@@ -52,9 +59,14 @@ class ApiClient {
   }
 
   Future<Map<String, dynamic>> patchJson(
-      String path, Map<String, dynamic> body) async {
-    final response =
-        await http.patch(uri(path), headers: headers, body: jsonEncode(body));
+    String path,
+    Map<String, dynamic> body,
+  ) async {
+    final response = await http.patch(
+      uri(path),
+      headers: headers,
+      body: jsonEncode(body),
+    );
     return _decode(response);
   }
 
@@ -64,13 +76,22 @@ class ApiClient {
   }
 
   Future<Map<String, dynamic>> uploadProfileImage(XFile file) async {
-    final request =
-        http.MultipartRequest('POST', uri('/api/players/me/profile-image'));
+    return uploadImage(
+      '/api/players/me/profile-image',
+      file,
+      fieldName: 'profileImage',
+    );
+  }
+
+  Future<Map<String, dynamic>> uploadImage(
+    String path,
+    XFile file, {
+    String fieldName = 'image',
+  }) async {
+    final request = http.MultipartRequest('POST', uri(path));
     if (token != null) request.headers['Authorization'] = 'Bearer $token';
 
-    request.files.add(
-      await http.MultipartFile.fromPath('profileImage', file.path),
-    );
+    request.files.add(await http.MultipartFile.fromPath(fieldName, file.path));
 
     final streamed = await request.send();
     final response = await http.Response.fromStream(streamed);

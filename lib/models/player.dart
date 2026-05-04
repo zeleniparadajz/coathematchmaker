@@ -6,6 +6,7 @@ class Player {
     required this.email,
     required this.birthDate,
     required this.country,
+    required this.sport,
     required this.active,
     required this.totalPoints,
     required this.wins,
@@ -24,6 +25,7 @@ class Player {
   final DateTime birthDate;
   int get birthYear => birthDate.year;
   final String country;
+  final String sport;
   final String? club;
   final String? profileImage;
   final bool active;
@@ -45,8 +47,10 @@ class Player {
       firstName: json['firstName'] ?? '',
       lastName: json['lastName'] ?? '',
       email: json['email'] ?? '',
-      birthDate: DateTime.tryParse(rawBirthDate ?? '') ?? DateTime(fallbackYear),
+      birthDate:
+          DateTime.tryParse(rawBirthDate ?? '') ?? DateTime(fallbackYear),
       country: json['country'] ?? '',
+      sport: json['sport'] ?? 'tennis',
       club: json['club'],
       profileImage: json['profileImage'],
       active: json['active'] ?? false,
