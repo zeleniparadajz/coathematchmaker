@@ -32,6 +32,13 @@ export const resendVerificationSchema = z.object({
   email: z.string().email()
 });
 
+const emailFailureMessage = (error: unknown): string => {
+  const details = error instanceof Error ? error.message : String(error);
+  const suffix = env.nodeEnv === "production" ? "" : ` Detalji: ${details}`;
+
+  return `Nalog nije kreiran jer verification email nije poslat. Provjeri RESEND_API_KEY, EMAIL_FROM i verifikovan domen.${suffix}`;
+};
+
 export const register = asyncHandler(async (req, res) => {
   const role = req.body.adminCode && req.body.adminCode === env.adminRegistrationCode ? "admin" : "player";
   const birthDate = req.body.birthDate ?? new Date(`${req.body.birthYear}-01-01`);
@@ -59,10 +66,7 @@ export const register = asyncHandler(async (req, res) => {
     } catch (error) {
       await Player.findByIdAndDelete(player.id);
       console.error("Email verification send failed", error);
-      throw new AppError(
-        502,
-        "Nalog nije kreiran jer verification email nije poslat. Provjeri RESEND_API_KEY, EMAIL_FROM i verifikovan domen."
-      );
+      throw new AppError(502, emailFailureMessage(error));
     }
   }
 
