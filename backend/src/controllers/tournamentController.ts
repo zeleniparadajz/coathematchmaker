@@ -249,6 +249,12 @@ export const uploadTournamentImage = asyncHandler(async (req, res) => {
     throw new AppError(404, "Tournament not found");
   }
 
+  const isParticipant = tournament.participants.some((participantId) => participantId.toString() === req.user!.id);
+
+  if (req.user!.role !== "admin" && !isParticipant) {
+    throw new AppError(403, "Only tournament participants or admins can add tournament images");
+  }
+
   if (tournament.images.length >= 5) {
     throw new AppError(400, "Tournament gallery can contain up to 5 images");
   }

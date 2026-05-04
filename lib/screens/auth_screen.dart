@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_form_fields.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key, required this.auth});
@@ -437,14 +438,14 @@ class _AuthFormCard extends StatelessWidget {
                       ),
                       if (register) ...[
                         const SizedBox(height: 14),
-                        _SelectionField(
+                        AppSelectField(
                           label: 'Datum rođenja',
                           value: _dateLabel(dateOfBirth),
                           icon: Icons.cake,
                           onTap: onPickBirthDate,
                         ),
                         const SizedBox(height: 14),
-                        _SelectionField(
+                        AppSelectField(
                           label: 'Država',
                           value: country,
                           icon: Icons.flag,
@@ -459,7 +460,7 @@ class _AuthFormCard extends StatelessWidget {
                           },
                         ),
                         const SizedBox(height: 14),
-                        _SelectionField(
+                        AppSelectField(
                           label: 'Sport',
                           value: _sportLabel(sport),
                           icon: Icons.sports_tennis,
@@ -537,18 +538,12 @@ class _AuthFormCard extends StatelessWidget {
     required List<String> options,
     String Function(String value)? labelBuilder,
   }) {
-    return showModalBottomSheet<String>(
+    return showAppOptionPicker<String>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return _OptionPickerSheet(
-          title: title,
-          selected: selected,
-          options: options,
-          labelBuilder: labelBuilder,
-        );
-      },
+      title: title,
+      selected: selected,
+      options: options,
+      labelBuilder: labelBuilder ?? (value) => value,
     );
   }
 
@@ -579,41 +574,6 @@ class _AuthFormCard extends StatelessWidget {
     };
   }
 
-  static InputDecoration _decoration(
-    String label,
-    IconData icon, {
-    String? hint,
-  }) {
-    return InputDecoration(
-      labelText: label,
-      hintText: hint,
-      prefixIcon: Icon(icon, size: 22),
-      filled: true,
-      fillColor: AppTheme.court.withValues(alpha: .035),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide.none,
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide(color: AppTheme.ink.withValues(alpha: .08)),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: AppTheme.court, width: 1.5),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: AppTheme.clay, width: 1.2),
-      ),
-      focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: AppTheme.clay, width: 1.4),
-      ),
-    );
-  }
-
   static Widget _field(
     TextEditingController controller,
     String label, {
@@ -624,11 +584,13 @@ class _AuthFormCard extends StatelessWidget {
     String? hint,
     String? Function(String?)? validator,
   }) {
-    return TextFormField(
+    return AppTextField(
       controller: controller,
+      label: label,
+      icon: icon ?? Icons.edit,
       obscureText: obscure,
       keyboardType: keyboardType,
-      decoration: _decoration(label, icon ?? Icons.edit, hint: hint),
+      hint: hint,
       validator:
           validator ??
           (required
@@ -636,144 +598,6 @@ class _AuthFormCard extends StatelessWidget {
                     ? 'Obavezno polje'
                     : null
               : null),
-    );
-  }
-}
-
-class _SelectionField extends StatelessWidget {
-  const _SelectionField({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.onTap,
-  });
-
-  final String label;
-  final String value;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: AppTheme.court.withValues(alpha: .035),
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: InputDecorator(
-          decoration: _AuthFormCard._decoration(label, icon),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  value,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w700),
-                ),
-              ),
-              Icon(
-                Icons.keyboard_arrow_down,
-                color: AppTheme.ink.withValues(alpha: .58),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _OptionPickerSheet extends StatelessWidget {
-  const _OptionPickerSheet({
-    required this.title,
-    required this.selected,
-    required this.options,
-    this.labelBuilder,
-  });
-
-  final String title;
-  final String selected;
-  final List<String> options;
-  final String Function(String value)? labelBuilder;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * .78,
-      ),
-      decoration: const BoxDecoration(
-        color: Color(0xfff7faf4),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 10),
-            Container(
-              width: 42,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppTheme.ink.withValues(alpha: .16),
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 16, 18, 10),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close),
-                  ),
-                ],
-              ),
-            ),
-            Flexible(
-              child: ListView.separated(
-                shrinkWrap: true,
-                padding: const EdgeInsets.fromLTRB(14, 0, 14, 18),
-                itemCount: options.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 6),
-                itemBuilder: (context, index) {
-                  final value = options[index];
-                  final active = value == selected;
-                  return ListTile(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    tileColor: active
-                        ? AppTheme.court.withValues(alpha: .10)
-                        : Colors.white,
-                    title: Text(
-                      labelBuilder?.call(value) ?? value,
-                      style: TextStyle(
-                        fontWeight: active ? FontWeight.w900 : FontWeight.w600,
-                      ),
-                    ),
-                    trailing: active
-                        ? const Icon(Icons.check_circle, color: AppTheme.court)
-                        : null,
-                    onTap: () => Navigator.of(context).pop(value),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

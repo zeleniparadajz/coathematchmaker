@@ -36,8 +36,25 @@ class Player {
   final int tournamentsWon;
   final String role;
 
-  String get fullName => '$firstName $lastName';
+  String get fullName => _titleCaseWords('$firstName $lastName');
   bool get isAdmin => role == 'admin';
+
+  static String _titleCaseWords(String value) {
+    return value
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((word) => word.isNotEmpty)
+        .map((word) {
+          return word
+              .split('-')
+              .map((part) {
+                if (part.isEmpty) return part;
+                return '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}';
+              })
+              .join('-');
+        })
+        .join(' ');
+  }
 
   factory Player.fromJson(Map<String, dynamic> json) {
     final rawBirthDate = json['birthDate']?.toString();

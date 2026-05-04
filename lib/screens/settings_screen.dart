@@ -4,6 +4,7 @@ import '../models/league_settings.dart';
 import '../models/match.dart';
 import '../services/api_client.dart';
 import '../services/league_service.dart';
+import '../widgets/app_form_fields.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key, required this.league, this.refreshTick = 0});
@@ -32,7 +33,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void didUpdateWidget(covariant SettingsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.refreshTick != widget.refreshTick) {
-      setState(() => _future = _load());
+      setState(() {
+        _future = _load();
+      });
     }
   }
 
@@ -53,7 +56,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         matchWinPoints: int.tryParse(_matchPoints.text) ?? 10,
         tournamentWinPoints: int.tryParse(_tournamentPoints.text) ?? 50,
       );
-      setState(() => _future = _load());
+      setState(() {
+        _future = _load();
+      });
     } on ApiException catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -75,7 +80,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             : null,
         sets: action == 'confirm' ? match.sets : null,
       );
-      setState(() => _future = _load());
+      setState(() {
+        _future = _load();
+      });
     } on ApiException catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -108,7 +115,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Text(snapshot.error.toString(), textAlign: TextAlign.center),
                   const SizedBox(height: 14),
                   FilledButton.icon(
-                    onPressed: () => setState(() => _future = _load()),
+                    onPressed: () {
+                      setState(() {
+                        _future = _load();
+                      });
+                    },
                     icon: const Icon(Icons.refresh),
                     label: const Text('Pokušaj opet'),
                   ),
@@ -194,13 +205,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _numberField(TextEditingController controller, String label) {
-    return TextField(
+    return AppTextField(
       controller: controller,
+      label: label,
+      icon: Icons.tune,
       keyboardType: TextInputType.number,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: const Icon(Icons.tune),
-      ),
     );
   }
 }

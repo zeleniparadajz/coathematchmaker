@@ -8,6 +8,7 @@ import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/league_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_form_fields.dart';
 import '../widgets/player_avatar.dart';
 import '../widgets/section_header.dart';
 
@@ -42,7 +43,9 @@ class _TournamentsScreenState extends State<TournamentsScreen> {
   void didUpdateWidget(covariant TournamentsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.refreshTick != widget.refreshTick) {
-      setState(() => _future = widget.league.tournaments());
+      setState(() {
+        _future = widget.league.tournaments();
+      });
     }
   }
 
@@ -64,15 +67,21 @@ class _TournamentsScreenState extends State<TournamentsScreen> {
                             TournamentFormScreen(league: widget.league),
                       ),
                     );
-                    setState(() => _future = widget.league.tournaments());
+                    setState(() {
+                      _future = widget.league.tournaments();
+                    });
                   },
                   icon: const Icon(Icons.add),
                   label: const Text('Turnir'),
                 )
               : null,
           body: RefreshIndicator(
-            onRefresh: () async =>
-                setState(() => _future = widget.league.tournaments()),
+            onRefresh: () async {
+              setState(() {
+                _future = widget.league.tournaments();
+              });
+              await _future;
+            },
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: snapshot.data!.map((tournament) {
@@ -154,7 +163,9 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
   Future<void> _generateDraw() async {
     try {
       await widget.league.generateTournamentDraw(widget.tournamentId);
-      setState(() => _future = _load());
+      setState(() {
+        _future = _load();
+      });
     } on ApiException catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -170,7 +181,9 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
         widget.tournamentId,
         playerId,
       );
-      setState(() => _future = _load());
+      setState(() {
+        _future = _load();
+      });
     } on ApiException catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -186,7 +199,9 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
         widget.tournamentId,
         playerId,
       );
-      setState(() => _future = _load());
+      setState(() {
+        _future = _load();
+      });
     } on ApiException catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -213,7 +228,9 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
     setState(() => _uploadingImage = true);
     try {
       await widget.league.uploadTournamentImage(tournament.id, file);
-      setState(() => _future = _load());
+      setState(() {
+        _future = _load();
+      });
     } on ApiException catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -228,7 +245,9 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
   Future<void> _register() async {
     try {
       await widget.league.registerForTournament(widget.tournamentId);
-      setState(() => _future = _load());
+      setState(() {
+        _future = _load();
+      });
     } on ApiException catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -289,23 +308,6 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
                     Text(
                       '${tournament.startDate.toLocal().toString().split(' ').first} - ${tournament.endDate.toLocal().toString().split(' ').first}',
                     ),
-                    const SizedBox(height: 12),
-                    if (widget.auth.isAdmin)
-                      FilledButton.icon(
-                        onPressed: _uploadingImage
-                            ? null
-                            : () => _pickTournamentImage(tournament),
-                        icon: _uploadingImage
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.add_photo_alternate),
-                        label: const Text('Dodaj sliku'),
-                      ),
                   ],
                 ),
               ),
@@ -348,6 +350,21 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
                   avatar: Icon(Icons.check),
                   label: Text('Prijavljen si'),
                 ),
+              if ((widget.auth.isAdmin || registered) &&
+                  tournament.images.length < 5)
+                FilledButton.tonalIcon(
+                  onPressed: _uploadingImage
+                      ? null
+                      : () => _pickTournamentImage(tournament),
+                  icon: _uploadingImage
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.add_photo_alternate),
+                  label: const Text('Dodaj sliku turnira'),
+                ),
               if (widget.auth.isAdmin)
                 FilledButton.icon(
                   onPressed: _generateDraw,
@@ -356,18 +373,26 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
                 ),
               if (widget.auth.isAdmin && availablePlayers.isNotEmpty) ...[
                 const SectionHeader('Dodaj igrača'),
-                DropdownButtonFormField<String>(
-                  decoration: const InputDecoration(labelText: 'Igrač'),
-                  items: availablePlayers
-                      .map(
-                        (player) => DropdownMenuItem(
-                          value: player.id,
-                          child: Text(player.fullName),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (playerId) {
-                    if (playerId != null) _addParticipant(playerId);
+                AppSelectField(
+                  label: 'Igrač',
+                  value: 'Izaberi igrača',
+                  icon: Icons.person_add,
+                  onTap: () async {
+                    final player = await showAppOptionPicker<Player>(
+                      context: context,
+                      title: 'Dodaj igrača',
+                      selected: availablePlayers.first,
+                      options: availablePlayers,
+                      labelBuilder: (player) => player.fullName,
+                      leadingBuilder: (player) => PlayerAvatar(
+                        player: player,
+                        api: widget.api,
+                        radius: 18,
+                      ),
+                    );
+                    if (player != null) {
+                      _addParticipant(player.id);
+                    }
                   },
                 ),
               ],
@@ -462,12 +487,23 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
   final _name = TextEditingController();
   final _location = TextEditingController();
   final _category = TextEditingController(text: 'Seniori');
-  final _surface = TextEditingController(text: 'Hard');
+  final _surface = TextEditingController(text: 'Tvrda podloga');
   DateTime _startDate = DateTime.now();
   DateTime _endDate = DateTime.now().add(const Duration(days: 2));
   String _format = 'elimination';
   String _status = 'upcoming';
   bool _saving = false;
+
+  static const _surfaces = [
+    'Tvrda podloga',
+    'Šljaka',
+    'Trava',
+    'Tepih',
+    'Akrilna podloga',
+    'Beton',
+    'Vještačka trava',
+    'Dvoranska tvrda',
+  ];
 
   @override
   void initState() {
@@ -525,6 +561,15 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
   }
 
   @override
+  void dispose() {
+    _name.dispose();
+    _location.dispose();
+    _category.dispose();
+    _surface.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
@@ -571,11 +616,44 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
                 children: [
                   _field(_name, 'Naziv turnira', Icons.title),
                   const SizedBox(height: 12),
-                  _field(_location, 'Lokacija', Icons.place),
+                  AppSelectField(
+                    label: 'Lokacija',
+                    value: _location.text.trim().isEmpty
+                        ? 'Izaberi ili ukucaj lokaciju'
+                        : _location.text.trim(),
+                    icon: Icons.place,
+                    onTap: () async {
+                      final value = await showAppLocationPicker(
+                        context: context,
+                        initialValue: _location.text,
+                      );
+                      if (value != null) {
+                        setState(() => _location.text = value);
+                      }
+                    },
+                  ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      Expanded(child: _field(_surface, 'Podloga', Icons.grass)),
+                      Expanded(
+                        child: AppSelectField(
+                          label: 'Podloga',
+                          value: _surface.text,
+                          icon: Icons.grass,
+                          onTap: () async {
+                            final value = await showAppOptionPicker<String>(
+                              context: context,
+                              title: 'Podloga',
+                              selected: _surface.text,
+                              options: _surfaces,
+                              labelBuilder: (value) => value,
+                            );
+                            if (value != null) {
+                              setState(() => _surface.text = value);
+                            }
+                          },
+                        ),
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: _field(_category, 'Kategorija', Icons.category),
@@ -659,25 +737,20 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  DropdownButtonFormField<String>(
-                    initialValue: _status,
-                    decoration: const InputDecoration(
-                      labelText: 'Status',
-                      prefixIcon: Icon(Icons.timeline),
-                    ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'upcoming',
-                        child: Text('Upcoming'),
-                      ),
-                      DropdownMenuItem(value: 'active', child: Text('Active')),
-                      DropdownMenuItem(
-                        value: 'finished',
-                        child: Text('Finished'),
-                      ),
-                    ],
-                    onChanged: (value) =>
-                        setState(() => _status = value ?? _status),
+                  AppSelectField(
+                    label: 'Status',
+                    value: _statusLabel(_status),
+                    icon: Icons.timeline,
+                    onTap: () async {
+                      final value = await showAppOptionPicker<String>(
+                        context: context,
+                        title: 'Status',
+                        selected: _status,
+                        options: const ['upcoming', 'active', 'finished'],
+                        labelBuilder: _statusLabel,
+                      );
+                      if (value != null) setState(() => _status = value);
+                    },
                   ),
                   const SizedBox(height: 8),
                   _dateTile(
@@ -712,10 +785,16 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
   }
 
   Widget _field(TextEditingController controller, String label, IconData icon) {
-    return TextField(
-      controller: controller,
-      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon)),
-    );
+    return AppTextField(controller: controller, label: label, icon: icon);
+  }
+
+  String _statusLabel(String value) {
+    return switch (value) {
+      'upcoming' => 'Upcoming',
+      'active' => 'Active',
+      'finished' => 'Finished',
+      _ => value,
+    };
   }
 
   Widget _formatCard({

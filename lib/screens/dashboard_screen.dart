@@ -41,7 +41,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void didUpdateWidget(covariant DashboardScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.refreshTick != widget.refreshTick) {
-      setState(() => _future = _load());
+      setState(() {
+        _future = _load();
+      });
     }
   }
 
@@ -62,7 +64,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     final me = widget.auth.currentPlayer!;
     return RefreshIndicator(
-      onRefresh: () async => setState(() => _future = _load()),
+      onRefresh: () async {
+        setState(() {
+          _future = _load();
+        });
+        await _future;
+      },
       child: FutureBuilder<_DashboardData>(
         future: _future,
         builder: (context, snapshot) {

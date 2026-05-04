@@ -9,6 +9,7 @@ import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/league_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_form_fields.dart';
 
 class MatchesScreen extends StatefulWidget {
   const MatchesScreen({
@@ -53,7 +54,9 @@ class _MatchesScreenState extends State<MatchesScreen> {
   void didUpdateWidget(covariant MatchesScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.refreshTick != widget.refreshTick) {
-      setState(() => _future = _load());
+      setState(() {
+        _future = _load();
+      });
     }
   }
 
@@ -226,6 +229,7 @@ class _MatchCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tooEarly = _minutesLeft() > 0;
+    final hasWinner = match.winner != null;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -233,46 +237,69 @@ class _MatchCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         onTap: onOpen,
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
+                  _MatchTypeIcon(status: match.status, hasWinner: hasWinner),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       '${match.player1.fullName} vs ${match.player2.fullName}',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
                   ),
                   _StatusBadge(status: match.status),
                 ],
               ),
-              const SizedBox(height: 6),
-              Text(
-                '${match.tournament?.name ?? 'Challenge'}  |  ${match.round}',
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _MetaPill(
+                    icon: Icons.flag,
+                    label: match.tournament?.name ?? 'Challenge',
+                  ),
+                  _MetaPill(icon: Icons.label, label: match.round),
+                  if ((match.location ?? '').isNotEmpty)
+                    _MetaPill(icon: Icons.place, label: match.location!),
+                  if (match.images.isNotEmpty)
+                    _MetaPill(
+                      icon: Icons.photo_library_outlined,
+                      label: '${match.images.length}/5 slika',
+                    ),
+                ],
               ),
-              if ((match.location ?? '').isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text('Lokacija: ${match.location}'),
-              ],
-              if (match.images.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    const Icon(Icons.photo_library_outlined, size: 16),
-                    const SizedBox(width: 6),
-                    Text('${match.images.length}/5 slika'),
-                  ],
-                ),
-              ],
               if (match.scoreText.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text(
-                  'Rezultat: ${match.scoreText}  |  W: ${match.winner?.fullName ?? '-'}',
+                const SizedBox(height: 12),
+                _ScoreSummary(match: match),
+              ] else if (hasWinner) ...[
+                const SizedBox(height: 12),
+                _WinnerBanner(name: match.winner!.fullName),
+              ],
+              if (match.status == 'pending') ...[
+                const SizedBox(height: 10),
+                const _HintLine(
+                  icon: Icons.hourglass_top,
+                  text: 'Čeka se odgovor protivnika',
                 ),
+              ],
+              if (match.status == 'waiting_confirmation') ...[
+                const SizedBox(height: 10),
+                const _HintLine(
+                  icon: Icons.verified_outlined,
+                  text: 'Rezultat čeka potvrdu druge strane',
+                ),
+              ],
+              if (match.status == 'rejected' ||
+                  match.status == 'cancelled') ...[
+                const SizedBox(height: 10),
+                const _HintLine(icon: Icons.block, text: 'Meč nije aktivan'),
               ],
               if (match.status == 'accepted' && tooEarly)
                 Padding(
@@ -369,6 +396,161 @@ class _StatusFilterBar extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+class _MatchTypeIcon extends StatelessWidget {
+  const _MatchTypeIcon({required this.status, required this.hasWinner});
+
+  final String status;
+  final bool hasWinner;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = hasWinner
+        ? Icons.emoji_events
+        : switch (status) {
+            'pending' => Icons.hourglass_top,
+            'accepted' => Icons.handshake,
+            'waiting_confirmation' => Icons.verified_outlined,
+            'disputed' => Icons.report_problem,
+            'rejected' || 'cancelled' => Icons.block,
+            _ => Icons.sports_tennis,
+          };
+    final color = hasWinner ? AppTheme.clay : AppTheme.court;
+
+    return Container(
+      width: 38,
+      height: 38,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .12),
+        shape: BoxShape.circle,
+      ),
+      child: Icon(icon, color: color, size: 21),
+    );
+  }
+}
+
+class _MetaPill extends StatelessWidget {
+  const _MetaPill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppTheme.ink.withValues(alpha: .045),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: AppTheme.ink.withValues(alpha: .66)),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.ink.withValues(alpha: .72),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScoreSummary extends StatelessWidget {
+  const _ScoreSummary({required this.match});
+
+  final TennisMatch match;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.court.withValues(alpha: .075),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppTheme.court.withValues(alpha: .10)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.scoreboard, color: AppTheme.court, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              match.scoreText,
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            ),
+          ),
+          if (match.winner != null)
+            Flexible(child: _WinnerBanner(name: match.winner!.fullName)),
+        ],
+      ),
+    );
+  }
+}
+
+class _WinnerBanner extends StatelessWidget {
+  const _WinnerBanner({required this.name});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppTheme.clay.withValues(alpha: .12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.emoji_events, size: 15, color: AppTheme.clay),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              name,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppTheme.clay,
+                fontWeight: FontWeight.w900,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HintLine extends StatelessWidget {
+  const _HintLine({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: AppTheme.ink.withValues(alpha: .54)),
+        const SizedBox(width: 7),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(color: AppTheme.ink.withValues(alpha: .62)),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -517,13 +699,30 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _infoRow(
-                    'Rezultat',
-                    _match.scoreText.isEmpty ? '-' : _match.scoreText,
+                  Row(
+                    children: [
+                      const Icon(Icons.scoreboard, color: AppTheme.court),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Rezultat',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w900),
+                      ),
+                    ],
                   ),
-                  _infoRow('Pobjednik', _match.winner?.fullName ?? '-'),
-                  _infoRow('Igrač 1', _match.player1.fullName),
-                  _infoRow('Igrač 2', _match.player2.fullName),
+                  const SizedBox(height: 14),
+                  if (_match.sets.isEmpty)
+                    const Text('Rezultat još nije unesen.')
+                  else
+                    _SetScoreBoard(match: _match),
+                  const SizedBox(height: 14),
+                  if (_match.winner != null)
+                    _WinnerHero(player: _match.winner!)
+                  else
+                    const _HintLine(
+                      icon: Icons.hourglass_empty,
+                      text: 'Pobjednik još nije postavljen.',
+                    ),
                 ],
               ),
             ),
@@ -567,17 +766,110 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       ),
     );
   }
+}
 
-  Widget _infoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+class _SetScoreBoard extends StatelessWidget {
+  const _SetScoreBoard({required this.match});
+
+  final TennisMatch match;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _scoreRow(
+          context,
+          player: match.player1.fullName,
+          scores: match.sets.map((set) => set.player1Games).toList(),
+          winner: match.winner?.id == match.player1.id,
+        ),
+        const SizedBox(height: 8),
+        _scoreRow(
+          context,
+          player: match.player2.fullName,
+          scores: match.sets.map((set) => set.player2Games).toList(),
+          winner: match.winner?.id == match.player2.id,
+        ),
+      ],
+    );
+  }
+
+  Widget _scoreRow(
+    BuildContext context, {
+    required String player,
+    required List<int> scores,
+    required bool winner,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: winner
+            ? AppTheme.court.withValues(alpha: .08)
+            : AppTheme.ink.withValues(alpha: .035),
+        borderRadius: BorderRadius.circular(8),
+      ),
       child: Row(
         children: [
-          SizedBox(width: 92, child: Text(label)),
+          Icon(
+            winner ? Icons.emoji_events : Icons.sports_tennis,
+            size: 17,
+            color: winner ? AppTheme.clay : AppTheme.ink.withValues(alpha: .55),
+          ),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
-              value,
+              player,
               style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+          ...scores.map(
+            (score) => Container(
+              width: 30,
+              alignment: Alignment.center,
+              margin: const EdgeInsets.only(left: 6),
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                '$score',
+                style: const TextStyle(fontWeight: FontWeight.w900),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WinnerHero extends StatelessWidget {
+  const _WinnerHero({required this.player});
+
+  final Player player;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppTheme.clay.withValues(alpha: .16),
+            AppTheme.lime.withValues(alpha: .22),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.emoji_events, color: AppTheme.clay),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Pobjednik: ${player.fullName}',
+              style: const TextStyle(fontWeight: FontWeight.w900),
             ),
           ),
         ],
@@ -766,12 +1058,10 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
                               ?.copyWith(fontWeight: FontWeight.w900),
                         ),
                         const SizedBox(height: 12),
-                        TextField(
+                        AppTextField(
                           controller: _search,
-                          decoration: const InputDecoration(
-                            prefixIcon: Icon(Icons.search),
-                            labelText: 'Pretraži igrača',
-                          ),
+                          label: 'Pretraži igrača',
+                          icon: Icons.search,
                           onChanged: (_) => setState(() {}),
                         ),
                         const SizedBox(height: 10),
@@ -817,28 +1107,45 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
                     padding: const EdgeInsets.all(16),
                     child: Column(
                       children: [
-                        _dropdown<Tournament>(
-                          'Turnir (opciono)',
-                          _tournament,
-                          _tournaments,
-                          (t) => t.name,
-                          (value) => setState(() => _tournament = value),
+                        AppSelectField(
+                          label: 'Turnir (opciono)',
+                          value: _tournament?.name ?? 'Bez turnira',
+                          icon: Icons.emoji_events,
+                          onTap: () async {
+                            final value =
+                                await showAppOptionPicker<Tournament?>(
+                                  context: context,
+                                  title: 'Turnir',
+                                  selected: _tournament,
+                                  options: [null, ..._tournaments],
+                                  labelBuilder: (value) =>
+                                      value?.name ?? 'Bez turnira',
+                                );
+                            setState(() => _tournament = value);
+                          },
                         ),
                         const SizedBox(height: 12),
-                        TextField(
+                        AppTextField(
                           controller: _round,
-                          decoration: const InputDecoration(
-                            labelText: 'Naziv meča',
-                            prefixIcon: Icon(Icons.flag),
-                          ),
+                          label: 'Naziv meča',
+                          icon: Icons.flag,
                         ),
                         const SizedBox(height: 12),
-                        TextField(
-                          controller: _location,
-                          decoration: const InputDecoration(
-                            labelText: 'Lokacija (opciono)',
-                            prefixIcon: Icon(Icons.place),
-                          ),
+                        AppSelectField(
+                          label: 'Lokacija (opciono)',
+                          value: _location.text.trim().isEmpty
+                              ? 'Izaberi ili ukucaj lokaciju'
+                              : _location.text.trim(),
+                          icon: Icons.place,
+                          onTap: () async {
+                            final value = await showAppLocationPicker(
+                              context: context,
+                              initialValue: _location.text,
+                            );
+                            if (value != null) {
+                              setState(() => _location.text = value);
+                            }
+                          },
                         ),
                         const SizedBox(height: 18),
                         SizedBox(
@@ -1259,9 +1566,10 @@ class _AdminResolveScreenState extends State<AdminResolveScreen> {
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 12),
-          TextField(
+          AppTextField(
             controller: _note,
-            decoration: const InputDecoration(labelText: 'Napomena'),
+            label: 'Napomena',
+            icon: Icons.note_alt,
           ),
           const SizedBox(height: 16),
           FilledButton(
@@ -1287,21 +1595,4 @@ class _MatchesData {
 
   final List<TennisMatch> matches;
   final LeagueSettings settings;
-}
-
-Widget _dropdown<T>(
-  String label,
-  T? value,
-  List<T> items,
-  String Function(T) title,
-  ValueChanged<T?> onChanged,
-) {
-  return DropdownButtonFormField<T>(
-    initialValue: value,
-    items: items
-        .map((item) => DropdownMenuItem(value: item, child: Text(title(item))))
-        .toList(),
-    onChanged: onChanged,
-    decoration: InputDecoration(labelText: label),
-  );
 }

@@ -35,7 +35,9 @@ class _RankingsScreenState extends State<RankingsScreen> {
   void didUpdateWidget(covariant RankingsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.refreshTick != widget.refreshTick) {
-      setState(() => _future = widget.league.rankings());
+      setState(() {
+        _future = widget.league.rankings();
+      });
     }
   }
 
@@ -55,8 +57,12 @@ class _RankingsScreenState extends State<RankingsScreen> {
           );
 
         return RefreshIndicator(
-          onRefresh: () async =>
-              setState(() => _future = widget.league.rankings()),
+          onRefresh: () async {
+            setState(() {
+              _future = widget.league.rankings();
+            });
+            await _future;
+          },
           child: ListView.builder(
             padding: const EdgeInsets.all(16),
             itemCount: rankings.length,

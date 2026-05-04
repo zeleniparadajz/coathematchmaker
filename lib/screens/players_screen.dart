@@ -6,6 +6,7 @@ import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/league_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_form_fields.dart';
 import '../widgets/player_avatar.dart';
 import '../widgets/stat_card.dart';
 
@@ -29,6 +30,7 @@ class PlayersScreen extends StatefulWidget {
 
 class _PlayersScreenState extends State<PlayersScreen> {
   late Future<List<Player>> _future;
+  final _search = TextEditingController();
   String _query = '';
 
   @override
@@ -38,10 +40,18 @@ class _PlayersScreenState extends State<PlayersScreen> {
   }
 
   @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  @override
   void didUpdateWidget(covariant PlayersScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.refreshTick != widget.refreshTick) {
-      setState(() => _future = widget.league.players());
+      setState(() {
+        _future = widget.league.players();
+      });
     }
   }
 
@@ -60,16 +70,19 @@ class _PlayersScreenState extends State<PlayersScreen> {
             )
             .toList();
         return RefreshIndicator(
-          onRefresh: () async =>
-              setState(() => _future = widget.league.players()),
+          onRefresh: () async {
+            setState(() {
+              _future = widget.league.players();
+            });
+            await _future;
+          },
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              TextField(
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.search),
-                  hintText: 'Pretraga igrača',
-                ),
+              AppTextField(
+                controller: _search,
+                label: 'Pretraga igrača',
+                icon: Icons.search,
                 onChanged: (value) => setState(() => _query = value),
               ),
               const SizedBox(height: 12),
@@ -143,7 +156,9 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
     try {
       await widget.league.uploadProfileImage(file);
       await widget.auth.refreshMe();
-      setState(() => _future = widget.league.player(widget.playerId));
+      setState(() {
+        _future = widget.league.player(widget.playerId);
+      });
     } on ApiException catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(

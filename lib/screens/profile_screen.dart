@@ -6,6 +6,7 @@ import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/league_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_form_fields.dart';
 import '../widgets/player_avatar.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -216,52 +217,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  _field(
-                    _birthYear,
-                    'Datum rođenja',
-                    Icons.cake,
-                    readOnly: true,
+                  AppSelectField(
+                    label: 'Datum rođenja',
+                    value: _birthYear.text,
+                    icon: Icons.cake,
                     onTap: _pickBirthDate,
                   ),
                   const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: _country,
-                    decoration: const InputDecoration(
-                      labelText: 'Država',
-                      prefixIcon: Icon(Icons.flag),
-                    ),
-                    items: _countries
-                        .map(
-                          (country) => DropdownMenuItem(
-                            value: country,
-                            child: Text(country),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) =>
-                        setState(() => _country = value ?? _country),
+                  AppSelectField(
+                    label: 'Država',
+                    value: _country,
+                    icon: Icons.flag,
+                    onTap: () async {
+                      final value = await showAppOptionPicker<String>(
+                        context: context,
+                        title: 'Država',
+                        selected: _country,
+                        options: _countries,
+                        labelBuilder: (value) => value,
+                      );
+                      if (value != null) setState(() => _country = value);
+                    },
                   ),
                   const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: _sport,
-                    decoration: const InputDecoration(
-                      labelText: 'Sport',
-                      prefixIcon: Icon(Icons.sports_tennis),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 'tennis', child: Text('Tenis')),
-                    ],
-                    onChanged: (value) =>
-                        setState(() => _sport = value ?? _sport),
+                  AppSelectField(
+                    label: 'Sport',
+                    value: _sportLabel(_sport),
+                    icon: Icons.sports_tennis,
+                    onTap: () async {
+                      final value = await showAppOptionPicker<String>(
+                        context: context,
+                        title: 'Sport',
+                        selected: _sport,
+                        options: const ['tennis'],
+                        labelBuilder: _sportLabel,
+                      );
+                      if (value != null) setState(() => _sport = value);
+                    },
                   ),
                   const SizedBox(height: 12),
-                  TextFormField(
+                  AppTextField(
                     controller: _club,
-                    decoration: const InputDecoration(
-                      labelText: 'Klub',
-                      hintText: 'Individualni igrač / klub',
-                      prefixIcon: Icon(Icons.shield),
-                    ),
+                    label: 'Klub',
+                    hint: 'Individualni igrač / klub',
+                    icon: Icons.shield,
                   ),
                   const SizedBox(height: 18),
                   SizedBox(
@@ -315,15 +314,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     IconData icon, {
     TextInputType? keyboardType,
     String? Function(String?)? validator,
-    bool readOnly = false,
-    VoidCallback? onTap,
   }) {
-    return TextFormField(
+    return AppTextField(
       controller: controller,
+      label: label,
+      icon: icon,
       keyboardType: keyboardType,
-      readOnly: readOnly,
-      onTap: onTap,
-      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon)),
       validator:
           validator ??
           (value) =>
@@ -352,5 +348,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final day = date.day.toString().padLeft(2, '0');
     final month = date.month.toString().padLeft(2, '0');
     return '$day.$month.${date.year}';
+  }
+
+  String _sportLabel(String value) {
+    return switch (value) {
+      'tennis' => 'Tenis',
+      _ => value,
+    };
   }
 }
