@@ -26,6 +26,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>comgooglemaps</string>
+	</array>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Koristi se za izbor profilne slike igrača.</string>
 	<key>NSAppTransportSecurity</key>

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../models/league_settings.dart';
 import '../models/player.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
@@ -238,7 +239,7 @@ class _PlayerDiscoveryCard extends StatelessWidget {
                         children: [
                           _CardPill(
                             icon: Icons.sports_tennis,
-                            label: '${player.matchesPlayed} susret',
+                            label: '${player.matchesPlayed} ',
                           ),
                           _CardPill(
                             icon: Icons.bar_chart,
@@ -394,13 +395,19 @@ class PlayerProfileScreen extends StatefulWidget {
 }
 
 class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
-  late Future<Player> _future;
+  late Future<_PlayerProfileData> _future;
   bool _uploading = false;
 
   @override
   void initState() {
     super.initState();
-    _future = widget.league.player(widget.playerId);
+    _future = _load();
+  }
+
+  Future<_PlayerProfileData> _load() async {
+    final player = await widget.league.player(widget.playerId);
+    final settings = await widget.league.settings();
+    return _PlayerProfileData(player: player, settings: settings);
   }
 
   Future<void> _pickImage() async {
@@ -416,7 +423,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
       await widget.league.uploadProfileImage(file);
       await widget.auth.refreshMe();
       setState(() {
-        _future = widget.league.player(widget.playerId);
+        _future = _load();
       });
     } on ApiException catch (error) {
       if (mounted) {
@@ -433,13 +440,14 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Profil igrača')),
-      body: FutureBuilder<Player>(
+      body: FutureBuilder<_PlayerProfileData>(
         future: _future,
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
-          final player = snapshot.data!;
+          final player = snapshot.data!.player;
+          final settings = snapshot.data!.settings;
           final canEdit = widget.auth.currentPlayer?.id == player.id;
           return ListView(
             padding: const EdgeInsets.all(16),
@@ -516,6 +524,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                     label: 'Poeni',
                     value: '${player.totalPoints}',
                     icon: Icons.leaderboard,
+                    onTap: () => _showPointsBreakdown(player, settings),
                   ),
                   StatCard(
                     label: 'Pobjede',
@@ -550,6 +559,238 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
             ],
           );
         },
+      ),
+    );
+  }
+
+  void _showPointsBreakdown(Player player, LeagueSettings settings) {
+    final matchPoints = player.wins * settings.matchWinPoints;
+    final titlePoints = player.tournamentsWon * settings.tournamentWinPoints;
+    final calculated = matchPoints + titlePoints;
+    final adjustment = player.totalPoints - calculated;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _PointsBreakdownSheet(
+        player: player,
+        settings: settings,
+        matchPoints: matchPoints,
+        titlePoints: titlePoints,
+        adjustment: adjustment,
+      ),
+    );
+  }
+}
+
+class _PlayerProfileData {
+  const _PlayerProfileData({required this.player, required this.settings});
+
+  final Player player;
+  final LeagueSettings settings;
+}
+
+class _PointsBreakdownSheet extends StatelessWidget {
+  const _PointsBreakdownSheet({
+    required this.player,
+    required this.settings,
+    required this.matchPoints,
+    required this.titlePoints,
+    required this.adjustment,
+  });
+
+  final Player player;
+  final LeagueSettings settings;
+  final int matchPoints;
+  final int titlePoints;
+  final int adjustment;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xfff7faf4),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppTheme.ink.withValues(alpha: .16),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: AppTheme.court.withValues(alpha: .14),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.leaderboard, color: AppTheme.court),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Kako su izračunati poeni',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w900),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          player.fullName,
+                          style: TextStyle(
+                            color: AppTheme.ink.withValues(alpha: .58),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              _pointsRow(
+                context,
+                icon: Icons.check_circle,
+                title: 'Pobjede',
+                detail: '${player.wins} x ${settings.matchWinPoints} pts',
+                points: matchPoints,
+                color: AppTheme.court,
+              ),
+              _pointsRow(
+                context,
+                icon: Icons.emoji_events,
+                title: 'Titule',
+                detail:
+                    '${player.tournamentsWon} x ${settings.tournamentWinPoints} pts',
+                points: titlePoints,
+                color: AppTheme.clay,
+              ),
+              if (adjustment != 0)
+                _pointsRow(
+                  context,
+                  icon: Icons.tune,
+                  title: 'Korekcija',
+                  detail:
+                      'Razlika nastala iz ranijih pravila ili admin izmjene',
+                  points: adjustment,
+                  color: Colors.blueGrey,
+                ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppTheme.court.withValues(alpha: .16),
+                      AppTheme.lime.withValues(alpha: .26),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Row(
+                  children: [
+                    const Text(
+                      'Ukupno',
+                      style: TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${player.totalPoints} pts',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: AppTheme.ink,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Ranking računa samo potvrđene mečeve. Neriješeni, pending i disputed mečevi ne ulaze u poene.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppTheme.ink.withValues(alpha: .58),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _pointsRow(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String detail,
+    required int points,
+    required Color color,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: .14),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  detail,
+                  style: TextStyle(
+                    color: AppTheme.ink.withValues(alpha: .56),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            '${points >= 0 ? '+' : ''}$points',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+          ),
+        ],
       ),
     );
   }

@@ -10,6 +10,7 @@ import '../services/auth_service.dart';
 import '../services/league_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_form_fields.dart';
+import '../widgets/map_location_card.dart';
 
 class MatchesScreen extends StatefulWidget {
   const MatchesScreen({
@@ -859,6 +860,10 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               ],
             ),
           ),
+          if ((_match.location ?? '').isNotEmpty) ...[
+            const SizedBox(height: 12),
+            MapLocationCard(location: _match.location!),
+          ],
           const SizedBox(height: 12),
           Card(
             child: Padding(
@@ -1513,40 +1518,40 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
 
   Future<void> _pickScheduledAt() async {
     final now = DateTime.now();
-    final firstDate = _tournament?.startDate ?? now;
-    final lastDate = _tournament?.endDate ?? now.add(const Duration(days: 365));
-    final initialDate = _scheduledAt ?? firstDate;
+    final rawFirstDate = _tournament?.startDate ?? now;
+    final rawLastDate =
+        _tournament?.endDate ?? now.add(const Duration(days: 365));
+    final firstDate = _tournament == null
+        ? rawFirstDate
+        : DateTime(rawFirstDate.year, rawFirstDate.month, rawFirstDate.day);
+    final lastDate = _tournament == null
+        ? rawLastDate
+        : DateTime(
+            rawLastDate.year,
+            rawLastDate.month,
+            rawLastDate.day,
+            23,
+            59,
+          );
+    final initialDate = _scheduledAt ?? firstDate.add(const Duration(hours: 1));
     final safeInitialDate = initialDate.isBefore(firstDate)
         ? firstDate
         : initialDate.isAfter(lastDate)
         ? lastDate
         : initialDate;
 
-    final pickedDate = await showDatePicker(
+    final picked = await showAppDateTimePicker(
       context: context,
+      title: 'Termin meča',
       initialDate: safeInitialDate,
-      firstDate: DateTime(firstDate.year, firstDate.month, firstDate.day),
-      lastDate: DateTime(lastDate.year, lastDate.month, lastDate.day),
+      firstDate: firstDate,
+      lastDate: lastDate,
+      actionLabel: 'Sačuvaj termin',
     );
-    if (pickedDate == null) return;
-
-    if (!mounted) return;
-    final pickedTime = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(
-        _scheduledAt ?? DateTime(now.year, now.month, now.day, 18),
-      ),
-    );
-    if (pickedTime == null) return;
+    if (picked == null) return;
 
     setState(() {
-      _scheduledAt = DateTime(
-        pickedDate.year,
-        pickedDate.month,
-        pickedDate.day,
-        pickedTime.hour,
-        pickedTime.minute,
-      );
+      _scheduledAt = picked;
     });
   }
 

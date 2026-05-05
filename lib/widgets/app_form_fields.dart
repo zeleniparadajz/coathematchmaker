@@ -174,6 +174,28 @@ Future<DateTime?> showAppBirthDatePicker({
   );
 }
 
+Future<DateTime?> showAppDateTimePicker({
+  required BuildContext context,
+  required DateTime initialDate,
+  required DateTime firstDate,
+  required DateTime lastDate,
+  String title = 'Datum i vrijeme',
+  String actionLabel = 'Sačuvaj termin',
+}) {
+  return showModalBottomSheet<DateTime>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _DateTimePickerSheet(
+      initialDate: initialDate,
+      firstDate: firstDate,
+      lastDate: lastDate,
+      title: title,
+      actionLabel: actionLabel,
+    ),
+  );
+}
+
 class _OptionPickerSheet<T> extends StatelessWidget {
   const _OptionPickerSheet({
     required this.title,
@@ -542,6 +564,277 @@ class _BirthDatePickerSheetState extends State<_BirthDatePickerSheet> {
         ),
       ),
     );
+  }
+
+  Widget _pickerDropdown<T>({
+    required String label,
+    required T value,
+    required List<T> values,
+    required String Function(T value) labelFor,
+    required ValueChanged<T> onChanged,
+  }) {
+    return DropdownButtonFormField<T>(
+      initialValue: value,
+      isExpanded: true,
+      decoration: appInputDecoration(label, Icons.expand_more),
+      items: values
+          .map(
+            (item) => DropdownMenuItem<T>(
+              value: item,
+              child: Text(labelFor(item), overflow: TextOverflow.ellipsis),
+            ),
+          )
+          .toList(),
+      onChanged: (value) {
+        if (value != null) onChanged(value);
+      },
+    );
+  }
+}
+
+class _DateTimePickerSheet extends StatefulWidget {
+  const _DateTimePickerSheet({
+    required this.initialDate,
+    required this.firstDate,
+    required this.lastDate,
+    required this.title,
+    required this.actionLabel,
+  });
+
+  final DateTime initialDate;
+  final DateTime firstDate;
+  final DateTime lastDate;
+  final String title;
+  final String actionLabel;
+
+  @override
+  State<_DateTimePickerSheet> createState() => _DateTimePickerSheetState();
+}
+
+class _DateTimePickerSheetState extends State<_DateTimePickerSheet> {
+  late final DateTime _first = _dateOnly(widget.firstDate);
+  late final DateTime _last = _dateOnly(widget.lastDate);
+  late final DateTime _initial = _clampDateTime(widget.initialDate);
+  late int _day = _initial.day;
+  late int _month = _initial.month;
+  late int _year = _initial.year;
+  late int _hour = _initial.hour;
+  late int _minute = (_initial.minute ~/ 5) * 5;
+
+  static const _months = [
+    'Januar',
+    'Februar',
+    'Mart',
+    'April',
+    'Maj',
+    'Jun',
+    'Jul',
+    'Avgust',
+    'Septembar',
+    'Oktobar',
+    'Novembar',
+    'Decembar',
+  ];
+
+  int get _daysInMonth => DateTime(_year, _month + 1, 0).day;
+
+  List<int> get _years => [
+    for (var year = _first.year; year <= _last.year; year++) year,
+  ];
+
+  List<int> get _monthsForYear {
+    final start = _year == _first.year ? _first.month : 1;
+    final end = _year == _last.year ? _last.month : 12;
+    return [for (var month = start; month <= end; month++) month];
+  }
+
+  List<int> get _daysForMonth {
+    final currentMonthDays = _daysInMonth;
+    final start = _year == _first.year && _month == _first.month
+        ? _first.day
+        : 1;
+    final end = _year == _last.year && _month == _last.month
+        ? _last.day
+        : currentMonthDays;
+    return [for (var day = start; day <= end; day++) day];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _normalizeParts();
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xfff7faf4),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppTheme.ink.withValues(alpha: .16),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: AppTheme.court.withValues(alpha: .12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.event_available,
+                      color: AppTheme.court,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.title,
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w900),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _previewLabel,
+                          style: TextStyle(
+                            color: AppTheme.ink.withValues(alpha: .58),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: _pickerDropdown<int>(
+                      label: 'Dan',
+                      value: _day,
+                      values: _daysForMonth,
+                      labelFor: (value) => value.toString().padLeft(2, '0'),
+                      onChanged: (value) => setState(() => _day = value),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 2,
+                    child: _pickerDropdown<int>(
+                      label: 'Mjesec',
+                      value: _month,
+                      values: _monthsForYear,
+                      labelFor: (value) => _months[value - 1],
+                      onChanged: (value) => setState(() => _month = value),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _pickerDropdown<int>(
+                      label: 'Godina',
+                      value: _year,
+                      values: _years,
+                      labelFor: (value) => value.toString(),
+                      onChanged: (value) => setState(() => _year = value),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _pickerDropdown<int>(
+                      label: 'Sat',
+                      value: _hour,
+                      values: List.generate(24, (index) => index),
+                      labelFor: (value) => value.toString().padLeft(2, '0'),
+                      onChanged: (value) => setState(() => _hour = value),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _pickerDropdown<int>(
+                      label: 'Minut',
+                      value: _minute,
+                      values: List.generate(60, (index) => index),
+                      labelFor: (value) => value.toString().padLeft(2, '0'),
+                      onChanged: (value) => setState(() => _minute = value),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: FilledButton.icon(
+                  onPressed: () => Navigator.of(context).pop(_selected),
+                  icon: const Icon(Icons.check),
+                  label: Text(widget.actionLabel),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  DateTime get _selected =>
+      _clampDateTime(DateTime(_year, _month, _day, _hour, _minute));
+
+  String get _previewLabel {
+    final selected = _selected;
+    final day = selected.day.toString().padLeft(2, '0');
+    final month = selected.month.toString().padLeft(2, '0');
+    final hour = selected.hour.toString().padLeft(2, '0');
+    final minute = selected.minute.toString().padLeft(2, '0');
+    return '$day.$month.${selected.year} u $hour:$minute';
+  }
+
+  void _normalizeParts() {
+    if (!_years.contains(_year)) _year = _years.first;
+    if (!_monthsForYear.contains(_month)) _month = _monthsForYear.first;
+    if (_day > _daysInMonth) _day = _daysInMonth;
+    if (!_daysForMonth.contains(_day)) _day = _daysForMonth.first;
+    final clamped = _selected;
+    _year = clamped.year;
+    _month = clamped.month;
+    _day = clamped.day;
+    _hour = clamped.hour;
+    _minute = clamped.minute;
+  }
+
+  DateTime _clampDateTime(DateTime value) {
+    final min = widget.firstDate;
+    final max = widget.lastDate;
+    if (value.isBefore(min)) return min;
+    if (value.isAfter(max)) return max;
+    return value;
+  }
+
+  DateTime _dateOnly(DateTime value) {
+    return DateTime(value.year, value.month, value.day);
   }
 
   Widget _pickerDropdown<T>({

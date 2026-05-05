@@ -9,6 +9,7 @@ import '../services/auth_service.dart';
 import '../services/league_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_form_fields.dart';
+import '../widgets/map_location_card.dart';
 import '../widgets/player_avatar.dart';
 import '../widgets/section_header.dart';
 
@@ -469,6 +470,8 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
             padding: const EdgeInsets.all(16),
             children: [
               _TournamentHero(tournament: tournament),
+              const SizedBox(height: 12),
+              MapLocationCard(location: tournament.location),
               const SizedBox(height: 14),
               _TournamentGallery(
                 tournament: tournament,
