@@ -12,6 +12,7 @@ class Tournament {
     required this.startDate,
     required this.endDate,
     required this.status,
+    required this.friendly,
     required this.participants,
     this.images = const [],
     this.winner,
@@ -27,6 +28,7 @@ class Tournament {
   final DateTime startDate;
   final DateTime endDate;
   final String status;
+  final bool friendly;
   final List<Player> participants;
   final List<String> images;
   final Player? winner;
@@ -45,6 +47,7 @@ class Tournament {
       startDate: DateTime.tryParse(json['startDate'] ?? '') ?? DateTime.now(),
       endDate: DateTime.tryParse(json['endDate'] ?? '') ?? DateTime.now(),
       status: json['status'] ?? 'upcoming',
+      friendly: json['friendly'] == true,
       participants: (json['participants'] as List? ?? [])
           .whereType<Map<String, dynamic>>()
           .map(Player.fromJson)

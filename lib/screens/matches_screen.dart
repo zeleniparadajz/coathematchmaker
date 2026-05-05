@@ -297,6 +297,11 @@ class _MatchCard extends StatelessWidget {
                     label: match.tournament?.name ?? 'Challenge',
                   ),
                   _MetaPill(icon: Icons.label, label: match.round),
+                  if (match.friendly)
+                    const _MetaPill(
+                      icon: Icons.favorite,
+                      label: 'Prijateljski',
+                    ),
                   if (match.scheduledAt != null)
                     _MetaPill(
                       icon: Icons.event_available,
@@ -323,6 +328,14 @@ class _MatchCard extends StatelessWidget {
                 const _HintLine(
                   icon: Icons.hourglass_top,
                   text: 'Čeka se odgovor protivnika',
+                ),
+              ],
+              if (match.friendly) ...[
+                const SizedBox(height: 10),
+                const _HintLine(
+                  icon: Icons.favorite,
+                  text:
+                      'Prijateljski meč: broji se u skor, ali ne dodaje poene u rang listu.',
                 ),
               ],
               if (match.status == 'waiting_confirmation') ...[
@@ -736,6 +749,37 @@ class _EmptyMatches extends StatelessWidget {
   }
 }
 
+class _FriendlyMatchInfoCard extends StatelessWidget {
+  const _FriendlyMatchInfoCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.lime.withValues(alpha: .28),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.court.withValues(alpha: .18)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.favorite, color: AppTheme.court),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Ovaj meč je prijateljski. Pobjeda, poraz i broj mečeva se čuvaju, ali poeni ne ulaze u rang listu.',
+              style: TextStyle(
+                color: AppTheme.ink.withValues(alpha: .72),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class MatchDetailsScreen extends StatefulWidget {
   const MatchDetailsScreen({
     super.key,
@@ -844,6 +888,14 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                   '${_match.tournament?.name ?? 'Challenge'}  |  ${_match.round}',
                   style: const TextStyle(color: Colors.white70),
                 ),
+                if (_match.friendly)
+                  const Text(
+                    'Prijateljski meč - bez poena za rang listu',
+                    style: TextStyle(
+                      color: AppTheme.lime,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                 if (_match.scheduledAt != null)
                   Text(
                     'Termin: ${_matchDateTimeLabel(_match.scheduledAt!)}',
@@ -860,6 +912,10 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               ],
             ),
           ),
+          if (_match.friendly) ...[
+            const SizedBox(height: 12),
+            const _FriendlyMatchInfoCard(),
+          ],
           if ((_match.location ?? '').isNotEmpty) ...[
             const SizedBox(height: 12),
             MapLocationCard(location: _match.location!),
@@ -1094,6 +1150,80 @@ class _StatusBadge extends StatelessWidget {
   }
 }
 
+class _FriendlyChallengeTile extends StatelessWidget {
+  const _FriendlyChallengeTile({
+    required this.value,
+    required this.lockedByTournament,
+    required this.onChanged,
+  });
+
+  final bool value;
+  final bool lockedByTournament;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: value
+            ? AppTheme.lime.withValues(alpha: .26)
+            : AppTheme.ink.withValues(alpha: .035),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: value
+              ? AppTheme.court.withValues(alpha: .35)
+              : AppTheme.ink.withValues(alpha: .08),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: value ? AppTheme.court : Colors.white,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              Icons.favorite,
+              color: value ? Colors.white : AppTheme.ink.withValues(alpha: .58),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Prijateljski meč',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  lockedByTournament
+                      ? 'Meč prati tip izabranog turnira.'
+                      : 'Skor se čuva, ali pobjeda ne dodaje poene.',
+                  style: TextStyle(
+                    color: AppTheme.ink.withValues(alpha: .58),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: value,
+            onChanged: lockedByTournament ? null : onChanged,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class ChallengeFormScreen extends StatefulWidget {
   const ChallengeFormScreen({
     super.key,
@@ -1120,6 +1250,7 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
   Tournament? _tournament;
   DateTime? _scheduledAt;
   String _discipline = 'singles';
+  bool _friendly = false;
   bool _loading = true;
   bool _saving = false;
 
@@ -1197,6 +1328,7 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
         round: _round.text.trim().isEmpty ? 'Challenge' : _round.text.trim(),
         location: _location.text.trim().isEmpty ? null : _location.text.trim(),
         scheduledAt: _scheduledAt,
+        friendly: _tournament?.friendly ?? _friendly,
       );
       if (mounted) {
         ScaffoldMessenger.of(
@@ -1392,6 +1524,9 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
                                 );
                             setState(() {
                               _tournament = value;
+                              if (value?.friendly == true) {
+                                _friendly = true;
+                              }
                               if (value != null && _scheduledAt != null) {
                                 final start = DateTime(
                                   value.startDate.year,
@@ -1414,6 +1549,13 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
                               }
                             });
                           },
+                        ),
+                        const SizedBox(height: 12),
+                        _FriendlyChallengeTile(
+                          value: _tournament?.friendly ?? _friendly,
+                          lockedByTournament: _tournament != null,
+                          onChanged: (value) =>
+                              setState(() => _friendly = value),
                         ),
                         const SizedBox(height: 12),
                         AppSelectField(

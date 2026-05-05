@@ -216,6 +216,11 @@ class _TournamentListCard extends StatelessWidget {
                         icon: Icons.groups,
                         label: '${tournament.participants.length} igrača',
                       ),
+                      if (tournament.friendly)
+                        const _TournamentMiniPill(
+                          icon: Icons.favorite,
+                          label: 'Prijateljski',
+                        ),
                     ],
                   ),
                 ],
@@ -471,6 +476,14 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
             children: [
               _TournamentHero(tournament: tournament),
               const SizedBox(height: 12),
+              if (tournament.friendly) ...[
+                const _FriendlyInfoCard(
+                  title: 'Prijateljski turnir',
+                  text:
+                      'Mečevi se broje u statistikama igrača, ali pobjede i titula ne dodaju poene u rang listu.',
+                ),
+                const SizedBox(height: 12),
+              ],
               MapLocationCard(location: tournament.location),
               const SizedBox(height: 14),
               _TournamentGallery(
@@ -635,6 +648,8 @@ class _TournamentHero extends StatelessWidget {
                 icon: Icons.account_tree,
                 label: _formatLabel(tournament.format),
               ),
+              if (tournament.friendly)
+                const _HeroMeta(icon: Icons.favorite, label: 'Prijateljski'),
             ],
           ),
           const SizedBox(height: 14),
@@ -882,6 +897,114 @@ class _TournamentActions extends StatelessWidget {
   }
 }
 
+class _FriendlyModeTile extends StatelessWidget {
+  const _FriendlyModeTile({required this.value, required this.onChanged});
+
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: value
+            ? AppTheme.lime.withValues(alpha: .26)
+            : AppTheme.ink.withValues(alpha: .035),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: value
+              ? AppTheme.court.withValues(alpha: .35)
+              : AppTheme.ink.withValues(alpha: .08),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: value ? AppTheme.court : Colors.white,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              Icons.favorite,
+              color: value ? Colors.white : AppTheme.ink.withValues(alpha: .58),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Prijateljski turnir',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Mečevi se broje, ali poeni ne ulaze u rang listu.',
+                  style: TextStyle(
+                    color: AppTheme.ink.withValues(alpha: .58),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Switch(value: value, onChanged: onChanged),
+        ],
+      ),
+    );
+  }
+}
+
+class _FriendlyInfoCard extends StatelessWidget {
+  const _FriendlyInfoCard({required this.title, required this.text});
+
+  final String title;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.lime.withValues(alpha: .28),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.court.withValues(alpha: .18)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.favorite, color: AppTheme.court),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  text,
+                  style: TextStyle(
+                    color: AppTheme.ink.withValues(alpha: .66),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _TournamentDetailsData {
   const _TournamentDetailsData(
     this.tournament,
@@ -920,6 +1043,7 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
   String _discipline = 'singles';
   String _format = 'elimination';
   String _status = 'upcoming';
+  bool _friendly = false;
   bool _saving = false;
 
   static const _surfaces = [
@@ -947,6 +1071,7 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
       _endDate = tournament.endDate;
       _format = tournament.format;
       _status = tournament.status;
+      _friendly = tournament.friendly;
     }
   }
 
@@ -963,6 +1088,7 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
           format: _format,
           startDate: _startDate,
           endDate: _endDate,
+          friendly: _friendly,
           status: _status,
         );
       } else {
@@ -977,6 +1103,7 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
           startDate: _startDate,
           endDate: _endDate,
           status: _status,
+          friendly: _friendly,
         );
       }
       if (mounted) Navigator.of(context).pop();
@@ -1107,6 +1234,11 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
                       );
                       if (value != null) setState(() => _discipline = value);
                     },
+                  ),
+                  const SizedBox(height: 12),
+                  _FriendlyModeTile(
+                    value: _friendly,
+                    onChanged: (value) => setState(() => _friendly = value),
                   ),
                 ],
               ),

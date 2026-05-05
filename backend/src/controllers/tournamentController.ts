@@ -19,7 +19,8 @@ export const createTournamentSchema = z.object({
     .default("elimination"),
   startDate: z.coerce.date(),
   endDate: z.coerce.date(),
-  status: z.enum(["upcoming", "active", "finished"]).optional()
+  status: z.enum(["upcoming", "active", "finished"]).optional(),
+  friendly: z.boolean().default(false)
 });
 
 export const updateTournamentSchema = createTournamentSchema.partial().extend({
@@ -217,6 +218,7 @@ export const createTournamentMatch = asyncHandler(async (req, res) => {
     player2Partner: req.body.player2Partner,
     round: req.body.round,
     scheduledAt: req.body.scheduledAt,
+    friendly: tournament.friendly,
     status: "accepted",
     acceptedAt: new Date()
   });

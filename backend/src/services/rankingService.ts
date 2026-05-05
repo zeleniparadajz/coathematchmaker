@@ -24,12 +24,13 @@ export const applyConfirmedMatchStats = async (match: MatchAttrs & { _id: Types.
     ? [match.player2, match.player2Partner].filter(Boolean)
     : [match.player1, match.player1Partner].filter(Boolean);
   const settings = await getLeagueSettings();
+  const winnerIncrement = match.friendly
+    ? { wins: 1, matchesPlayed: 1 }
+    : { wins: 1, matchesPlayed: 1, totalPoints: settings.matchWinPoints };
 
   await Promise.all(
     winnerIds.map((id) =>
-      Player.findByIdAndUpdate(id, {
-        $inc: { wins: 1, matchesPlayed: 1, totalPoints: settings.matchWinPoints }
-      })
+      Player.findByIdAndUpdate(id, { $inc: winnerIncrement })
     )
   );
 
@@ -64,7 +65,9 @@ export const awardTournamentWin = async (tournamentId: string, winnerId: string)
   if (!alreadyHadWinner) {
     const settings = await getLeagueSettings();
     await Player.findByIdAndUpdate(winnerId, {
-      $inc: { tournamentsWon: 1, totalPoints: settings.tournamentWinPoints }
+      $inc: tournament.friendly
+        ? { tournamentsWon: 1 }
+        : { tournamentsWon: 1, totalPoints: settings.tournamentWinPoints }
     });
   }
 };
@@ -110,7 +113,9 @@ export const getTournamentRanking = async (tournamentId: string) => {
       const winnerStats = stats.get(id)!;
       winnerStats.wins += 1;
       winnerStats.matchesPlayed += 1;
-      winnerStats.points += settings.matchWinPoints;
+      if (!match.friendly) {
+        winnerStats.points += settings.matchWinPoints;
+      }
     }
 
     for (const id of loserIds) {
@@ -121,7 +126,7 @@ export const getTournamentRanking = async (tournamentId: string) => {
     }
   }
 
-  if (tournament.winner && stats.has(tournament.winner.toString())) {
+  if (tournament.winner && !tournament.friendly && stats.has(tournament.winner.toString())) {
     const settings = await getLeagueSettings();
     stats.get(tournament.winner.toString())!.points += settings.tournamentWinPoints;
   }

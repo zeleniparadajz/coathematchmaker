@@ -32,6 +32,7 @@ export const createMatchSchema = z.object({
   round: z.string().min(1).default("Challenge"),
   location: z.string().optional(),
   scheduledAt: z.coerce.date().optional(),
+  friendly: z.boolean().default(false),
   status: z
     .enum(["pending", "accepted", "waiting_confirmation", "confirmed", "rejected", "disputed", "cancelled"])
     .default("pending")
@@ -45,7 +46,8 @@ export const challengeMatchSchema = z.object({
   tournamentId: z.string().min(1).optional(),
   round: z.string().min(1).default("Challenge"),
   location: z.string().optional(),
-  scheduledAt: z.coerce.date().optional()
+  scheduledAt: z.coerce.date().optional(),
+  friendly: z.boolean().default(false)
 });
 
 export const submitResultSchema = resultSchema;
@@ -265,6 +267,7 @@ export const createChallenge = asyncHandler(async (req, res) => {
 
   await ensurePlayersAndTournament(player1, player2, player1Partner, player2Partner, req.body.tournamentId);
   await ensureScheduledAtWithinTournament(req.body.tournamentId, req.body.scheduledAt);
+  const tournament = req.body.tournamentId ? await Tournament.findById(req.body.tournamentId) : null;
   const challengedPlayers = await Player.find({
     _id: { $in: [player2, player2Partner].filter(Boolean) },
     playStatus: "unavailable"
@@ -284,6 +287,7 @@ export const createChallenge = asyncHandler(async (req, res) => {
     round: req.body.round,
     location: req.body.location,
     scheduledAt: req.body.scheduledAt,
+    friendly: tournament?.friendly ?? req.body.friendly,
     status: "pending",
     challengedBy: req.user!.playerId
   });
@@ -492,8 +496,10 @@ export const createMatch = asyncHandler(async (req, res) => {
   }
 
   const now = new Date();
+  const tournament = req.body.tournament ? await Tournament.findById(req.body.tournament) : null;
   const match = await Match.create({
     ...req.body,
+    friendly: tournament?.friendly ?? req.body.friendly,
     acceptedAt: ["accepted", "waiting_confirmation", "confirmed"].includes(req.body.status as MatchStatus) ? now : undefined,
     resultSubmittedBy: ["waiting_confirmation", "confirmed"].includes(req.body.status as MatchStatus) ? req.user!.playerId : undefined,
     resultSubmittedAt: ["waiting_confirmation", "confirmed"].includes(req.body.status as MatchStatus) ? now : undefined,

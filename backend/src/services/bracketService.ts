@@ -25,7 +25,8 @@ const previousPowerOfTwo = (value: number): number => {
 const createPairingMatches = async (
   tournamentId: Types.ObjectId,
   players: string[],
-  round: string
+  round: string,
+  friendly: boolean
 ): Promise<Types.ObjectId[]> => {
   const createdMatchIds: Types.ObjectId[] = [];
 
@@ -36,7 +37,8 @@ const createPairingMatches = async (
       player2: players[i + 1],
       round,
       status: "accepted",
-      acceptedAt: new Date()
+      acceptedAt: new Date(),
+      friendly
     });
     createdMatchIds.push(match._id);
   }
@@ -73,7 +75,8 @@ export const generateTournamentDraw = async (tournamentId: string) => {
           player2: players[j],
           round: "RR",
           status: "accepted",
-          acceptedAt: new Date()
+          acceptedAt: new Date(),
+          friendly: tournament.friendly
         });
         createdMatchIds.push(match._id);
       }
@@ -105,7 +108,8 @@ export const generateTournamentDraw = async (tournamentId: string) => {
             player2: group[j],
             round,
             status: "accepted",
-            acceptedAt: new Date()
+            acceptedAt: new Date(),
+            friendly: tournament.friendly
           });
           createdMatchIds.push(match._id);
         }
@@ -120,7 +124,7 @@ export const generateTournamentDraw = async (tournamentId: string) => {
   }
 
   if (tournament.format === "swiss") {
-    tournament.matches = await createPairingMatches(tournament._id, players, "SW1");
+    tournament.matches = await createPairingMatches(tournament._id, players, "SW1", tournament.friendly);
     tournament.drawGeneratedAt = new Date();
     tournament.status = "active";
     await tournament.save();
@@ -152,7 +156,8 @@ export const generateTournamentDraw = async (tournamentId: string) => {
         player2,
         round,
         status: "accepted",
-        acceptedAt: new Date()
+        acceptedAt: new Date(),
+        friendly: tournament.friendly
       });
       createdMatchIds.push(match._id);
     }
@@ -178,7 +183,8 @@ export const generateTournamentDraw = async (tournamentId: string) => {
         player2: qualificationPlayers[i + 1],
         round: "Q",
         status: "accepted",
-        acceptedAt: new Date()
+        acceptedAt: new Date(),
+        friendly: tournament.friendly
       });
       createdMatchIds.push(match._id);
     }
@@ -215,7 +221,8 @@ export const generateTournamentDraw = async (tournamentId: string) => {
       player2,
       round,
       status: "accepted",
-      acceptedAt: new Date()
+      acceptedAt: new Date(),
+      friendly: tournament.friendly
     });
     createdMatchIds.push(match._id);
   }
@@ -312,7 +319,8 @@ export const advanceTournamentRound = async (tournamentId: string) => {
       player2: winners[i + 1],
       round: nextRound,
       status: "accepted",
-      acceptedAt: new Date()
+      acceptedAt: new Date(),
+      friendly: tournament.friendly
     });
     createdMatchIds.push(match._id);
   }

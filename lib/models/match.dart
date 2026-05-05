@@ -30,6 +30,7 @@ class TennisMatch {
     required this.sets,
     required this.round,
     required this.status,
+    required this.friendly,
     this.location,
     this.scheduledAt,
     this.createdAt,
@@ -52,6 +53,7 @@ class TennisMatch {
   final Player? winner;
   final String round;
   final String status;
+  final bool friendly;
   final String? location;
   final DateTime? scheduledAt;
   final DateTime? createdAt;
@@ -96,6 +98,7 @@ class TennisMatch {
           : null,
       round: json['round'] ?? '',
       status: json['status'] ?? 'pending',
+      friendly: json['friendly'] == true,
       location: json['location'],
       scheduledAt: DateTime.tryParse(json['scheduledAt'] ?? ''),
       createdAt: DateTime.tryParse(json['createdAt'] ?? ''),

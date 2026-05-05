@@ -82,6 +82,7 @@ class LeagueService {
     required String format,
     required DateTime startDate,
     required DateTime endDate,
+    bool friendly = false,
     String status = 'upcoming',
   }) async {
     final data = await api.postJson('/api/tournaments', {
@@ -93,6 +94,7 @@ class LeagueService {
       'format': format,
       'startDate': startDate.toIso8601String(),
       'endDate': endDate.toIso8601String(),
+      'friendly': friendly,
       'status': status,
     });
     return Tournament.fromJson(data['tournament']);
@@ -109,6 +111,7 @@ class LeagueService {
     required DateTime startDate,
     required DateTime endDate,
     required String status,
+    required bool friendly,
   }) async {
     final data = await api.patchJson('/api/tournaments/$id', {
       'name': name,
@@ -120,6 +123,7 @@ class LeagueService {
       'startDate': startDate.toIso8601String(),
       'endDate': endDate.toIso8601String(),
       'status': status,
+      'friendly': friendly,
     });
     return Tournament.fromJson(data['tournament']);
   }
@@ -233,6 +237,7 @@ class LeagueService {
     String round = 'Challenge',
     String? location,
     DateTime? scheduledAt,
+    bool friendly = false,
   }) async {
     await api.postJson('/api/matches/challenge', {
       'opponentId': opponentId,
@@ -243,6 +248,7 @@ class LeagueService {
       'round': round,
       'location': ?location,
       'scheduledAt': ?scheduledAt?.toIso8601String(),
+      'friendly': friendly,
     });
   }
 

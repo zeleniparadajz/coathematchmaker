@@ -20,6 +20,7 @@ export interface TournamentAttrs {
   startDate: Date;
   endDate: Date;
   status: TournamentStatus;
+  friendly: boolean;
   participants: Types.ObjectId[];
   matches: Types.ObjectId[];
   images: string[];
@@ -43,6 +44,7 @@ const tournamentSchema = new Schema<TournamentAttrs>(
     startDate: { type: Date, required: true },
     endDate: { type: Date, required: true },
     status: { type: String, enum: ["upcoming", "active", "finished"], default: "upcoming" },
+    friendly: { type: Boolean, default: false },
     participants: [{ type: Schema.Types.ObjectId, ref: "Player" }],
     matches: [{ type: Schema.Types.ObjectId, ref: "Match" }],
     images: { type: [String], default: [] },

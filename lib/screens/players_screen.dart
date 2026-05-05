@@ -725,7 +725,7 @@ class _PointsBreakdownSheet extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               Text(
-                'Ranking računa samo potvrđene mečeve. Neriješeni, pending i disputed mečevi ne ulaze u poene.',
+                'Ranking računa samo potvrđene takmičarske mečeve. Prijateljski mečevi se broje u skor, ali ne dodaju poene.',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: AppTheme.ink.withValues(alpha: .58),
                   fontWeight: FontWeight.w600,

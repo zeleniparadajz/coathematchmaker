@@ -26,6 +26,7 @@ export interface MatchAttrs {
   round: string;
   location?: string;
   scheduledAt?: Date;
+  friendly: boolean;
   status: MatchStatus;
   challengedBy?: Types.ObjectId;
   acceptedAt?: Date;
@@ -63,6 +64,7 @@ const matchSchema = new Schema<MatchAttrs>(
     round: { type: String, required: true, trim: true },
     location: { type: String, trim: true },
     scheduledAt: { type: Date },
+    friendly: { type: Boolean, default: false },
     status: {
       type: String,
       enum: ["pending", "accepted", "waiting_confirmation", "confirmed", "rejected", "disputed", "cancelled"],
