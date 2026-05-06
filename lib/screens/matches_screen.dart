@@ -63,7 +63,9 @@ class _MatchesScreenState extends State<MatchesScreen> {
   }
 
   Future<_MatchesData> _load() async {
-    final matches = await widget.league.myMatches();
+    final matches = widget.auth.isAdmin
+        ? await widget.league.matches()
+        : await widget.league.myMatches();
     final settings = await widget.league.settings();
     return _MatchesData(matches, settings);
   }
@@ -277,14 +279,39 @@ class _MatchCard extends StatelessWidget {
                   _MatchTypeIcon(status: match.status, hasWinner: hasWinner),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Text(
-                      '${match.team1Name} vs ${match.team2Name}',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          match.team1Name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w900),
+                        ),
+                        Text(
+                          'vs',
+                          style: Theme.of(context).textTheme.labelLarge
+                              ?.copyWith(
+                                color: AppTheme.ink.withValues(alpha: .56),
+                                fontWeight: FontWeight.w900,
+                              ),
+                        ),
+                        Text(
+                          match.team2Name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w900),
+                        ),
+                      ],
                     ),
                   ),
-                  _StatusBadge(status: match.status),
+                  const SizedBox(width: 8),
+                  Align(
+                    alignment: Alignment.topRight,
+                    child: _StatusBadge(status: match.status),
+                  ),
                 ],
               ),
               const SizedBox(height: 10),
@@ -335,7 +362,7 @@ class _MatchCard extends StatelessWidget {
                 const _HintLine(
                   icon: Icons.favorite,
                   text:
-                      'Prijateljski meč: broji se u skor, ali ne dodaje poene u rang listu.',
+                      'Prijateljski meč: ne ulazi u statistiku i ne dodaje poene.',
                 ),
               ],
               if (match.status == 'waiting_confirmation') ...[
@@ -767,7 +794,7 @@ class _FriendlyMatchInfoCard extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Ovaj meč je prijateljski. Pobjeda, poraz i broj mečeva se čuvaju, ali poeni ne ulaze u rang listu.',
+              'Ovaj meč je prijateljski. Ne ulazi u statistiku i ne dodaje poene.',
               style: TextStyle(
                 color: AppTheme.ink.withValues(alpha: .72),
                 fontWeight: FontWeight.w700,
@@ -1204,7 +1231,7 @@ class _FriendlyChallengeTile extends StatelessWidget {
                 Text(
                   lockedByTournament
                       ? 'Meč prati tip izabranog turnira.'
-                      : 'Skor se čuva, ali pobjeda ne dodaje poene.',
+                      : 'Ne ulazi u statistiku i ne dodaje poene.',
                   style: TextStyle(
                     color: AppTheme.ink.withValues(alpha: .58),
                     fontWeight: FontWeight.w600,

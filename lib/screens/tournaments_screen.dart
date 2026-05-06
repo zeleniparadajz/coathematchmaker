@@ -480,7 +480,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
                 const _FriendlyInfoCard(
                   title: 'Prijateljski turnir',
                   text:
-                      'Mečevi se broje u statistikama igrača, ali pobjede i titula ne dodaju poene u rang listu.',
+                      'Mečevi iz ovog turnira ne ulaze u statistiku i ne dodaju poene.',
                 ),
                 const SizedBox(height: 12),
               ],
@@ -944,7 +944,7 @@ class _FriendlyModeTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  'Mečevi se broje, ali poeni ne ulaze u rang listu.',
+                  'Mečevi ne ulaze u statistiku i ne dodaju poene.',
                   style: TextStyle(
                     color: AppTheme.ink.withValues(alpha: .58),
                     fontWeight: FontWeight.w600,

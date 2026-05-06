@@ -17,6 +17,11 @@ export const applyConfirmedMatchStats = async (match: MatchAttrs & { _id: Types.
     throw new AppError(400, "Winner must be player1/team1 or player2/team2");
   }
 
+  if (match.friendly) {
+    await Match.findByIdAndUpdate(match._id, { statsApplied: true });
+    return;
+  }
+
   const winnerIds = winnerId === player1Id
     ? [match.player1, match.player1Partner].filter(Boolean)
     : [match.player2, match.player2Partner].filter(Boolean);
@@ -24,9 +29,8 @@ export const applyConfirmedMatchStats = async (match: MatchAttrs & { _id: Types.
     ? [match.player2, match.player2Partner].filter(Boolean)
     : [match.player1, match.player1Partner].filter(Boolean);
   const settings = await getLeagueSettings();
-  const winnerIncrement = match.friendly
-    ? { wins: 1, matchesPlayed: 1 }
-    : { wins: 1, matchesPlayed: 1, totalPoints: settings.matchWinPoints };
+  const winnerIncrement = { wins: 1, matchesPlayed: 1, totalPoints: settings.matchWinPoints };
+  const loserIncrement = { losses: 1, matchesPlayed: 1 };
 
   await Promise.all(
     winnerIds.map((id) =>
@@ -36,9 +40,7 @@ export const applyConfirmedMatchStats = async (match: MatchAttrs & { _id: Types.
 
   await Promise.all(
     loserIds.map((id) =>
-      Player.findByIdAndUpdate(id, {
-        $inc: { losses: 1, matchesPlayed: 1 }
-      })
+      Player.findByIdAndUpdate(id, { $inc: loserIncrement })
     )
   );
 
@@ -64,11 +66,11 @@ export const awardTournamentWin = async (tournamentId: string, winnerId: string)
 
   if (!alreadyHadWinner) {
     const settings = await getLeagueSettings();
-    await Player.findByIdAndUpdate(winnerId, {
-      $inc: tournament.friendly
-        ? { tournamentsWon: 1 }
-        : { tournamentsWon: 1, totalPoints: settings.tournamentWinPoints }
-    });
+    if (!tournament.friendly) {
+      await Player.findByIdAndUpdate(winnerId, {
+        $inc: { tournamentsWon: 1, totalPoints: settings.tournamentWinPoints }
+      });
+    }
   }
 };
 

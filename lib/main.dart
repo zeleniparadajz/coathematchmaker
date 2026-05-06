@@ -112,40 +112,32 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _loadPendingChallengeCount() async {
+  Future<int> _loadPendingChallengeCount() async {
     try {
       final pending = await widget.league.pendingMatches();
-      if (mounted) {
-        setState(() => _pendingChallengeCount = pending.length);
-      }
+      return pending.length;
     } catch (_) {
-      if (mounted) {
-        setState(() => _pendingChallengeCount = 0);
-      }
+      return 0;
     }
   }
 
-  Future<void> _loadUnreadMessageCount() async {
+  Future<int> _loadUnreadMessageCount() async {
     try {
-      final count = await widget.league.unreadMessageCount();
-      if (mounted) {
-        setState(() => _unreadMessageCount = count);
-      }
+      return widget.league.unreadMessageCount();
     } catch (_) {
-      if (mounted) {
-        setState(() => _unreadMessageCount = 0);
-      }
+      return 0;
     }
   }
 
   Future<void> _refreshVisibleData() async {
-    await Future.wait([
+    final results = await Future.wait([
       _loadPendingChallengeCount(),
       _loadUnreadMessageCount(),
-      widget.auth.refreshMe().catchError((_) {}),
     ]);
     if (!mounted) return;
     setState(() {
+      _pendingChallengeCount = results[0];
+      _unreadMessageCount = results[1];
       _refreshVersion++;
     });
   }
@@ -371,7 +363,13 @@ class _BrandTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Image.asset('assets/images/coa.png', width: 34, height: 34),
+        Image.asset(
+          'assets/images/coa.png',
+          width: 34,
+          height: 34,
+          gaplessPlayback: true,
+          filterQuality: FilterQuality.high,
+        ),
         const SizedBox(width: 8),
         RichText(
           text: const TextSpan(

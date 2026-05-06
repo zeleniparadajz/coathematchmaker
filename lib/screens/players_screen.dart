@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../models/league_settings.dart';
+import '../models/match.dart';
 import '../models/player.dart';
+import '../models/tournament.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/league_service.dart';
@@ -405,9 +407,18 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   }
 
   Future<_PlayerProfileData> _load() async {
-    final player = await widget.league.player(widget.playerId);
-    final settings = await widget.league.settings();
-    return _PlayerProfileData(player: player, settings: settings);
+    final results = await Future.wait([
+      widget.league.player(widget.playerId),
+      widget.league.settings(),
+      widget.league.matches(),
+      widget.league.tournaments(),
+    ]);
+    return _PlayerProfileData(
+      player: results[0] as Player,
+      settings: results[1] as LeagueSettings,
+      matches: results[2] as List<TennisMatch>,
+      tournaments: results[3] as List<Tournament>,
+    );
   }
 
   Future<void> _pickImage() async {
@@ -447,7 +458,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           final player = snapshot.data!.player;
-          final settings = snapshot.data!.settings;
+          final profileData = snapshot.data!;
           final canEdit = widget.auth.currentPlayer?.id == player.id;
           return ListView(
             padding: const EdgeInsets.all(16),
@@ -524,30 +535,38 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                     label: 'Poeni',
                     value: '${player.totalPoints}',
                     icon: Icons.leaderboard,
-                    onTap: () => _showPointsBreakdown(player, settings),
+                    onTap: () => _showPointsBreakdown(profileData),
                   ),
                   StatCard(
                     label: 'Pobjede',
                     value: '${player.wins}',
                     icon: Icons.check_circle,
                     color: AppTheme.court,
+                    onTap: () =>
+                        _showStatBreakdown(profileData, _StatKind.wins),
                   ),
                   StatCard(
                     label: 'Porazi',
                     value: '${player.losses}',
                     icon: Icons.cancel,
                     color: AppTheme.clay,
+                    onTap: () =>
+                        _showStatBreakdown(profileData, _StatKind.losses),
                   ),
                   StatCard(
                     label: 'Mečevi',
                     value: '${player.matchesPlayed}',
                     icon: Icons.sports_tennis,
+                    onTap: () =>
+                        _showStatBreakdown(profileData, _StatKind.matches),
                   ),
                   StatCard(
                     label: 'Titule',
                     value: '${player.tournamentsWon}',
                     icon: Icons.emoji_events,
                     color: AppTheme.clay,
+                    onTap: () =>
+                        _showStatBreakdown(profileData, _StatKind.titles),
                   ),
                   StatCard(
                     label: 'Godište',
@@ -563,9 +582,12 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
     );
   }
 
-  void _showPointsBreakdown(Player player, LeagueSettings settings) {
-    final matchPoints = player.wins * settings.matchWinPoints;
-    final titlePoints = player.tournamentsWon * settings.tournamentWinPoints;
+  void _showPointsBreakdown(_PlayerProfileData data) {
+    final player = data.player;
+    final settings = data.settings;
+    final matchPoints = data.competitiveWins.length * settings.matchWinPoints;
+    final titlePoints =
+        data.competitiveTitles.length * settings.tournamentWinPoints;
     final calculated = matchPoints + titlePoints;
     final adjustment = player.totalPoints - calculated;
 
@@ -579,16 +601,83 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
         matchPoints: matchPoints,
         titlePoints: titlePoints,
         adjustment: adjustment,
+        wins: data.competitiveWins,
+        titles: data.competitiveTitles,
       ),
+    );
+  }
+
+  void _showStatBreakdown(_PlayerProfileData data, _StatKind kind) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _StatBreakdownSheet(data: data, kind: kind),
     );
   }
 }
 
 class _PlayerProfileData {
-  const _PlayerProfileData({required this.player, required this.settings});
+  const _PlayerProfileData({
+    required this.player,
+    required this.settings,
+    required this.matches,
+    required this.tournaments,
+  });
 
   final Player player;
   final LeagueSettings settings;
+  final List<TennisMatch> matches;
+  final List<Tournament> tournaments;
+
+  List<TennisMatch> get confirmedMatches => matches
+      .where(
+        (match) =>
+            match.status == 'confirmed' &&
+            !match.friendly &&
+            _isParticipant(match, player.id),
+      )
+      .toList();
+
+  List<TennisMatch> get competitiveWins =>
+      confirmedMatches.where((match) => _isWinner(match, player.id)).toList();
+
+  List<TennisMatch> get competitiveLosses =>
+      confirmedMatches.where((match) => _isLoser(match, player.id)).toList();
+
+  List<Tournament> get competitiveTitles => tournaments
+      .where(
+        (tournament) =>
+            !tournament.friendly && tournament.winner?.id == player.id,
+      )
+      .toList();
+
+  static bool _isParticipant(TennisMatch match, String playerId) {
+    return [
+      match.player1.id,
+      match.player2.id,
+      match.player1Partner?.id,
+      match.player2Partner?.id,
+    ].contains(playerId);
+  }
+
+  static bool _isWinner(TennisMatch match, String playerId) {
+    final winnerId = match.winner?.id;
+    if (winnerId == null) return false;
+    if (winnerId == match.player1.id) {
+      return playerId == match.player1.id ||
+          playerId == match.player1Partner?.id;
+    }
+    if (winnerId == match.player2.id) {
+      return playerId == match.player2.id ||
+          playerId == match.player2Partner?.id;
+    }
+    return false;
+  }
+
+  static bool _isLoser(TennisMatch match, String playerId) {
+    return _isParticipant(match, playerId) && !_isWinner(match, playerId);
+  }
 }
 
 class _PointsBreakdownSheet extends StatelessWidget {
@@ -598,6 +687,8 @@ class _PointsBreakdownSheet extends StatelessWidget {
     required this.matchPoints,
     required this.titlePoints,
     required this.adjustment,
+    required this.wins,
+    required this.titles,
   });
 
   final Player player;
@@ -605,6 +696,8 @@ class _PointsBreakdownSheet extends StatelessWidget {
   final int matchPoints;
   final int titlePoints;
   final int adjustment;
+  final List<TennisMatch> wins;
+  final List<Tournament> titles;
 
   @override
   Widget build(BuildContext context) {
@@ -671,7 +764,7 @@ class _PointsBreakdownSheet extends StatelessWidget {
                 context,
                 icon: Icons.check_circle,
                 title: 'Pobjede',
-                detail: '${player.wins} x ${settings.matchWinPoints} pts',
+                detail: '${wins.length} x ${settings.matchWinPoints} pts',
                 points: matchPoints,
                 color: AppTheme.court,
               ),
@@ -680,7 +773,7 @@ class _PointsBreakdownSheet extends StatelessWidget {
                 icon: Icons.emoji_events,
                 title: 'Titule',
                 detail:
-                    '${player.tournamentsWon} x ${settings.tournamentWinPoints} pts',
+                    '${titles.length} x ${settings.tournamentWinPoints} pts',
                 points: titlePoints,
                 color: AppTheme.clay,
               ),
@@ -725,7 +818,7 @@ class _PointsBreakdownSheet extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               Text(
-                'Ranking računa samo potvrđene takmičarske mečeve. Prijateljski mečevi se broje u skor, ali ne dodaju poene.',
+                'Ranking računa samo potvrđene takmičarske mečeve. Prijateljski mečevi ne ulaze u statistiku i ne dodaju poene.',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: AppTheme.ink.withValues(alpha: .58),
                   fontWeight: FontWeight.w600,
@@ -794,4 +887,289 @@ class _PointsBreakdownSheet extends StatelessWidget {
       ),
     );
   }
+}
+
+enum _StatKind { wins, losses, matches, titles }
+
+class _StatBreakdownSheet extends StatelessWidget {
+  const _StatBreakdownSheet({required this.data, required this.kind});
+
+  final _PlayerProfileData data;
+  final _StatKind kind;
+
+  @override
+  Widget build(BuildContext context) {
+    final config = _config();
+    final items = _items();
+
+    return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * .84,
+      ),
+      decoration: const BoxDecoration(
+        color: Color(0xfff7faf4),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppTheme.ink.withValues(alpha: .16),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: config.color.withValues(alpha: .14),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(config.icon, color: config.color),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          config.title,
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w900),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          config.subtitle,
+                          style: TextStyle(
+                            color: AppTheme.ink.withValues(alpha: .58),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    '${items.length}',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _noteCard(config.note),
+              const SizedBox(height: 12),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    if (items.isEmpty)
+                      _emptyCard(config.emptyText)
+                    else
+                      ...items.map(_itemCard),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  _StatConfig _config() {
+    return switch (kind) {
+      _StatKind.wins => const _StatConfig(
+        title: 'Pobjede',
+        subtitle: 'Samo takmičarski confirmed mečevi',
+        note: 'Prijateljski mečevi ne ulaze u pobjede, statistiku ni poene.',
+        emptyText: 'Nema takmičarskih pobjeda.',
+        icon: Icons.check_circle,
+        color: AppTheme.court,
+      ),
+      _StatKind.losses => const _StatConfig(
+        title: 'Porazi',
+        subtitle: 'Samo takmičarski confirmed mečevi',
+        note: 'Prijateljski mečevi ne ulaze u poraze, statistiku ni poene.',
+        emptyText: 'Nema takmičarskih poraza.',
+        icon: Icons.cancel,
+        color: AppTheme.clay,
+      ),
+      _StatKind.matches => const _StatConfig(
+        title: 'Mečevi',
+        subtitle: 'Samo takmičarski confirmed mečevi',
+        note:
+            'Ovdje ulaze samo potvrđeni takmičarski mečevi. Prijateljski mečevi se ne računaju u statistiku.',
+        emptyText: 'Nema potvrđenih mečeva.',
+        icon: Icons.sports_tennis,
+        color: AppTheme.court,
+      ),
+      _StatKind.titles => const _StatConfig(
+        title: 'Titule',
+        subtitle: 'Samo takmičarski osvojeni turniri',
+        note:
+            'Prijateljski turniri ne ulaze u zvanične titule i ne daju poene.',
+        emptyText: 'Nema takmičarskih titula.',
+        icon: Icons.emoji_events,
+        color: AppTheme.clay,
+      ),
+    };
+  }
+
+  List<Object> _items() {
+    return switch (kind) {
+      _StatKind.wins => data.competitiveWins,
+      _StatKind.losses => data.competitiveLosses,
+      _StatKind.matches => data.confirmedMatches,
+      _StatKind.titles => data.competitiveTitles,
+    };
+  }
+
+  Widget _noteCard(String text) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppTheme.lime.withValues(alpha: .22),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: AppTheme.ink.withValues(alpha: .68),
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
+  Widget _emptyCard(String text) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(text, style: const TextStyle(fontWeight: FontWeight.w700)),
+    );
+  }
+
+  Widget _itemCard(Object item) {
+    if (item is Tournament) {
+      return _baseCard(
+        icon: Icons.emoji_events,
+        title: item.name,
+        subtitle: '${item.location} | ${_dateLabel(item.endDate)}',
+        trailing: 'titula',
+      );
+    }
+
+    final match = item as TennisMatch;
+    final result = match.scoreText.isEmpty ? 'bez rezultata' : match.scoreText;
+    return _baseCard(
+      icon: Icons.sports_tennis,
+      title: '${match.team1Name} vs ${match.team2Name}',
+      subtitle: '${match.tournament?.name ?? match.round} | $result',
+      trailing: 'confirmed',
+    );
+  }
+
+  Widget _baseCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required String trailing,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: AppTheme.court.withValues(alpha: .12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, size: 18, color: AppTheme.court),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: AppTheme.ink.withValues(alpha: .58),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            trailing,
+            style: TextStyle(
+              color: AppTheme.ink.withValues(alpha: .48),
+              fontWeight: FontWeight.w800,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _dateLabel(DateTime value) {
+    final day = value.day.toString().padLeft(2, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    return '$day.$month.${value.year}';
+  }
+}
+
+class _StatConfig {
+  const _StatConfig({
+    required this.title,
+    required this.subtitle,
+    required this.note,
+    required this.emptyText,
+    required this.icon,
+    required this.color,
+  });
+
+  final String title;
+  final String subtitle;
+  final String note;
+  final String emptyText;
+  final IconData icon;
+  final Color color;
 }

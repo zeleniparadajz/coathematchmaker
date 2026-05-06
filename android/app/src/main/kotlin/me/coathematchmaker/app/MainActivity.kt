@@ -1,4 +1,4 @@
-package com.example.coathematchmaker
+package me.coathematchmaker.app
 
 import android.content.ActivityNotFoundException
 import android.content.Intent

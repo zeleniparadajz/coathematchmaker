@@ -160,6 +160,27 @@ const getActorSide = (match: { player1: Types.ObjectId; player2: Types.ObjectId;
   return null;
 };
 
+const visibleMatchFilter = (userId: string, role?: string, base: Record<string, unknown> = {}) => {
+  if (isAdmin(role)) {
+    return base;
+  }
+
+  return {
+    $and: [
+      base,
+      {
+        $or: [
+          { friendly: { $ne: true } },
+          { player1: userId },
+          { player2: userId },
+          { player1Partner: userId },
+          { player2Partner: userId }
+        ]
+      }
+    ]
+  };
+};
+
 const canSubmitResult = async (acceptedAt?: Date): Promise<{ allowed: boolean; minutesLeft: number }> => {
   const settings = await getLeagueSettings();
 
@@ -188,7 +209,7 @@ const populateMatch = (id: Types.ObjectId | string) => {
 
 export const listMatches = asyncHandler(async (req, res) => {
   const filter = typeof req.query.tournament === "string" ? { tournament: req.query.tournament } : {};
-  const matches = await Match.find(filter)
+  const matches = await Match.find(visibleMatchFilter(req.user!.id, req.user!.role, filter))
     .populate("tournament")
     .populate("player1", "-password")
     .populate("player2", "-password")
@@ -249,6 +270,10 @@ export const getMatch = asyncHandler(async (req, res) => {
   const match = await populateMatch(String(req.params.id));
 
   if (!match) {
+    throw new AppError(404, "Match not found");
+  }
+
+  if (match.friendly && !isAdmin(req.user!.role) && !matchPlayerIds(match).includes(req.user!.id)) {
     throw new AppError(404, "Match not found");
   }
 

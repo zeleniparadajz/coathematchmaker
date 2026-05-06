@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/dm.dart';
@@ -30,30 +32,60 @@ class MessagesScreen extends StatefulWidget {
 }
 
 class _MessagesScreenState extends State<MessagesScreen> {
-  late Future<List<Conversation>> _future;
+  final List<Conversation> _conversations = [];
+  Timer? _refreshTimer;
+  bool _loading = true;
+  bool _refreshing = false;
 
   @override
   void initState() {
     super.initState();
-    _future = widget.league.conversations();
+    _refresh(silent: false);
+    _refreshTimer = Timer.periodic(
+      const Duration(seconds: 8),
+      (_) => _refresh(silent: true),
+    );
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
   }
 
   @override
   void didUpdateWidget(covariant MessagesScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.refreshTick != widget.refreshTick) {
-      setState(() {
-        _future = widget.league.conversations();
-      });
+      _refresh(silent: true);
     }
   }
 
-  Future<void> _refresh() async {
-    setState(() {
-      _future = widget.league.conversations();
-    });
-    await _future;
-    widget.onChanged?.call();
+  Future<void> _refresh({bool silent = false}) async {
+    if (_refreshing) return;
+    _refreshing = true;
+    if (!silent && mounted) setState(() => _loading = true);
+
+    try {
+      final conversations = await widget.league.conversations();
+      if (!mounted) return;
+      setState(() {
+        _conversations
+          ..clear()
+          ..addAll(conversations);
+        _loading = false;
+      });
+      widget.onChanged?.call();
+    } on ApiException catch (error) {
+      if (!silent && mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } finally {
+      _refreshing = false;
+      if (mounted && _loading) setState(() => _loading = false);
+    }
   }
 
   Future<void> _newConversation() async {
@@ -82,10 +114,11 @@ class _MessagesScreenState extends State<MessagesScreen> {
           api: widget.api,
           auth: widget.auth,
           conversation: conversation,
+          onChanged: widget.onChanged,
         ),
       ),
     );
-    await _refresh();
+    await _refresh(silent: true);
   }
 
   @override
@@ -98,57 +131,51 @@ class _MessagesScreenState extends State<MessagesScreen> {
         icon: const Icon(Icons.edit),
         label: const Text('Poruka'),
       ),
-      body: FutureBuilder<List<Conversation>>(
-        future: _future,
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final conversations = snapshot.data!;
-          return RefreshIndicator(
-            onRefresh: _refresh,
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-              children: [
-                Text(
-                  'Dogovori meč, termin ili trening direktno sa igračima.',
-                  style: TextStyle(
-                    color: AppTheme.ink.withValues(alpha: .58),
-                    fontWeight: FontWeight.w600,
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: () => _refresh(silent: false),
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+                children: [
+                  Text(
+                    'Dogovori meč, termin ili trening direktno sa igračima.',
+                    style: TextStyle(
+                      color: AppTheme.ink.withValues(alpha: .58),
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 14),
-                if (conversations.isEmpty)
-                  const _EmptyInbox()
-                else
-                  ...conversations.map((conversation) {
-                    final other = conversation.otherParticipant(
-                      currentPlayerId,
-                    );
-                    return _ConversationCard(
-                      conversation: conversation,
-                      other: other,
-                      api: widget.api,
-                      onTap: () async {
-                        await Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => ChatScreen(
-                              league: widget.league,
-                              api: widget.api,
-                              auth: widget.auth,
-                              conversation: conversation,
+                  const SizedBox(height: 14),
+                  if (_conversations.isEmpty)
+                    const _EmptyInbox()
+                  else
+                    ..._conversations.map((conversation) {
+                      final other = conversation.otherParticipant(
+                        currentPlayerId,
+                      );
+                      return _ConversationCard(
+                        conversation: conversation,
+                        other: other,
+                        api: widget.api,
+                        onTap: () async {
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => ChatScreen(
+                                league: widget.league,
+                                api: widget.api,
+                                auth: widget.auth,
+                                conversation: conversation,
+                                onChanged: widget.onChanged,
+                              ),
                             ),
-                          ),
-                        );
-                        await _refresh();
-                      },
-                    );
-                  }),
-              ],
+                          );
+                          await _refresh(silent: true);
+                        },
+                      );
+                    }),
+                ],
+              ),
             ),
-          );
-        },
-      ),
     );
   }
 }
@@ -222,12 +249,14 @@ class ChatScreen extends StatefulWidget {
     required this.api,
     required this.auth,
     required this.conversation,
+    this.onChanged,
   });
 
   final LeagueService league;
   final ApiClient api;
   final AuthService auth;
   final Conversation conversation;
+  final VoidCallback? onChanged;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -235,25 +264,62 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final _message = TextEditingController();
-  late Future<List<DirectMessage>> _future;
+  final _scrollController = ScrollController();
+  final List<DirectMessage> _messages = [];
+  Timer? _refreshTimer;
+  bool _loading = true;
+  bool _refreshing = false;
   bool _sending = false;
 
   @override
   void initState() {
     super.initState();
-    _future = _load();
+    _refresh(silent: false);
+    _refreshTimer = Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => _refresh(silent: true),
+    );
   }
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _message.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
-  Future<List<DirectMessage>> _load() async {
-    final messages = await widget.league.messages(widget.conversation.id);
-    await widget.league.markConversationRead(widget.conversation.id);
-    return messages;
+  Future<void> _refresh({bool silent = false}) async {
+    if (_refreshing) return;
+    _refreshing = true;
+    if (!silent && mounted) setState(() => _loading = true);
+
+    try {
+      final messages = await widget.league.messages(widget.conversation.id);
+      await widget.league.markConversationRead(widget.conversation.id);
+      final hadNewMessage =
+          _messages.isEmpty ||
+          messages.length != _messages.length ||
+          (messages.isNotEmpty && messages.last.id != _messages.last.id);
+      if (!mounted) return;
+      setState(() {
+        _messages
+          ..clear()
+          ..addAll(messages);
+        _loading = false;
+      });
+      widget.onChanged?.call();
+      if (hadNewMessage) _scrollToBottom();
+    } on ApiException catch (error) {
+      if (!silent && mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } finally {
+      _refreshing = false;
+      if (mounted && _loading) setState(() => _loading = false);
+    }
   }
 
   Future<void> _send() async {
@@ -263,10 +329,7 @@ class _ChatScreenState extends State<ChatScreen> {
     try {
       await widget.league.sendMessage(widget.conversation.id, text);
       _message.clear();
-      setState(() {
-        _future = _load();
-      });
-      await _future;
+      await _refresh(silent: true);
     } on ApiException catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -276,6 +339,17 @@ class _ChatScreenState extends State<ChatScreen> {
     } finally {
       if (mounted) setState(() => _sending = false);
     }
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOut,
+      );
+    });
   }
 
   @override
@@ -296,49 +370,46 @@ class _ChatScreenState extends State<ChatScreen> {
       body: Column(
         children: [
           Expanded(
-            child: FutureBuilder<List<DirectMessage>>(
-              future: _future,
-              builder: (context, snapshot) {
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final messages = snapshot.data!;
-                return ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final message = messages[index];
-                    final mine = message.sender.id == currentPlayerId;
-                    return Align(
-                      alignment: mine
-                          ? Alignment.centerRight
-                          : Alignment.centerLeft,
-                      child: Container(
-                        constraints: BoxConstraints(
-                          maxWidth: MediaQuery.of(context).size.width * .76,
-                        ),
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 13,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: mine ? AppTheme.court : Colors.white,
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        child: Text(
-                          message.text,
-                          style: TextStyle(
-                            color: mine ? AppTheme.ink : AppTheme.ink,
-                            fontWeight: FontWeight.w600,
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : RefreshIndicator(
+                    onRefresh: () => _refresh(silent: false),
+                    child: ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                      itemCount: _messages.length,
+                      itemBuilder: (context, index) {
+                        final message = _messages[index];
+                        final mine = message.sender.id == currentPlayerId;
+                        return Align(
+                          alignment: mine
+                              ? Alignment.centerRight
+                              : Alignment.centerLeft,
+                          child: Container(
+                            constraints: BoxConstraints(
+                              maxWidth: MediaQuery.of(context).size.width * .76,
+                            ),
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 13,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: mine ? AppTheme.court : Colors.white,
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            child: Text(
+                              message.text,
+                              style: TextStyle(
+                                color: mine ? AppTheme.ink : AppTheme.ink,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
+                        );
+                      },
+                    ),
+                  ),
           ),
           SafeArea(
             top: false,
