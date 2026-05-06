@@ -10,6 +10,7 @@
 .history
 .svn/
 .swiftpm/
+.swift-module-cache/
 migrate_working_dir/
 
 # IntelliJ related
@@ -49,3 +50,9 @@ backend/node_modules/
 backend/dist/
 backend/.env
 backend/uploads/
+
+# Android release signing secrets
+android/key.properties
+android/upload-keystore.jks
+*.jks
+*.keystore
