@@ -59,24 +59,21 @@ class _TournamentsScreenState extends State<TournamentsScreen> {
           return const Center(child: CircularProgressIndicator());
         }
         return Scaffold(
-          floatingActionButton: widget.auth.isAdmin
-              ? FloatingActionButton.extended(
-                  heroTag: 'tournaments-create-fab',
-                  onPressed: () async {
-                    await Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            TournamentFormScreen(league: widget.league),
-                      ),
-                    );
-                    setState(() {
-                      _future = widget.league.tournaments();
-                    });
-                  },
-                  icon: const Icon(Icons.add),
-                  label: const Text('Turnir'),
-                )
-              : null,
+          floatingActionButton: FloatingActionButton.extended(
+            heroTag: 'tournaments-create-fab',
+            onPressed: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => TournamentFormScreen(league: widget.league),
+                ),
+              );
+              setState(() {
+                _future = widget.league.tournaments();
+              });
+            },
+            icon: const Icon(Icons.add),
+            label: const Text('Turnir'),
+          ),
           body: RefreshIndicator(
             onRefresh: () async {
               setState(() {
@@ -216,10 +213,19 @@ class _TournamentListCard extends StatelessWidget {
                         icon: Icons.groups,
                         label: '${tournament.participants.length} igrača',
                       ),
+                      _TournamentMiniPill(
+                        icon: tournament.isPrivate ? Icons.lock : Icons.public,
+                        label: tournament.isPrivate ? 'Privatni' : 'Javni',
+                      ),
                       if (tournament.friendly)
                         const _TournamentMiniPill(
                           icon: Icons.favorite,
                           label: 'Prijateljski',
+                        )
+                      else
+                        const _TournamentMiniPill(
+                          icon: Icons.leaderboard,
+                          label: 'Takmičarski',
                         ),
                     ],
                   ),
@@ -333,7 +339,11 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
     final matches = await widget.league.matches(
       tournamentId: widget.tournamentId,
     );
-    final players = widget.auth.isAdmin
+    final players =
+        tournament.canManage(
+          widget.auth.currentPlayer?.id,
+          appAdmin: widget.auth.isAdmin,
+        )
         ? await widget.league.players()
         : <Player>[];
     return _TournamentDetailsData(tournament, rankings, matches, players);
@@ -360,6 +370,21 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
         widget.tournamentId,
         playerId,
       );
+      setState(() {
+        _future = _load();
+      });
+    } on ApiException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    }
+  }
+
+  Future<void> _addTournamentAdmin(String playerId) async {
+    try {
+      await widget.league.addTournamentAdmin(widget.tournamentId, playerId);
       setState(() {
         _future = _load();
       });
@@ -468,14 +493,32 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
                 ),
               )
               .toList();
+          final adminCandidates = snapshot.data!.players
+              .where(
+                (player) =>
+                    !tournament.admins.any((admin) => admin.id == player.id),
+              )
+              .toList();
           final registered = tournament.participants.any(
             (player) => player.id == widget.auth.currentPlayer?.id,
+          );
+          final canManage = tournament.canManage(
+            widget.auth.currentPlayer?.id,
+            appAdmin: widget.auth.isAdmin,
           );
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
               _TournamentHero(tournament: tournament),
               const SizedBox(height: 12),
+              if (tournament.isPrivate) ...[
+                const _FriendlyInfoCard(
+                  title: 'Privatni turnir',
+                  text:
+                      'Vidi ga samo ekipa koja je ubačena. Mečevi su prijateljski i ne ulaze u rangiranje.',
+                ),
+                const SizedBox(height: 12),
+              ],
               if (tournament.friendly) ...[
                 const _FriendlyInfoCard(
                   title: 'Prijateljski turnir',
@@ -490,21 +533,36 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
                 tournament: tournament,
                 api: widget.api,
                 canUpload:
-                    (widget.auth.isAdmin || registered) &&
-                    tournament.images.length < 5,
+                    (canManage || registered) && tournament.images.length < 5,
                 uploading: _uploadingImage,
                 onUpload: () => _pickTournamentImage(tournament),
               ),
               const SizedBox(height: 14),
               _TournamentActions(
-                isAdmin: widget.auth.isAdmin,
+                canManage: canManage,
                 isUpcoming: tournament.isUpcoming,
                 registered: registered,
                 onRegister: _register,
                 onEdit: () => _editTournament(tournament),
                 onGenerateDraw: _generateDraw,
               ),
-              if (widget.auth.isAdmin && availablePlayers.isNotEmpty) ...[
+              if (canManage && tournament.admins.isNotEmpty) ...[
+                const SectionHeader('Admini turnira'),
+                ...tournament.admins.map(
+                  (player) => Card(
+                    child: ListTile(
+                      leading: PlayerAvatar(player: player, api: widget.api),
+                      title: Text(player.fullName),
+                      subtitle: Text(
+                        player.id == tournament.owner?.id
+                            ? 'Kreator turnira'
+                            : 'Admin turnira',
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+              if (canManage && availablePlayers.isNotEmpty) ...[
                 const SectionHeader('Dodaj igrača'),
                 AppSelectField(
                   label: 'Igrač',
@@ -529,6 +587,31 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
                   },
                 ),
               ],
+              if (canManage && adminCandidates.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                AppSelectField(
+                  label: 'Dodaj admina turnira',
+                  value: 'Izaberi igrača',
+                  icon: Icons.admin_panel_settings,
+                  onTap: () async {
+                    final player = await showAppOptionPicker<Player>(
+                      context: context,
+                      title: 'Dodaj admina',
+                      selected: adminCandidates.first,
+                      options: adminCandidates,
+                      labelBuilder: (player) => player.fullName,
+                      leadingBuilder: (player) => PlayerAvatar(
+                        player: player,
+                        api: widget.api,
+                        radius: 18,
+                      ),
+                    );
+                    if (player != null) {
+                      _addTournamentAdmin(player.id);
+                    }
+                  },
+                ),
+              ],
               const SectionHeader('Učesnici'),
               ...tournament.participants.map(
                 (player) => Card(
@@ -536,7 +619,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
                     leading: PlayerAvatar(player: player, api: widget.api),
                     title: Text(player.fullName),
                     subtitle: Text(player.club ?? player.country),
-                    trailing: widget.auth.isAdmin
+                    trailing: canManage
                         ? IconButton(
                             tooltip: 'Ukloni',
                             onPressed: () => _removeParticipant(player.id),
@@ -648,8 +731,14 @@ class _TournamentHero extends StatelessWidget {
                 icon: Icons.account_tree,
                 label: _formatLabel(tournament.format),
               ),
+              _HeroMeta(
+                icon: tournament.isPrivate ? Icons.lock : Icons.public,
+                label: tournament.isPrivate ? 'Privatni' : 'Javni',
+              ),
               if (tournament.friendly)
                 const _HeroMeta(icon: Icons.favorite, label: 'Prijateljski'),
+              if (!tournament.friendly)
+                const _HeroMeta(icon: Icons.leaderboard, label: 'Takmičarski'),
             ],
           ),
           const SizedBox(height: 14),
@@ -847,7 +936,7 @@ class _TournamentGallery extends StatelessWidget {
 
 class _TournamentActions extends StatelessWidget {
   const _TournamentActions({
-    required this.isAdmin,
+    required this.canManage,
     required this.isUpcoming,
     required this.registered,
     required this.onRegister,
@@ -855,7 +944,7 @@ class _TournamentActions extends StatelessWidget {
     required this.onGenerateDraw,
   });
 
-  final bool isAdmin;
+  final bool canManage;
   final bool isUpcoming;
   final bool registered;
   final VoidCallback onRegister;
@@ -880,13 +969,13 @@ class _TournamentActions extends StatelessWidget {
             label: const Text('Prijavljen si'),
             backgroundColor: AppTheme.court.withValues(alpha: .10),
           ),
-        if (isAdmin)
+        if (canManage)
           FilledButton.tonalIcon(
             onPressed: onEdit,
             icon: const Icon(Icons.edit),
             label: const Text('Uredi turnir'),
           ),
-        if (isAdmin)
+        if (canManage)
           FilledButton.icon(
             onPressed: onGenerateDraw,
             icon: const Icon(Icons.account_tree),
@@ -898,10 +987,15 @@ class _TournamentActions extends StatelessWidget {
 }
 
 class _FriendlyModeTile extends StatelessWidget {
-  const _FriendlyModeTile({required this.value, required this.onChanged});
+  const _FriendlyModeTile({
+    required this.value,
+    required this.onChanged,
+    this.locked = false,
+  });
 
   final bool value;
   final ValueChanged<bool> onChanged;
+  final bool locked;
 
   @override
   Widget build(BuildContext context) {
@@ -944,7 +1038,9 @@ class _FriendlyModeTile extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  'Mečevi ne ulaze u statistiku i ne dodaju poene.',
+                  locked
+                      ? 'Privatni turnir je uvijek prijateljski i ne ulazi u rang.'
+                      : 'Mečevi ne ulaze u statistiku i ne dodaju poene.',
                   style: TextStyle(
                     color: AppTheme.ink.withValues(alpha: .58),
                     fontWeight: FontWeight.w600,
@@ -954,7 +1050,78 @@ class _FriendlyModeTile extends StatelessWidget {
               ],
             ),
           ),
-          Switch(value: value, onChanged: onChanged),
+          Switch(value: value, onChanged: locked ? null : onChanged),
+        ],
+      ),
+    );
+  }
+}
+
+class _VisibilityModeTile extends StatelessWidget {
+  const _VisibilityModeTile({required this.value, required this.onChanged});
+
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final private = value == 'private';
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: private
+            ? AppTheme.ink.withValues(alpha: .055)
+            : AppTheme.court.withValues(alpha: .08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.ink.withValues(alpha: .08)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: private ? AppTheme.ink : AppTheme.court,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              private ? Icons.lock : Icons.public,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  private ? 'Privatni turnir' : 'Javni turnir',
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  private
+                      ? 'Vidi ga samo ekipa koju ubaciš ili pozoveš.'
+                      : 'Vidi se u listi turnira. Može biti prijateljski ili takmičarski.',
+                  style: TextStyle(
+                    color: AppTheme.ink.withValues(alpha: .58),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'public', icon: Icon(Icons.public)),
+              ButtonSegment(value: 'private', icon: Icon(Icons.lock)),
+            ],
+            selected: {value},
+            showSelectedIcon: false,
+            onSelectionChanged: (selection) => onChanged(selection.first),
+          ),
         ],
       ),
     );
@@ -1043,6 +1210,7 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
   String _discipline = 'singles';
   String _format = 'elimination';
   String _status = 'upcoming';
+  String _visibility = 'public';
   bool _friendly = false;
   bool _saving = false;
 
@@ -1071,6 +1239,7 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
       _endDate = tournament.endDate;
       _format = tournament.format;
       _status = tournament.status;
+      _visibility = tournament.visibility;
       _friendly = tournament.friendly;
     }
   }
@@ -1088,6 +1257,7 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
           format: _format,
           startDate: _startDate,
           endDate: _endDate,
+          visibility: _visibility,
           friendly: _friendly,
           status: _status,
         );
@@ -1103,6 +1273,7 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
           startDate: _startDate,
           endDate: _endDate,
           status: _status,
+          visibility: _visibility,
           friendly: _friendly,
         );
       }
@@ -1236,8 +1407,19 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
                     },
                   ),
                   const SizedBox(height: 12),
+                  _VisibilityModeTile(
+                    value: _visibility,
+                    onChanged: (value) => setState(() {
+                      _visibility = value;
+                      if (value == 'private') {
+                        _friendly = true;
+                      }
+                    }),
+                  ),
+                  const SizedBox(height: 12),
                   _FriendlyModeTile(
                     value: _friendly,
+                    locked: _visibility == 'private',
                     onChanged: (value) => setState(() => _friendly = value),
                   ),
                 ],

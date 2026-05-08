@@ -20,6 +20,7 @@ export const createTournamentSchema = z.object({
   startDate: z.coerce.date(),
   endDate: z.coerce.date(),
   status: z.enum(["upcoming", "active", "finished"]).optional(),
+  visibility: z.enum(["public", "private"]).default("public"),
   friendly: z.boolean().default(false)
 });
 
@@ -35,6 +36,10 @@ export const addParticipantSchema = z.object({
   playerId: z.string().min(1)
 });
 
+export const addTournamentAdminSchema = z.object({
+  playerId: z.string().min(1)
+});
+
 export const createTournamentMatchSchema = z.object({
   player1: z.string().min(1),
   player2: z.string().min(1),
@@ -45,10 +50,76 @@ export const createTournamentMatchSchema = z.object({
   scheduledAt: z.coerce.date().optional()
 });
 
+const isAppAdmin = (role?: string) => role === "admin";
+
+const tournamentAdminIds = (tournament: { owner?: unknown; admins?: unknown[] }) => [
+  tournament.owner?.toString(),
+  ...(tournament.admins ?? []).map((id) => id?.toString())
+].filter(Boolean);
+
+const isTournamentManager = (
+  tournament: { owner?: unknown; admins?: unknown[] },
+  userId: string,
+  role?: string
+) => isAppAdmin(role) || tournamentAdminIds(tournament).includes(userId);
+
+const ensureTournamentManager = (
+  tournament: { owner?: unknown; admins?: unknown[] },
+  userId: string,
+  role?: string
+) => {
+  if (!isTournamentManager(tournament, userId, role)) {
+    throw new AppError(403, "Only tournament admins can perform this action");
+  }
+};
+
+const canViewTournament = (
+  tournament: { visibility?: string; owner?: unknown; admins?: unknown[]; participants?: unknown[] },
+  userId: string,
+  role?: string
+) => {
+  if (isAppAdmin(role) || tournament.visibility !== "private") {
+    return true;
+  }
+
+  const memberIds = [
+    tournament.owner?.toString(),
+    ...(tournament.admins ?? []).map((id) => id?.toString()),
+    ...(tournament.participants ?? []).map((id) => id?.toString())
+  ].filter(Boolean);
+
+  return memberIds.includes(userId);
+};
+
+const normalizeTournamentBody = (body: z.infer<typeof updateTournamentSchema>) => {
+  if (body.visibility === "private") {
+    return { ...body, friendly: true };
+  }
+
+  return body;
+};
+
 export const listTournaments = asyncHandler(async (req, res) => {
-  const filter = typeof req.query.status === "string" ? { status: req.query.status } : {};
+  const statusFilter = typeof req.query.status === "string" ? { status: req.query.status } : {};
+  const filter = isAppAdmin(req.user!.role)
+    ? statusFilter
+    : {
+        $and: [
+          statusFilter,
+          {
+            $or: [
+              { visibility: { $ne: "private" } },
+              { owner: req.user!.id },
+              { admins: req.user!.id },
+              { participants: req.user!.id }
+            ]
+          }
+        ]
+      };
   const tournaments = await Tournament.find(filter)
     .populate("participants", "-password")
+    .populate("owner", "-password")
+    .populate("admins", "-password")
     .populate("winner", "-password")
     .sort({ startDate: -1 });
 
@@ -58,6 +129,8 @@ export const listTournaments = asyncHandler(async (req, res) => {
 export const getTournament = asyncHandler(async (req, res) => {
   const tournament = await Tournament.findById(req.params.id)
     .populate("participants", "-password")
+    .populate("owner", "-password")
+    .populate("admins", "-password")
     .populate({
       path: "matches",
       populate: [
@@ -74,6 +147,10 @@ export const getTournament = asyncHandler(async (req, res) => {
     throw new AppError(404, "Tournament not found");
   }
 
+  if (!canViewTournament(tournament, req.user!.id, req.user!.role)) {
+    throw new AppError(404, "Tournament not found");
+  }
+
   res.json({ tournament });
 });
 
@@ -82,7 +159,16 @@ export const createTournament = asyncHandler(async (req, res) => {
     throw new AppError(400, "End date must be after start date");
   }
 
-  const tournament = await Tournament.create(req.body);
+  const body = normalizeTournamentBody(req.body);
+  const tournament = await Tournament.create({
+    ...body,
+    owner: req.user!.playerId,
+    admins: [req.user!.playerId],
+    participants: [req.user!.playerId]
+  });
+  await tournament.populate("participants", "-password");
+  await tournament.populate("owner", "-password");
+  await tournament.populate("admins", "-password");
   res.status(201).json({ tournament });
 });
 
@@ -91,10 +177,22 @@ export const updateTournament = asyncHandler(async (req, res) => {
     throw new AppError(400, "End date must be after start date");
   }
 
-  const tournament = await Tournament.findByIdAndUpdate(req.params.id, req.body, {
+  const existing = await Tournament.findById(req.params.id);
+
+  if (!existing) {
+    throw new AppError(404, "Tournament not found");
+  }
+
+  ensureTournamentManager(existing, req.user!.id, req.user!.role);
+
+  const body = normalizeTournamentBody(req.body);
+  const tournament = await Tournament.findByIdAndUpdate(req.params.id, body, {
     new: true,
     runValidators: true
-  }).populate("participants", "-password");
+  })
+    .populate("participants", "-password")
+    .populate("owner", "-password")
+    .populate("admins", "-password");
 
   if (!tournament) {
     throw new AppError(404, "Tournament not found");
@@ -115,6 +213,10 @@ export const registerForTournament = asyncHandler(async (req, res) => {
 
   if (!tournament) {
     throw new AppError(404, "Tournament not found");
+  }
+
+  if (tournament.visibility === "private") {
+    throw new AppError(403, "Private tournaments are invite-only");
   }
 
   if (tournament.status !== "upcoming") {
@@ -144,12 +246,16 @@ export const addParticipant = asyncHandler(async (req, res) => {
     throw new AppError(404, "Tournament not found");
   }
 
+  ensureTournamentManager(tournament, req.user!.id, req.user!.role);
+
   if (!tournament.participants.some((participantId) => participantId.toString() === playerId)) {
     tournament.participants.push(player._id);
     await tournament.save();
   }
 
   await tournament.populate("participants", "-password");
+  await tournament.populate("owner", "-password");
+  await tournament.populate("admins", "-password");
   res.json({ tournament });
 });
 
@@ -160,13 +266,49 @@ export const removeParticipant = asyncHandler(async (req, res) => {
     throw new AppError(404, "Tournament not found");
   }
 
+  ensureTournamentManager(tournament, req.user!.id, req.user!.role);
+
   if (tournament.matches.length > 0) {
     throw new AppError(400, "Cannot remove participants after draw is generated");
   }
 
   tournament.participants = tournament.participants.filter((participantId) => participantId.toString() !== req.params.playerId);
+  tournament.admins = tournament.admins.filter((adminId) => adminId.toString() !== req.params.playerId);
   await tournament.save();
   await tournament.populate("participants", "-password");
+  await tournament.populate("owner", "-password");
+  await tournament.populate("admins", "-password");
+  res.json({ tournament });
+});
+
+export const addTournamentAdmin = asyncHandler(async (req, res) => {
+  const { playerId } = req.body;
+  const player = await Player.findById(playerId);
+
+  if (!player) {
+    throw new AppError(404, "Player not found");
+  }
+
+  const tournament = await Tournament.findById(req.params.id);
+
+  if (!tournament) {
+    throw new AppError(404, "Tournament not found");
+  }
+
+  ensureTournamentManager(tournament, req.user!.id, req.user!.role);
+
+  if (!tournament.participants.some((participantId) => participantId.toString() === playerId)) {
+    tournament.participants.push(player._id);
+  }
+
+  if (!tournament.admins.some((adminId) => adminId.toString() === playerId)) {
+    tournament.admins.push(player._id);
+  }
+
+  await tournament.save();
+  await tournament.populate("participants", "-password");
+  await tournament.populate("owner", "-password");
+  await tournament.populate("admins", "-password");
   res.json({ tournament });
 });
 
@@ -176,6 +318,8 @@ export const createTournamentMatch = asyncHandler(async (req, res) => {
   if (!tournament) {
     throw new AppError(404, "Tournament not found");
   }
+
+  ensureTournamentManager(tournament, req.user!.id, req.user!.role);
 
   const playerIds = [
     req.body.player1,
@@ -237,6 +381,14 @@ export const createTournamentMatch = asyncHandler(async (req, res) => {
 });
 
 export const generateDraw = asyncHandler(async (req, res) => {
+  const existing = await Tournament.findById(req.params.id);
+
+  if (!existing) {
+    throw new AppError(404, "Tournament not found");
+  }
+
+  ensureTournamentManager(existing, req.user!.id, req.user!.role);
+
   const result = await generateTournamentDraw(String(req.params.id));
   const tournament = await Tournament.findById(req.params.id)
     .populate("participants", "-password")
@@ -253,6 +405,14 @@ export const generateDraw = asyncHandler(async (req, res) => {
 });
 
 export const advanceRound = asyncHandler(async (req, res) => {
+  const existing = await Tournament.findById(req.params.id);
+
+  if (!existing) {
+    throw new AppError(404, "Tournament not found");
+  }
+
+  ensureTournamentManager(existing, req.user!.id, req.user!.role);
+
   const result = await advanceTournamentRound(String(req.params.id));
   const tournament = await Tournament.findById(req.params.id)
     .populate("participants", "-password")
@@ -270,6 +430,14 @@ export const advanceRound = asyncHandler(async (req, res) => {
 });
 
 export const finishTournament = asyncHandler(async (req, res) => {
+  const existing = await Tournament.findById(req.params.id);
+
+  if (!existing) {
+    throw new AppError(404, "Tournament not found");
+  }
+
+  ensureTournamentManager(existing, req.user!.id, req.user!.role);
+
   await awardTournamentWin(String(req.params.id), req.body.winnerId);
 
   const tournament = await Tournament.findById(req.params.id)

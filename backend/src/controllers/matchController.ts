@@ -208,7 +208,21 @@ const populateMatch = (id: Types.ObjectId | string) => {
 };
 
 export const listMatches = asyncHandler(async (req, res) => {
-  const filter = typeof req.query.tournament === "string" ? { tournament: req.query.tournament } : {};
+  const filter: Record<string, unknown> = typeof req.query.tournament === "string" ? { tournament: req.query.tournament } : {};
+
+  if (!isAdmin(req.user!.role)) {
+    const hiddenTournaments = await Tournament.find({
+      visibility: "private",
+      owner: { $ne: req.user!.id },
+      admins: { $ne: req.user!.id },
+      participants: { $ne: req.user!.id }
+    }).select("_id");
+    filter.tournament = {
+      ...(typeof filter.tournament === "string" ? { $eq: filter.tournament } : {}),
+      $nin: hiddenTournaments.map((tournament) => tournament._id)
+    };
+  }
+
   const matches = await Match.find(visibleMatchFilter(req.user!.id, req.user!.role, filter))
     .populate("tournament")
     .populate("player1", "-password")

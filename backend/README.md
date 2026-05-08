@@ -164,16 +164,17 @@ API vraća relativni URL, npr. `/uploads/profile-images/file.jpg`. Flutter ga sp
 ### Tournaments
 
 - `GET /api/tournaments` - lista turnira
-- `POST /api/tournaments` - admin kreira turnir
+- `POST /api/tournaments` - ulogovani igrač kreira turnir i postaje kreator/admin turnira
 - `GET /api/tournaments/:id` - detalji turnira
-- `PATCH /api/tournaments/:id` - admin izmjena turnira
-- `POST /api/tournaments/:id/register` - prijava trenutno ulogovanog igrača
-- `POST /api/tournaments/:id/participants` - admin dodaje igrača
-- `DELETE /api/tournaments/:id/participants/:playerId` - admin uklanja igrača prije žrijeba
-- `POST /api/tournaments/:id/matches` - admin ručno kreira meč u turniru
-- `POST /api/tournaments/:id/generate-draw` - admin automatski formira žrijeb
-- `POST /api/tournaments/:id/advance-round` - admin generiše sljedeću rundu iz confirmed pobjednika
-- `POST /api/tournaments/:id/finish` - admin završava turnir i dodjeljuje pobjednika
+- `PATCH /api/tournaments/:id` - kreator/admin turnira ili globalni admin mijenja turnir
+- `POST /api/tournaments/:id/register` - prijava trenutno ulogovanog igrača na javni upcoming turnir
+- `POST /api/tournaments/:id/participants` - kreator/admin turnira dodaje igrača
+- `DELETE /api/tournaments/:id/participants/:playerId` - kreator/admin turnira uklanja igrača prije žrijeba
+- `POST /api/tournaments/:id/admins` - kreator/admin turnira dodaje admina turnira
+- `POST /api/tournaments/:id/matches` - kreator/admin turnira ručno kreira meč u turniru
+- `POST /api/tournaments/:id/generate-draw` - kreator/admin turnira automatski formira žrijeb
+- `POST /api/tournaments/:id/advance-round` - kreator/admin turnira generiše sljedeću rundu iz confirmed pobjednika
+- `POST /api/tournaments/:id/finish` - kreator/admin turnira završava turnir i dodjeljuje pobjednika
 - `GET /api/tournaments/:id/rankings` - ranking unutar turnira
 
 Primjer kreiranja turnira:
@@ -187,11 +188,22 @@ Primjer kreiranja turnira:
   "format": "elimination",
   "startDate": "2026-06-01",
   "endDate": "2026-06-15",
-  "status": "upcoming"
+  "status": "upcoming",
+  "visibility": "public",
+  "friendly": false
 }
 ```
 
 Turnir čuva naziv, lokaciju, podlogu, kategoriju, datum početka/kraja, status, listu učesnika i listu mečeva. Podržani formati su `elimination`, `qualification`, `round_robin`, `group_knockout`, `double_elimination`, `compass` i `swiss`.
+
+Turniri sada imaju Viber-like admin flow:
+
+- korisnik koji kreira turnir postaje `owner` i automatski je u `admins` i `participants`
+- owner/admin turnira može dodavati igrače i dodati druge admine turnira
+- globalni admin i dalje može upravljati svim turnirima
+- `visibility: "public"` znači da se turnir vidi u listi i može biti `friendly: true` ili takmičarski `friendly: false`
+- `visibility: "private"` znači da turnir vide samo owner, admini i učesnici; backend ga automatski drži kao `friendly: true`
+- privatni i prijateljski turniri ne dodaju poene u generalni ranking
 
 Automatski žrijeb:
 

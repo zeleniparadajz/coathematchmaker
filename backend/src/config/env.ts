@@ -21,6 +21,12 @@ export const env = {
   corsOrigin: process.env.CORS_ORIGIN ?? "*",
   adminRegistrationCode: process.env.ADMIN_REGISTRATION_CODE,
   appUrl: process.env.APP_URL ?? "http://localhost:4000",
+  minSupportedBuild: Number(process.env.APP_MIN_SUPPORTED_BUILD ?? 1),
+  latestBuild: Number(process.env.APP_LATEST_BUILD ?? process.env.APP_MIN_SUPPORTED_BUILD ?? 1),
+  playStoreUrl: process.env.PLAY_STORE_URL ?? "",
+  appUpdateMessage:
+    process.env.APP_UPDATE_MESSAGE ??
+    "Nova verzija aplikacije je obavezna. Ažuriraj COA The Matchmaker preko Google Play-a.",
   requireEmailVerification: process.env.REQUIRE_EMAIL_VERIFICATION !== "false",
   resendApiKey: process.env.RESEND_API_KEY,
   emailFrom: process.env.EMAIL_FROM ?? "Coa The Matchmaker <onboarding@resend.dev>"

@@ -12,7 +12,10 @@ class Tournament {
     required this.startDate,
     required this.endDate,
     required this.status,
+    required this.visibility,
     required this.friendly,
+    this.owner,
+    this.admins = const [],
     required this.participants,
     this.images = const [],
     this.winner,
@@ -28,12 +31,22 @@ class Tournament {
   final DateTime startDate;
   final DateTime endDate;
   final String status;
+  final String visibility;
   final bool friendly;
+  final Player? owner;
+  final List<Player> admins;
   final List<Player> participants;
   final List<String> images;
   final Player? winner;
 
   bool get isUpcoming => status == 'upcoming';
+  bool get isPrivate => visibility == 'private';
+
+  bool canManage(String? playerId, {bool appAdmin = false}) {
+    if (appAdmin) return true;
+    if (playerId == null) return false;
+    return owner?.id == playerId || admins.any((admin) => admin.id == playerId);
+  }
 
   factory Tournament.fromJson(Map<String, dynamic> json) {
     return Tournament(
@@ -47,7 +60,15 @@ class Tournament {
       startDate: DateTime.tryParse(json['startDate'] ?? '') ?? DateTime.now(),
       endDate: DateTime.tryParse(json['endDate'] ?? '') ?? DateTime.now(),
       status: json['status'] ?? 'upcoming',
+      visibility: json['visibility'] ?? 'public',
       friendly: json['friendly'] == true,
+      owner: json['owner'] is Map<String, dynamic>
+          ? Player.fromJson(json['owner'])
+          : null,
+      admins: (json['admins'] as List? ?? [])
+          .whereType<Map<String, dynamic>>()
+          .map(Player.fromJson)
+          .toList(),
       participants: (json['participants'] as List? ?? [])
           .whereType<Map<String, dynamic>>()
           .map(Player.fromJson)

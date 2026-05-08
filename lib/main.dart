@@ -12,6 +12,7 @@ import 'screens/rankings_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/tournaments_screen.dart';
 import 'services/api_client.dart';
+import 'services/app_config_service.dart';
 import 'services/auth_service.dart';
 import 'services/league_service.dart';
 import 'theme/app_theme.dart';
@@ -32,12 +33,30 @@ class _CoaMatchmakerAppState extends State<CoaMatchmakerApp> {
   final api = ApiClient();
   late final auth = AuthService(api);
   late final league = LeagueService(api);
+  late final appConfig = AppConfigService(api);
+  bool _checkingUpdate = true;
+  AppConfig? _config;
 
   @override
   void initState() {
     super.initState();
     auth.addListener(() => setState(() {}));
-    auth.restoreSession();
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    try {
+      _config = await appConfig.load();
+    } catch (_) {
+      _config = null;
+    }
+
+    if (!mounted) return;
+    setState(() => _checkingUpdate = false);
+
+    if (_config?.updateRequired != true) {
+      auth.restoreSession();
+    }
   }
 
   @override
@@ -46,11 +65,92 @@ class _CoaMatchmakerAppState extends State<CoaMatchmakerApp> {
       debugShowCheckedModeBanner: false,
       title: 'Coa The Matchmaker',
       theme: AppTheme.light,
-      home: auth.loading
+      home: _checkingUpdate
+          ? const _SplashScreen()
+          : _config?.updateRequired == true
+          ? ForceUpdateScreen(config: _config!)
+          : auth.loading
           ? const _SplashScreen()
           : auth.isLoggedIn
           ? MainShell(auth: auth, league: league, api: api)
           : AuthScreen(auth: auth),
+    );
+  }
+}
+
+class ForceUpdateScreen extends StatelessWidget {
+  const ForceUpdateScreen({super.key, required this.config});
+
+  final AppConfig config;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Center(
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.ink.withValues(alpha: .08),
+                    blurRadius: 30,
+                    offset: const Offset(0, 16),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 74,
+                    height: 74,
+                    decoration: BoxDecoration(
+                      color: AppTheme.lime,
+                      borderRadius: BorderRadius.circular(26),
+                    ),
+                    child: const Icon(
+                      Icons.system_update,
+                      color: AppTheme.courtDark,
+                      size: 36,
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  Text(
+                    'Potrebna je nova verzija',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    config.message,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: AppTheme.ink.withValues(alpha: .62),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    config.playStoreUrl.isEmpty
+                        ? 'Otvori Google Play i ažuriraj aplikaciju COA The Matchmaker.'
+                        : config.playStoreUrl,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

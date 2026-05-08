@@ -1,6 +1,7 @@
 import { Schema, model, type Types } from "mongoose";
 
 export type TournamentStatus = "upcoming" | "active" | "finished";
+export type TournamentVisibility = "public" | "private";
 export type TournamentFormat =
   | "elimination"
   | "round_robin"
@@ -20,7 +21,10 @@ export interface TournamentAttrs {
   startDate: Date;
   endDate: Date;
   status: TournamentStatus;
+  visibility: TournamentVisibility;
   friendly: boolean;
+  owner: Types.ObjectId;
+  admins: Types.ObjectId[];
   participants: Types.ObjectId[];
   matches: Types.ObjectId[];
   images: string[];
@@ -44,7 +48,10 @@ const tournamentSchema = new Schema<TournamentAttrs>(
     startDate: { type: Date, required: true },
     endDate: { type: Date, required: true },
     status: { type: String, enum: ["upcoming", "active", "finished"], default: "upcoming" },
+    visibility: { type: String, enum: ["public", "private"], default: "public" },
     friendly: { type: Boolean, default: false },
+    owner: { type: Schema.Types.ObjectId, ref: "Player", required: true },
+    admins: [{ type: Schema.Types.ObjectId, ref: "Player" }],
     participants: [{ type: Schema.Types.ObjectId, ref: "Player" }],
     matches: [{ type: Schema.Types.ObjectId, ref: "Match" }],
     images: { type: [String], default: [] },
@@ -64,5 +71,9 @@ const tournamentSchema = new Schema<TournamentAttrs>(
 );
 
 tournamentSchema.index({ status: 1, startDate: 1 });
+tournamentSchema.index({ visibility: 1, startDate: -1 });
+tournamentSchema.index({ owner: 1, startDate: -1 });
+tournamentSchema.index({ admins: 1, startDate: -1 });
+tournamentSchema.index({ participants: 1, startDate: -1 });
 
 export const Tournament = model<TournamentAttrs>("Tournament", tournamentSchema);

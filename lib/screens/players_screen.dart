@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -40,7 +42,12 @@ class _PlayersScreenState extends State<PlayersScreen> {
   @override
   void initState() {
     super.initState();
-    _future = widget.league.players();
+    _future = _loadPlayers();
+  }
+
+  Future<List<Player>> _loadPlayers() async {
+    final players = await widget.league.players();
+    return [...players]..shuffle(Random());
   }
 
   @override
@@ -54,7 +61,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.refreshTick != widget.refreshTick) {
       setState(() {
-        _future = widget.league.players();
+        _future = _loadPlayers();
       });
     }
   }
@@ -76,7 +83,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
         return RefreshIndicator(
           onRefresh: () async {
             setState(() {
-              _future = widget.league.players();
+              _future = _loadPlayers();
             });
             await _future;
           },

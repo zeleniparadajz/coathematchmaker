@@ -82,6 +82,7 @@ class LeagueService {
     required String format,
     required DateTime startDate,
     required DateTime endDate,
+    String visibility = 'public',
     bool friendly = false,
     String status = 'upcoming',
   }) async {
@@ -94,6 +95,7 @@ class LeagueService {
       'format': format,
       'startDate': startDate.toIso8601String(),
       'endDate': endDate.toIso8601String(),
+      'visibility': visibility,
       'friendly': friendly,
       'status': status,
     });
@@ -111,6 +113,7 @@ class LeagueService {
     required DateTime startDate,
     required DateTime endDate,
     required String status,
+    required String visibility,
     required bool friendly,
   }) async {
     final data = await api.patchJson('/api/tournaments/$id', {
@@ -123,6 +126,7 @@ class LeagueService {
       'startDate': startDate.toIso8601String(),
       'endDate': endDate.toIso8601String(),
       'status': status,
+      'visibility': visibility,
       'friendly': friendly,
     });
     return Tournament.fromJson(data['tournament']);
@@ -133,6 +137,12 @@ class LeagueService {
     String playerId,
   ) async {
     await api.postJson('/api/tournaments/$tournamentId/participants', {
+      'playerId': playerId,
+    });
+  }
+
+  Future<void> addTournamentAdmin(String tournamentId, String playerId) async {
+    await api.postJson('/api/tournaments/$tournamentId/admins', {
       'playerId': playerId,
     });
   }
