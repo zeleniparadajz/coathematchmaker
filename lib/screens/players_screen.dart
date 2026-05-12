@@ -57,16 +57,6 @@ class _PlayersScreenState extends State<PlayersScreen> {
   }
 
   @override
-  void didUpdateWidget(covariant PlayersScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.refreshTick != widget.refreshTick) {
-      setState(() {
-        _future = _loadPlayers();
-      });
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<Player>>(
       future: _future,
