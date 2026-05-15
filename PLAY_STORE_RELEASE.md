@@ -2,16 +2,16 @@
 
 ## 1. Backend URL
 
-Za internal testing možeš ostaviti trenutni server:
+Backend za testing i production:
 
 ```bash
-flutter build appbundle --release --dart-define=API_URL=http://161.97.74.146:4000
+https://coabackapi.zeleniparadajz.me
 ```
 
-Za production je bolje prebaciti backend na HTTPS domen, npr:
+Build komanda:
 
 ```bash
-flutter build appbundle --release --dart-define=API_URL=https://api.coathematchmaker.me
+flutter build appbundle --release --dart-define=API_URL=https://coabackapi.zeleniparadajz.me
 ```
 
 ## 2. Release signing
@@ -37,7 +37,7 @@ U `android/key.properties` upiši prave lozinke.
 ```bash
 flutter clean
 flutter pub get
-flutter build appbundle --release --dart-define=API_URL=https://api.coathematchmaker.me
+flutter build appbundle --release --dart-define=API_URL=https://coabackapi.zeleniparadajz.me
 ```
 
 Output:

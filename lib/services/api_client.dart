@@ -34,8 +34,19 @@ class ApiClient {
 
   String imageUrl(String? value) {
     if (value == null || value.isEmpty) return '';
-    if (value.startsWith('http')) return value;
-    return '$baseUrl$value';
+    if (value.startsWith('http')) {
+      final uri = Uri.tryParse(value);
+      if (uri != null &&
+          uri.path.startsWith('/uploads') &&
+          (uri.host == '161.97.74.146' ||
+              uri.host == 'coabackapi.zeleniparadajz.me' ||
+              uri.host == 'localhost')) {
+        return '$baseUrl${uri.path}';
+      }
+      return value;
+    }
+    final normalized = value.startsWith('/') ? value : '/$value';
+    return '$baseUrl$normalized';
   }
 
   Future<Map<String, dynamic>> getJson(

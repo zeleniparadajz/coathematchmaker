@@ -61,7 +61,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final me = widget.auth.currentPlayer!;
+    final authPlayer = widget.auth.currentPlayer!;
     return RefreshIndicator(
       onRefresh: () async {
         setState(() {
@@ -76,6 +76,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           final data = snapshot.data!;
+          final me =
+              data.players.cast<Player?>().firstWhere(
+                (player) => player?.id == authPlayer.id,
+                orElse: () => null,
+              ) ??
+              authPlayer;
           final active = data.tournaments
               .where((t) => t.status == 'active')
               .length;
@@ -210,37 +216,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(height: 18),
               Text('Liga danas', style: _DashboardTypography.section),
               const SizedBox(height: 10),
-              GridView.count(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 2,
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
-                childAspectRatio: 1.35,
-                children: [
-                  StatCard(
-                    label: 'Igrača',
-                    value: '${data.players.length}',
-                    icon: Icons.groups,
-                  ),
-                  StatCard(
-                    label: 'Moji turniri',
-                    value: '$myTournaments',
-                    icon: Icons.emoji_events,
-                    color: AppTheme.clay,
-                  ),
-                  StatCard(
-                    label: 'Moji mečevi',
-                    value: '${me.matchesPlayed}',
-                    icon: Icons.sports_score,
-                  ),
-                  StatCard(
-                    label: 'Titule',
-                    value: '${me.tournamentsWon}',
-                    icon: Icons.workspace_premium,
-                    color: AppTheme.clay,
-                  ),
-                ],
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isTablet = constraints.maxWidth >= 700;
+                  return GridView.count(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisCount: isTablet ? 4 : 2,
+                    mainAxisSpacing: 10,
+                    crossAxisSpacing: 10,
+                    childAspectRatio: isTablet ? 1.05 : 1.35,
+                    children: [
+                      StatCard(
+                        label: 'Igrača',
+                        value: '${data.players.length}',
+                        icon: Icons.groups,
+                      ),
+                      StatCard(
+                        label: 'Moji turniri',
+                        value: '$myTournaments',
+                        icon: Icons.emoji_events,
+                        color: AppTheme.clay,
+                      ),
+                      StatCard(
+                        label: 'Moji mečevi',
+                        value: '${me.matchesPlayed}',
+                        icon: Icons.sports_score,
+                      ),
+                      StatCard(
+                        label: 'Titule',
+                        value: '${me.tournamentsWon}',
+                        icon: Icons.workspace_premium,
+                        color: AppTheme.clay,
+                      ),
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 18),
               Text('Top 5 ranking', style: _DashboardTypography.section),

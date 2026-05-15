@@ -42,6 +42,6 @@ Tennis, Sports, Local League, Tournaments, Ranking, Matchmaking
 
 ## Notes before publishing
 
-- For internal testing, the app can temporarily use `http://161.97.74.146:4000`.
-- For production release, switch backend/API to HTTPS and rebuild with `--dart-define=API_URL=https://...`.
+- Backend/API uses HTTPS: `https://coabackapi.zeleniparadajz.me`.
+- Release builds can use the default API URL or explicitly pass `--dart-define=API_URL=https://coabackapi.zeleniparadajz.me`.
 - Rotate any API keys that were shared in chat or committed locally.

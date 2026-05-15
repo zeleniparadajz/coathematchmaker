@@ -2,7 +2,7 @@ class Env {
   static const bool dev = false;
   static const String productionApiUrl = String.fromEnvironment(
     "API_URL",
-    defaultValue: "http://161.97.74.146:4000",
+    defaultValue: "https://coabackapi.zeleniparadajz.me",
   );
   static const int appBuildNumber = int.fromEnvironment(
     "APP_BUILD_NUMBER",

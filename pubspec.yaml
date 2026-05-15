@@ -48,6 +48,11 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
+dependency_overrides:
+  # 2.6.0 pulls objective_c native assets that currently fail to load on the
+  # iOS 26.2 simulator. Keep the Foundation path provider on the stable plugin.
+  path_provider_foundation: 2.5.1
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 

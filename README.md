@@ -18,4 +18,5 @@ http://localhost:4000
 
 Detaljna backend dokumentacija je u [backend/README.md](backend/README.md).
 
-Flutter app koristi backend na `http://localhost:4000`. Ako testiraš na Android emulatoru, u [api_client.dart](lib/services/api_client.dart) promijeni base URL na `http://10.0.2.2:4000`.
+Flutter app production default koristi backend na `https://coabackapi.zeleniparadajz.me`.
+Za lokalno testiranje možeš override-ovati URL kroz dart define, npr. `--dart-define=API_URL=http://localhost:4000`.
