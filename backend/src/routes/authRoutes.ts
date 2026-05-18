@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {
+  deleteMe,
   forgotPassword,
   forgotPasswordSchema,
   login,
@@ -27,3 +28,4 @@ authRoutes.post("/forgot-password", validate(forgotPasswordSchema), forgotPasswo
 authRoutes.get("/reset-password", resetPasswordPage);
 authRoutes.post("/reset-password", validate(resetPasswordSchema), resetPassword);
 authRoutes.get("/me", authenticate, me);
+authRoutes.delete("/me", authenticate, deleteMe);

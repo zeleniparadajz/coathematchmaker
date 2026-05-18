@@ -414,6 +414,11 @@ class _ProfileMenu extends StatelessWidget {
             ),
           );
         }
+        if (value == 'delete') {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => DeleteAccountScreen(auth: auth)),
+          );
+        }
         if (value == 'logout') {
           auth.logout();
         }
@@ -443,6 +448,16 @@ class _ProfileMenu extends StatelessWidget {
           value: 'logout',
           child: Row(
             children: [Icon(Icons.logout), SizedBox(width: 10), Text('Logout')],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'delete',
+          child: Row(
+            children: [
+              Icon(Icons.delete_forever_outlined),
+              SizedBox(width: 10),
+              Text('Obriši nalog'),
+            ],
           ),
         ),
       ],

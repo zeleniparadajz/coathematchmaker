@@ -72,6 +72,11 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> deleteAccount() async {
+    await api.deleteJson('/api/auth/me');
+    await logout();
+  }
+
   Future<void> _saveSession(Map<String, dynamic> data) async {
     api.token = data['token'];
     currentPlayer = Player.fromJson(data['player']);

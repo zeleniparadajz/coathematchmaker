@@ -6,7 +6,7 @@ class Env {
   );
   static const int appBuildNumber = int.fromEnvironment(
     "APP_BUILD_NUMBER",
-    defaultValue: 2,
+    defaultValue: 5,
   );
 
   static String get apiUrl {

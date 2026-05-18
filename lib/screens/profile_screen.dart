@@ -41,6 +41,166 @@ class PlayStatusScreen extends StatefulWidget {
   State<PlayStatusScreen> createState() => _PlayStatusScreenState();
 }
 
+class DeleteAccountScreen extends StatefulWidget {
+  const DeleteAccountScreen({super.key, required this.auth});
+
+  final AuthService auth;
+
+  @override
+  State<DeleteAccountScreen> createState() => _DeleteAccountScreenState();
+}
+
+class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
+  final _confirm = TextEditingController();
+  bool _deleting = false;
+
+  bool get _canDelete => _confirm.text.trim().toUpperCase() == 'DELETE';
+
+  @override
+  void dispose() {
+    _confirm.dispose();
+    super.dispose();
+  }
+
+  Future<void> _deleteAccount() async {
+    if (!_canDelete || _deleting) return;
+
+    setState(() => _deleting = true);
+    try {
+      await widget.auth.deleteAccount();
+      if (mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Nalog je obrisan.')));
+      }
+    } on ApiException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    } finally {
+      if (mounted) setState(() => _deleting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final player = widget.auth.currentPlayer;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Brisanje naloga')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: AppTheme.clay.withValues(alpha: .18),
+                        child: const Icon(
+                          Icons.delete_forever_outlined,
+                          color: AppTheme.clay,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Trajno obriši nalog',
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Ova akcija uklanja lične podatke profila, email, profilnu sliku i onemogućava buduću prijavu na nalog.',
+                    style: TextStyle(
+                      color: AppTheme.ink.withValues(alpha: .68),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Istorija lige, mečevi i turniri mogu ostati prikazani bez tvojih ličnih podataka kako bi rezultati drugih igrača ostali tačni.',
+                    style: TextStyle(
+                      color: AppTheme.ink.withValues(alpha: .58),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          if (player != null)
+            Card(
+              child: ListTile(
+                leading: PlayerAvatar(player: player, api: widget.auth.api),
+                title: Text(
+                  player.fullName,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+                subtitle: Text(player.email),
+              ),
+            ),
+          const SizedBox(height: 14),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Za potvrdu upiši DELETE',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 10),
+                  AppTextField(
+                    controller: _confirm,
+                    label: 'Potvrda',
+                    hint: 'DELETE',
+                    icon: Icons.verified_user_outlined,
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppTheme.clay,
+                        foregroundColor: Colors.white,
+                      ),
+                      onPressed: _canDelete && !_deleting
+                          ? _deleteAccount
+                          : null,
+                      icon: _deleting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.delete_forever),
+                      label: const Text('Obriši nalog'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _PlayStatusScreenState extends State<PlayStatusScreen> {
   bool _saving = false;
 

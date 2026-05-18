@@ -281,3 +281,36 @@ export const me = asyncHandler(async (req, res) => {
 
   res.json({ player });
 });
+
+export const deleteMe = asyncHandler(async (req, res) => {
+  const player = await Player.findById(req.user!.id).select(
+    "+password +emailVerificationToken +emailVerificationExpires +passwordResetToken +passwordResetExpires"
+  );
+
+  if (!player) {
+    throw new AppError(404, "Player not found");
+  }
+
+  const deletedAt = Date.now();
+  player.firstName = "Deleted";
+  player.lastName = "Account";
+  player.email = `deleted-${player.id}-${deletedAt}@deleted.coathematchmaker.local`;
+  player.password = `deleted-${player.id}-${deletedAt}`;
+  player.birthDate = new Date("1970-01-01");
+  player.country = "Deleted";
+  player.club = undefined;
+  player.profileImage = undefined;
+  player.emailVerified = false;
+  player.emailVerificationToken = undefined;
+  player.emailVerificationExpires = undefined;
+  player.passwordResetToken = undefined;
+  player.passwordResetExpires = undefined;
+  player.active = false;
+  player.playStatus = "unavailable";
+  player.playStatusUpdatedAt = new Date();
+  await player.save();
+
+  res.json({
+    message: "Account deleted. Personal profile data has been removed and the account can no longer be used."
+  });
+});
