@@ -36,6 +36,7 @@ class AppConfigService {
   Future<AppConfig> load() async {
     final data = await api.getJson('/api/app-config', {
       'build': Env.appBuildNumber.toString(),
+      'platform': Env.platform,
     });
     return AppConfig.fromJson(data);
   }

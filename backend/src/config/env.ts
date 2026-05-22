@@ -12,6 +12,17 @@ const required = (name: string, fallback?: string): string => {
   return value;
 };
 
+const numberFromEnv = (name: string, fallback: number): number => {
+  const raw = process.env[name];
+  if (raw === undefined || raw === "") return fallback;
+
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const defaultMinSupportedBuild = numberFromEnv("APP_MIN_SUPPORTED_BUILD", 1);
+const defaultLatestBuild = numberFromEnv("APP_LATEST_BUILD", defaultMinSupportedBuild);
+
 export const env = {
   nodeEnv: process.env.NODE_ENV ?? "development",
   port: Number(process.env.PORT ?? 4000),
@@ -21,9 +32,14 @@ export const env = {
   corsOrigin: process.env.CORS_ORIGIN ?? "*",
   adminRegistrationCode: process.env.ADMIN_REGISTRATION_CODE,
   appUrl: process.env.APP_URL ?? "http://localhost:4000",
-  minSupportedBuild: Number(process.env.APP_MIN_SUPPORTED_BUILD ?? 1),
-  latestBuild: Number(process.env.APP_LATEST_BUILD ?? process.env.APP_MIN_SUPPORTED_BUILD ?? 1),
+  minSupportedBuild: defaultMinSupportedBuild,
+  latestBuild: defaultLatestBuild,
+  iosMinSupportedBuild: numberFromEnv("APP_IOS_MIN_SUPPORTED_BUILD", defaultMinSupportedBuild),
+  iosLatestBuild: numberFromEnv("APP_IOS_LATEST_BUILD", defaultLatestBuild),
+  androidMinSupportedBuild: numberFromEnv("APP_ANDROID_MIN_SUPPORTED_BUILD", defaultMinSupportedBuild),
+  androidLatestBuild: numberFromEnv("APP_ANDROID_LATEST_BUILD", defaultLatestBuild),
   playStoreUrl: process.env.PLAY_STORE_URL ?? "",
+  appStoreUrl: process.env.APP_STORE_URL ?? "",
   appUpdateMessage:
     process.env.APP_UPDATE_MESSAGE ??
     "Nova verzija aplikacije je obavezna. Ažuriraj COA The Matchmaker preko Google Play-a.",
