@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import { Schema, model, type HydratedDocument, type Model } from "mongoose";
+import { Schema, model, type HydratedDocument, type Model, type Types } from "mongoose";
 
 export type PlayerRole = "player" | "admin";
 export type PlayerPlayStatus = "available" | "unavailable";
@@ -32,6 +32,7 @@ export interface PlayerAttrs {
   losses: number;
   matchesPlayed: number;
   tournamentsWon: number;
+  matchStatOperations: Types.ObjectId[];
 }
 
 export interface PlayerMethods {
@@ -69,7 +70,8 @@ const playerSchema = new Schema<PlayerAttrs, PlayerModel, PlayerMethods>(
     wins: { type: Number, default: 0 },
     losses: { type: Number, default: 0 },
     matchesPlayed: { type: Number, default: 0 },
-    tournamentsWon: { type: Number, default: 0 }
+    tournamentsWon: { type: Number, default: 0 },
+    matchStatOperations: { type: [Schema.Types.ObjectId], default: [], select: false }
   },
   {
     timestamps: true,
@@ -81,6 +83,7 @@ const playerSchema = new Schema<PlayerAttrs, PlayerModel, PlayerMethods>(
         delete (ret as Partial<PlayerAttrs>).passwordResetToken;
         delete (ret as Partial<PlayerAttrs>).passwordResetExpires;
         delete (ret as Partial<PlayerAttrs>).activityTrackingStartedAt;
+        delete (ret as Partial<PlayerAttrs>).matchStatOperations;
         delete (ret as { __v?: number }).__v;
         return ret;
       }

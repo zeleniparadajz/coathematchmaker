@@ -36,6 +36,9 @@ export interface TournamentAttrs {
   bracketSize?: number;
   drawGeneratedAt?: Date;
   winner?: Types.ObjectId;
+  awardApplied?: boolean;
+  awardOperationId?: Types.ObjectId;
+  awardWinPoints?: number;
 }
 
 const tournamentSchema = new Schema<TournamentAttrs>(
@@ -71,13 +74,19 @@ const tournamentSchema = new Schema<TournamentAttrs>(
     images: { type: [String], default: [] },
     bracketSize: { type: Number },
     drawGeneratedAt: { type: Date },
-    winner: { type: Schema.Types.ObjectId, ref: "Player" }
+    winner: { type: Schema.Types.ObjectId, ref: "Player" },
+    awardApplied: { type: Boolean, select: false },
+    awardOperationId: { type: Schema.Types.ObjectId, select: false },
+    awardWinPoints: { type: Number, min: 0, select: false }
   },
   {
     timestamps: true,
     toJSON: {
       transform(_doc, ret) {
         delete (ret as { __v?: number }).__v;
+        delete (ret as Partial<TournamentAttrs>).awardApplied;
+        delete (ret as Partial<TournamentAttrs>).awardOperationId;
+        delete (ret as Partial<TournamentAttrs>).awardWinPoints;
         return ret;
       }
     }

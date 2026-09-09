@@ -6,6 +6,7 @@ import '../models/match.dart';
 import '../services/api_client.dart';
 import '../services/league_service.dart';
 import '../widgets/app_form_fields.dart';
+import 'matches_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key, required this.league, this.refreshTick = 0});
@@ -86,27 +87,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _resolve(TennisMatch match, String action) async {
-    try {
-      await widget.league.adminResolve(
-        matchId: match.id,
-        action: action,
-        winner: action == 'confirm'
-            ? match.winner?.id ?? match.player1.id
-            : null,
-        sets: action == 'confirm' ? match.sets : null,
-      );
-      if (!mounted) return;
-      setState(() {
-        _future = _load();
-      });
-    } on ApiException catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.serverMessage(error.message))),
-        );
-      }
-    }
+  Future<void> _resolve(TennisMatch match) async {
+    final updated = await Navigator.of(context).push<TennisMatch>(
+      MaterialPageRoute(
+        builder: (_) => AdminResolveScreen(league: widget.league, match: match),
+      ),
+    );
+    if (mounted && updated != null) setState(() => _future = _load());
   }
 
   @override
@@ -251,22 +238,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ? context.tr("Bez rezultata")
                         : match.scoreText,
                   ),
-                  trailing: PopupMenuButton<String>(
-                    onSelected: (action) => _resolve(match, action),
-                    itemBuilder: (_) => [
-                      PopupMenuItem(
-                        value: 'confirm',
-                        child: Text(context.tr("Potvrdi")),
-                      ),
-                      PopupMenuItem(
-                        value: 'reject',
-                        child: Text(context.tr("Odbij")),
-                      ),
-                      PopupMenuItem(
-                        value: 'cancel',
-                        child: Text(context.tr("Poništi")),
-                      ),
-                    ],
+                  trailing: IconButton(
+                    tooltip: context.tr('Upravljanje rezultatom'),
+                    icon: const Icon(Icons.manage_history),
+                    onPressed: () => _resolve(match),
                   ),
                 ),
               ),

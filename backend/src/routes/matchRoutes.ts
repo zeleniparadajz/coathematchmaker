@@ -24,6 +24,7 @@ import {
 } from "../controllers/matchController";
 import { authenticate, authorize } from "../middleware/auth";
 import { validate } from "../middleware/validate";
+import { deleteCompetitionSchema, deleteEntity, previewDeletion } from "../controllers/deletionController";
 
 export const matchRoutes = Router();
 
@@ -35,6 +36,8 @@ matchRoutes.get("/pending", getPendingMatches);
 matchRoutes.get("/disputed", authorize("admin"), getDisputedMatches);
 matchRoutes.post("/challenge", validate(challengeMatchSchema), createChallenge);
 matchRoutes.get("/:id", getMatch);
+matchRoutes.get("/:id/deletion-preview", authorize("admin"), previewDeletion("match"));
+matchRoutes.delete("/:id", authorize("admin"), validate(deleteCompetitionSchema), deleteEntity("match"));
 matchRoutes.post("/", authorize("admin"), validate(createMatchSchema), createMatch);
 matchRoutes.patch("/:id", authorize("admin"), validate(updateMatchSchema), updateMatch);
 matchRoutes.post("/:id/accept", acceptMatch);

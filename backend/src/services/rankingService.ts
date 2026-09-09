@@ -4,51 +4,50 @@ import { Player } from "../models/Player";
 import { Tournament } from "../models/Tournament";
 import { AppError } from "../middleware/errorHandler";
 import { getLeagueSettings } from "./settingsService";
+import { validateMatchResult } from "./matchResultService";
 
-export const applyConfirmedMatchStats = async (match: MatchAttrs & { _id: Types.ObjectId }): Promise<void> => {
-  if (match.status !== "confirmed" || !match.winner || match.statsApplied) {
-    return;
-  }
-
+export const applyConfirmedMatchStats = async (input: MatchAttrs & { _id: Types.ObjectId }): Promise<void> => {
+  let match = await Match.findById(input._id).select("+statsApplied +statsOperationId +resultReset");
+  if (!match || match.status !== "confirmed" || !match.winner || match.statsApplied || match.resultReset) return;
   const winnerId = match.winner.toString();
   const player1Id = match.player1.toString();
   const player2Id = match.player2.toString();
+  validateMatchResult(player1Id, player2Id, match.sets, winnerId);
   if (winnerId !== player1Id && winnerId !== player2Id) {
     throw new AppError(400, "Pobjednik mora biti jedan od igrača ili timova u meču.");
   }
 
-  if (match.friendly) {
-    await Match.findByIdAndUpdate(match._id, { statsApplied: true });
-    return;
+  if (!match.statsOperationId) {
+    const settings = await getLeagueSettings();
+    await Match.updateOne({ _id: match._id, status: "confirmed", statsApplied: { $ne: true }, statsOperationId: { $exists: false } },
+      { $set: { statsOperationId: new Types.ObjectId(), statsWinPoints: match.friendly ? 0 : settings.matchWinPoints } });
+    match = (await Match.findById(match._id).select("+statsApplied +statsOperationId"))!;
   }
-
-  const winnerIds = winnerId === player1Id
-    ? [match.player1, match.player1Partner].filter(Boolean)
-    : [match.player2, match.player2Partner].filter(Boolean);
-  const loserIds = winnerId === player1Id
-    ? [match.player2, match.player2Partner].filter(Boolean)
-    : [match.player1, match.player1Partner].filter(Boolean);
-  const settings = await getLeagueSettings();
-  const winnerIncrement = { wins: 1, matchesPlayed: 1, totalPoints: settings.matchWinPoints };
-  const loserIncrement = { losses: 1, matchesPlayed: 1 };
-
-  await Promise.all(
-    winnerIds.map((id) =>
-      Player.findByIdAndUpdate(id, { $inc: winnerIncrement })
-    )
-  );
-
-  await Promise.all(
-    loserIds.map((id) =>
-      Player.findByIdAndUpdate(id, { $inc: loserIncrement })
-    )
-  );
-
-  await Match.findByIdAndUpdate(match._id, { statsApplied: true });
+  if (!match.statsOperationId || match.statsApplied || match.status !== "confirmed") return;
+  await applyMatchStatDelta(match, match.statsOperationId, match.statsWinPoints!, 1);
+  await Match.updateOne({ _id: match._id, statsOperationId: match.statsOperationId }, { $set: { statsApplied: true } });
 };
 
+// The operation marker and counter changes are atomic per player, including retries
+// after a failed request. This also works with the existing standalone Mongo server.
+export async function applyMatchStatDelta(match: MatchAttrs, operation: Types.ObjectId, points: number, direction: 1 | -1) {
+  if (match.friendly) return;
+  const firstWins = String(match.winner) === String(match.player1);
+  const winners = firstWins ? [match.player1, match.player1Partner] : [match.player2, match.player2Partner];
+  const losers = firstWins ? [match.player2, match.player2Partner] : [match.player1, match.player1Partner];
+  for (const [ids, increment] of [
+    [winners, { wins: direction, matchesPlayed: direction, totalPoints: direction * points }],
+    [losers, { losses: direction, matchesPlayed: direction }]
+  ] as const) {
+    for (const id of ids.filter(Boolean)) {
+      await Player.updateOne({ _id: id, matchStatOperations: { $ne: operation } },
+        { $inc: increment, $addToSet: { matchStatOperations: operation } });
+    }
+  }
+}
+
 export const awardTournamentWin = async (tournamentId: string, winnerId: string): Promise<void> => {
-  const tournament = await Tournament.findById(tournamentId);
+  let tournament = await Tournament.findById(tournamentId).select("+awardApplied +awardOperationId +awardWinPoints");
 
   if (!tournament) {
     throw new AppError(404, "Turnir nije pronađen.");
@@ -58,20 +57,26 @@ export const awardTournamentWin = async (tournamentId: string, winnerId: string)
     throw new AppError(400, "Pobjednik mora biti učesnik turnira.");
   }
 
-  const alreadyHadWinner = Boolean(tournament.winner);
-
-  tournament.status = "finished";
-  tournament.winner = new Types.ObjectId(winnerId);
-  await tournament.save();
-
-  if (!alreadyHadWinner) {
-    const settings = await getLeagueSettings();
-    if (!tournament.friendly) {
-      await Player.findByIdAndUpdate(winnerId, {
-        $inc: { tournamentsWon: 1, totalPoints: settings.tournamentWinPoints }
-      });
-    }
+  if (tournament.winner && tournament.winner.toString() !== winnerId) {
+    throw new AppError(409, "Turnir već ima drugog pobjednika. Prvo ispravite završni rezultat.");
   }
+  if (!tournament.winner) {
+    const settings = await getLeagueSettings();
+    await Tournament.updateOne({ _id: tournament._id, winner: { $exists: false } }, {
+      $set: { status: "finished", winner: new Types.ObjectId(winnerId), awardApplied: false,
+        awardOperationId: new Types.ObjectId(), awardWinPoints: tournament.friendly ? 0 : settings.tournamentWinPoints }
+    });
+    tournament = (await Tournament.findById(tournament._id).select("+awardApplied +awardOperationId +awardWinPoints"))!;
+  }
+  // Legacy winners without a recorded operation must not receive a second award.
+  if (!tournament.awardOperationId || tournament.awardApplied) return;
+  if (!tournament.friendly) {
+    await Player.updateOne({ _id: tournament.winner, matchStatOperations: { $ne: tournament.awardOperationId } }, {
+      $inc: { tournamentsWon: 1, totalPoints: tournament.awardWinPoints! },
+      $addToSet: { matchStatOperations: tournament.awardOperationId }
+    });
+  }
+  await Tournament.updateOne({ _id: tournament._id, awardOperationId: tournament.awardOperationId }, { $set: { awardApplied: true } });
 };
 
 export const getGeneralRanking = async () => {

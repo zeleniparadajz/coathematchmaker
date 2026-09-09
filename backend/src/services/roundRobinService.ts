@@ -1,11 +1,10 @@
 import { Types } from "mongoose";
 import { Tournament, type TournamentAttrs } from "../models/Tournament";
 import { Match, type MatchAttrs } from "../models/Match";
-import { Player } from "../models/Player";
 import { AppError } from "../middleware/errorHandler";
 import { roundLabelForSize } from "./bracketService";
 import { leagueCompletionProblem, leagueRankingRules, roundRobinTable, seededPairs } from "./roundRobinRules";
-import { getLeagueSettings } from "./settingsService";
+import { awardTournamentWin } from "./rankingService";
 
 type TournamentDoc = TournamentAttrs & { _id: Types.ObjectId };
 
@@ -77,7 +76,15 @@ export async function startRoundRobinKnockout(id: string, approvedSeeds: string[
   let tournament = await Tournament.findById(id);
   if (!tournament) throw new AppError(404, "Turnir nije pronađen.");
   validateKnockoutSettings(tournament);
-  const state = await roundRobinState(tournament);
+  let state = await roundRobinState(tournament);
+  // A concurrent start may have created matches after this request read the old plan.
+  if (!tournament.knockoutStartedAt && !state.canStart) {
+    const current = await Tournament.findById(id);
+    if (current?.knockoutStartedAt) {
+      tournament = current;
+      state = await roundRobinState(current);
+    }
+  }
   if (approvedSeeds.join(",") !== state.seeds.join(",")) {
     throw new AppError(409, "Tabela ili broj učesnika su promijenjeni. Ponovo pregledajte parove.");
   }
@@ -110,12 +117,7 @@ export async function advanceRoundRobinKnockout(id: string, expectedRound: strin
   }
   if (current.round === "F") {
     const winner = matches[0].winner!;
-    const settings = await getLeagueSettings();
-    const finished = await Tournament.findOneAndUpdate({ _id: id, winner: { $exists: false } },
-      { $set: { status: "finished", winner } });
-    if (finished && !finished.friendly) {
-      await Player.updateOne({ _id: winner }, { $inc: { tournamentsWon: 1, totalPoints: settings.tournamentWinPoints } });
-    }
+    await awardTournamentWin(id, winner.toString());
   } else {
     const next = { round: roundLabelForSize(current.matchIds.length),
       matchIds: Array.from({ length: current.matchIds.length / 2 }, () => new Types.ObjectId()) };

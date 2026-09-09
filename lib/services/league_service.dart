@@ -1,6 +1,7 @@
 import 'package:image_picker/image_picker.dart';
 
 import '../models/match.dart';
+import '../models/deletion_preview.dart';
 import '../models/app_location.dart';
 import '../models/dm.dart';
 import '../models/league_settings.dart';
@@ -13,6 +14,32 @@ class LeagueService {
   LeagueService(this.api);
 
   final ApiClient api;
+
+  Future<DeletionPreview> deletionPreview(
+    String id, {
+    required bool tournament,
+  }) async {
+    final data = await api.getJson(
+      '/api/${tournament ? 'tournaments' : 'matches'}/$id/deletion-preview',
+    );
+    return DeletionPreview.fromJson(data['preview']);
+  }
+
+  Future<void> deleteCompetition(
+    String id, {
+    required bool tournament,
+    required String revision,
+    Map<String, int> legacyMatchPoints = const {},
+    bool? legacyTournamentAwardApplied,
+    int? legacyTournamentPoints,
+  }) async {
+    await api.deleteJson('/api/${tournament ? 'tournaments' : 'matches'}/$id', {
+      'revision': revision,
+      'legacyMatchPoints': legacyMatchPoints,
+      'legacyTournamentAwardApplied': ?legacyTournamentAwardApplied,
+      'legacyTournamentPoints': ?legacyTournamentPoints,
+    });
+  }
 
   Future<List<AppLocation>> locations({bool includeInactive = false}) async {
     final data = await api.getJson('/api/locations', {
@@ -346,19 +373,22 @@ class LeagueService {
     });
   }
 
-  Future<void> adminResolve({
+  Future<TennisMatch> adminResolve({
     required String matchId,
     required String action,
     String? winner,
     List<SetScore>? sets,
     String? note,
+    int? legacyWinPoints,
   }) async {
-    await api.postJson('/api/matches/$matchId/admin-resolve', {
+    final data = await api.postJson('/api/matches/$matchId/admin-resolve', {
       'action': action,
       'winner': ?winner,
       'sets': ?sets?.map((set) => set.toJson()).toList(),
       'note': ?note,
+      'legacyWinPoints': ?legacyWinPoints,
     });
+    return TennisMatch.fromJson(data['match']);
   }
 
   Future<LeagueSettings> settings() async {

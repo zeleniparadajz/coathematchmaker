@@ -1,5 +1,36 @@
 // MNE source text is the stable key. Keep user-entered data out of this catalog.
 const englishMessages = <String, String>{
+  'Upravljanje rezultatom': 'Manage result',
+  'Ispravka rezultata': 'Correct result',
+  'Uredi setove': 'Edit sets',
+  'Završi uređivanje': 'Done editing',
+  'Potvrđeni rezultat biće sačuvan u istoriji, a njegovi bodovi i statistika vraćeni. Zatim se može unijeti ispravan rezultat.':
+      'The confirmed result will be kept in history and its points and statistics reversed. A corrected result can then be entered.',
+  'Ranije dodijeljeni poeni za pobjedu':
+      'Points originally awarded for the win',
+  'Unesite tadašnji broj poena za pobjedu (0–1000000).':
+      'Enter the original win points (0–1000000).',
+  'Za ovaj stariji meč unesite broj poena koji je tada dodijeljen za pobjedu.':
+      'Enter the points originally awarded for this older match.',
+  'Ovaj rezultat utiče na već formiranu završnicu ili pobjednika turnira. Prvo je potrebno vratiti zavisne faze turnira.':
+      'This result affects an existing knockout stage or tournament winner. The dependent tournament stages must be reset first.',
+  'Vrati na potvrdu': 'Return for confirmation',
+  'Vrati na unos rezultata': 'Reopen result entry',
+  'Vrati': 'Restore',
+  'Postojeći rezultat biće ponovo poslat na potvrdu. Bodovi se ne mijenjaju.':
+      'The existing result will return to awaiting confirmation. Points will not change.',
+  'Uneseni setovi i pobjednik biće uklonjeni. Meč ostaje dogovoren i rezultat se može ponovo unijeti.':
+      'The entered sets and winner will be cleared. The match remains accepted and a new result can be entered.',
+  'Pobjednik još nije određen rezultatom.':
+      'The score does not yet determine a winner.',
+  'Rezultat mora imati završene setove i više osvojenih setova za jednog igrača ili tim.':
+      'The score must contain completed sets and more sets won by one player or team.',
+  'Pobjednik se ne slaže sa rezultatom setova. Provjerite rezultat.':
+      'The winner does not match the set scores. Check the result.',
+  'Meč je u međuvremenu promijenjen. Osvježite prikaz.':
+      'The match has changed. Refresh and try again.',
+  'Meč u ovom statusu nije moguće vratiti ovom radnjom.':
+      'This action cannot restore a match in its current status.',
   "Posljednja aktivnost nije zabilježena": "Last activity not recorded",
   "Posljednja aktivnost: {p0}": "Last active: {p0}",
   "Nedostupan zbog neaktivnosti": "Unavailable due to inactivity",
@@ -268,6 +299,62 @@ const englishMessages = <String, String>{
   "Februar": "February",
   "Filteri": "Filters",
   "Filteri igrača": "Player filters",
+  "Filteri mečeva": "Match filters",
+  "Obriši turnir": "Delete tournament",
+  "Poeni ili statistika nisu usklađeni. Provjerite unesene ranije poene i podatke igrača prije brisanja.":
+      "Points or statistics are inconsistent. Check the historical points entered and the player data before deleting.",
+  "Obriši meč": "Delete match",
+  "Nazad": "Back",
+  "Izaberi": "Select",
+  "Da": "Yes",
+  "Ne": "No",
+  "Trajno obriši": "Delete permanently",
+  "Brisanje...": "Deleting...",
+  "Osvježi pregled": "Refresh preview",
+  "Unesite broj od 0 do 1000000.": "Enter a number from 0 to 1000000.",
+  "Ranije dodijeljeni poeni": "Previously awarded points",
+  "Mečevi: {p0} · Slike: {p1}": "Matches: {p0} · Photos: {p1}",
+  "Turnir, svi njegovi mečevi, rezultati i slike biće trajno obrisani. Poeni i statistika iz tih mečeva i turnira biće poništeni.":
+      "The tournament, all its matches, results and photos will be permanently deleted. Points and statistics from those matches and the tournament will be reversed.",
+  "Meč, rezultat i njegove slike biće trajno obrisani. Poeni i statistika iz ovog meča biće poništeni.":
+      "The match, its result and photos will be permanently deleted. Points and statistics from this match will be reversed.",
+  "Poništava se i pobjednik turnira. Turnir se vraća u aktivno stanje.":
+      "The tournament winner will also be cleared. The tournament returns to active status.",
+  "Nalozi igrača i zajedničke lokacije neće biti obrisani.":
+      "Player accounts and shared locations will not be deleted.",
+  "Za starije mečeve unesite poene koji su tada dodijeljeni za jednu pobjedu.":
+      "For older matches, enter the points originally awarded for one win.",
+  "Da li su ranije dodijeljeni titula i poeni za osvajanje turnira?":
+      "Were a title and points previously awarded for winning this tournament?",
+  "Razumijem da je brisanje trajno i da se ne može poništiti.":
+      "I understand that deletion is permanent and cannot be undone.",
+  "Meč je dio formiranog žrijeba ili utiče na kasnije runde. Možete ispraviti rezultat ili obrisati cijeli turnir sa svim mečevima.":
+      "This match belongs to a generated draw or affects later rounds. You can correct the result or delete the entire tournament with all its matches.",
+  "Podaci su promijenjeni. Ponovo otvorite potvrdu brisanja.":
+      "The data has changed. Reopen the deletion confirmation.",
+  "Unesite ranije dodijeljene poene za svaki označeni meč.":
+      "Enter the originally awarded points for each listed match.",
+  "Statistika meča nema ispravnog pobjednika. Prvo ispravite podatke meča.":
+      "The match statistics have no valid winner. Correct the match data first.",
+  "Potvrdite da li su ranije dodijeljeni titula i poeni za turnir.":
+      "Confirm whether a title and points were previously awarded for the tournament.",
+  "Unesite ranije dodijeljene poene za osvajanje turnira.":
+      "Enter the originally awarded points for winning the tournament.",
+  "Turnir već ima drugog pobjednika. Prvo ispravite završni rezultat.":
+      "The tournament already has a different winner. Correct the final result first.",
+  "Svi mečevi": "All matches",
+  "Samo moji": "Only mine",
+  "Igrač, turnir ili mjesto": "Player, tournament or venue",
+  "Mečevi ({p0})": "Matches ({p0})",
+  "Svi statusi": "All statuses",
+  "Svi turniri": "All tournaments",
+  "Singl i dubl": "Singles and doubles",
+  "Tip meča": "Match type",
+  "Svi tipovi": "All types",
+  "Prikaži mečeve": "Show matches",
+  "Još nemaš mečeva.": "You have no matches yet.",
+  "Još nema mečeva.": "No matches yet.",
+  "Poređaj po: {p0}": "Sort by: {p0}",
   "Format turnira": "Tournament format",
   "Formiraj narednu rundu": "Create next round",
   "Formiraj žrijeb": "Create draw",

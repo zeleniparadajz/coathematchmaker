@@ -21,6 +21,7 @@ import '../widgets/photo_viewer.dart';
 import '../widgets/sport_surfaces.dart';
 import '../widgets/tournament_phases.dart';
 import 'matches_screen.dart';
+import 'deletion_screen.dart';
 
 class TournamentsScreen extends StatefulWidget {
   const TournamentsScreen({
@@ -349,6 +350,35 @@ class TournamentDetailsScreen extends StatefulWidget {
 class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
   late Future<_TournamentDetailsData> _future;
   bool _uploadingImage = false;
+  bool _openingDelete = false;
+
+  Future<void> _deleteTournament() async {
+    if (_openingDelete) return;
+    setState(() => _openingDelete = true);
+    try {
+      final data = await _future;
+      if (!mounted) return;
+      final deleted = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (_) => DeletionScreen(
+            league: widget.league,
+            id: widget.tournamentId,
+            title: data.tournament.name,
+            tournament: true,
+          ),
+        ),
+      );
+      if (deleted == true && mounted) Navigator.pop(context);
+    } on ApiException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.serverMessage(error.message))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _openingDelete = false);
+    }
+  }
 
   @override
   void initState() {
@@ -533,7 +563,19 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(context.tr("Turnir"))),
+      appBar: AppBar(
+        title: Text(context.tr("Turnir")),
+        actions: [
+          if (widget.auth.isAdmin)
+            IconButton(
+              tooltip: context.tr('Obriši turnir'),
+              onPressed: _openingDelete || _uploadingImage
+                  ? null
+                  : _deleteTournament,
+              icon: const Icon(Icons.delete_outline),
+            ),
+        ],
+      ),
       body: FutureBuilder<_TournamentDetailsData>(
         future: _future,
         builder: (context, snapshot) {

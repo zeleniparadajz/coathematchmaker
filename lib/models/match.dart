@@ -21,6 +21,24 @@ class SetScore {
   };
 }
 
+int? scoreWinnerSide(List<SetScore> sets) {
+  if (sets.isEmpty) return null;
+  var difference = 0;
+  for (final set in sets) {
+    if (set.player1Games < 0 ||
+        set.player2Games < 0 ||
+        set.player1Games == set.player2Games) {
+      return null;
+    }
+    difference += set.player1Games > set.player2Games ? 1 : -1;
+  }
+  return difference == 0
+      ? null
+      : difference > 0
+      ? 1
+      : 2;
+}
+
 class TennisMatch {
   const TennisMatch({
     required this.id,
@@ -42,6 +60,7 @@ class TennisMatch {
     this.acceptedAt,
     this.resultSubmittedBy,
     this.winner,
+    this.statsWinPoints,
   });
 
   final String id;
@@ -53,6 +72,7 @@ class TennisMatch {
   final Player? player2Partner;
   final List<SetScore> sets;
   final Player? winner;
+  final int? statsWinPoints;
   final String round;
   final String status;
   final bool friendly;
@@ -67,7 +87,34 @@ class TennisMatch {
   String get scoreText =>
       sets.map((set) => '${set.player1Games}-${set.player2Games}').join(', ');
 
+  bool get hasConsistentResult {
+    final side = scoreWinnerSide(sets);
+    return side != null && winner?.id == (side == 1 ? player1.id : player2.id);
+  }
+
+  bool get canRestoreResult =>
+      ['disputed', 'rejected', 'cancelled'].contains(status) &&
+      hasConsistentResult &&
+      resultSubmittedBy != null;
+
+  bool get canReopenResult => [
+    'waiting_confirmation',
+    'disputed',
+    'rejected',
+    'cancelled',
+    'confirmed',
+  ].contains(status);
+
+  bool get requiresLegacyWinPoints =>
+      status == 'confirmed' && !friendly && statsWinPoints == null;
+
   bool get isDoubles => discipline == 'doubles';
+
+  bool includesPlayer(String playerId) =>
+      player1.id == playerId ||
+      player2.id == playerId ||
+      player1Partner?.id == playerId ||
+      player2Partner?.id == playerId;
 
   String get team1Name => player1Partner == null
       ? player1.fullName
@@ -102,6 +149,7 @@ class TennisMatch {
       winner: json['winner'] is Map<String, dynamic>
           ? Player.fromJson(json['winner'])
           : null,
+      statsWinPoints: (json['statsWinPoints'] as num?)?.toInt(),
       round: json['round'] ?? '',
       status: json['status'] ?? 'pending',
       friendly: json['friendly'] == true,

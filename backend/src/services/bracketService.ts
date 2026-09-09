@@ -237,7 +237,7 @@ export const generateTournamentDraw = async (tournamentId: string) => {
   return { tournament, byes, matches: createdMatchIds };
 };
 
-const roundOrder = ["Q", "R32", "R16", "QF", "SF", "F"];
+export const roundOrder = ["Q", "R32", "R16", "QF", "SF", "F"];
 
 const nextRoundLabel = (round: string): string | null => {
   const index = roundOrder.indexOf(round);
@@ -278,6 +278,10 @@ export const advanceTournamentRound = async (tournamentId: string) => {
     if (final?.status === "confirmed" && final.winner) {
       tournament.status = "finished";
       tournament.winner = final.winner;
+      // This path historically records a winner without awarding ranking points.
+      if (!tournament.isModified("winner")) return { tournament, matchesCreated: [], winner: final.winner };
+      tournament.awardApplied = false;
+      tournament.awardWinPoints = 0;
       await tournament.save();
       return { tournament, matchesCreated: [], winner: final.winner };
     }

@@ -25,8 +25,9 @@ import {
   uploadTournamentImage
 } from "../controllers/tournamentController";
 import { tournamentRanking } from "../controllers/rankingController";
-import { authenticate } from "../middleware/auth";
+import { authenticate, authorize } from "../middleware/auth";
 import { validate } from "../middleware/validate";
+import { deleteCompetitionSchema, deleteEntity, previewDeletion } from "../controllers/deletionController";
 
 export const tournamentRoutes = Router();
 
@@ -35,6 +36,8 @@ tournamentRoutes.use(authenticate);
 tournamentRoutes.get("/", listTournaments);
 tournamentRoutes.post("/", validate(createTournamentSchema), createTournament);
 tournamentRoutes.get("/:id", getTournament);
+tournamentRoutes.get("/:id/deletion-preview", authorize("admin"), previewDeletion("tournament"));
+tournamentRoutes.delete("/:id", authorize("admin"), validate(deleteCompetitionSchema), deleteEntity("tournament"));
 tournamentRoutes.patch("/:id", validate(updateTournamentSchema), updateTournament);
 tournamentRoutes.post("/:id/register", registerForTournament);
 tournamentRoutes.post("/:id/participants", validate(addParticipantSchema), addParticipant);

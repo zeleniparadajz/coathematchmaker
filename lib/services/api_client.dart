@@ -113,8 +113,17 @@ class ApiClient {
     );
   }
 
-  Future<Map<String, dynamic>> deleteJson(String path) async {
-    return _request(() => _client.delete(uri(path), headers: headers));
+  Future<Map<String, dynamic>> deleteJson(
+    String path, [
+    Map<String, dynamic>? body,
+  ]) async {
+    return _request(
+      () => _client.delete(
+        uri(path),
+        headers: headers,
+        body: body == null ? null : jsonEncode(body),
+      ),
+    );
   }
 
   Future<Map<String, dynamic>> uploadProfileImage(XFile file) async {

@@ -42,6 +42,10 @@ export interface MatchAttrs {
   adminResolutionNote?: string;
   images: string[];
   statsApplied: boolean;
+  statsOperationId?: Types.ObjectId;
+  statsWinPoints?: number;
+  resultReset?: { id: Types.ObjectId; points: number; actor: Types.ObjectId; note?: string };
+  resultHistory: { sets: SetScore[]; winner?: Types.ObjectId; status: MatchStatus; actor: Types.ObjectId; note?: string; changedAt: Date; winPoints?: number }[];
 }
 
 const setScoreSchema = new Schema<SetScore>(
@@ -84,7 +88,19 @@ const matchSchema = new Schema<MatchAttrs>(
     adminResolvedBy: { type: Schema.Types.ObjectId, ref: "Player" },
     adminResolutionNote: { type: String, trim: true },
     images: { type: [String], default: [] },
-    statsApplied: { type: Boolean, default: false, select: false }
+    statsApplied: { type: Boolean, default: false, select: false },
+    statsOperationId: { type: Schema.Types.ObjectId, select: false },
+    statsWinPoints: { type: Number, min: 0 },
+    resultReset: { type: new Schema({
+      id: { type: Schema.Types.ObjectId, required: true },
+      points: { type: Number, required: true },
+      actor: { type: Schema.Types.ObjectId, required: true },
+      note: String
+    }, { _id: false }), select: false },
+    resultHistory: { type: [new Schema({
+      sets: [setScoreSchema], winner: Schema.Types.ObjectId, status: String,
+      actor: Schema.Types.ObjectId, note: String, changedAt: Date, winPoints: Number
+    }, { _id: false })], default: [], select: false }
   },
   {
     timestamps: true,
@@ -92,6 +108,9 @@ const matchSchema = new Schema<MatchAttrs>(
       transform(_doc, ret) {
         delete (ret as { __v?: number }).__v;
         delete (ret as Partial<MatchAttrs>).statsApplied;
+        delete (ret as Partial<MatchAttrs>).statsOperationId;
+        delete (ret as Partial<MatchAttrs>).resultReset;
+        delete (ret as Partial<MatchAttrs>).resultHistory;
         return ret;
       }
     }

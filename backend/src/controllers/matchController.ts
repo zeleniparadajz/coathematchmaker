@@ -4,13 +4,15 @@ import { Match, type MatchStatus } from "../models/Match";
 import { Player } from "../models/Player";
 import { Tournament } from "../models/Tournament";
 import { AppError } from "../middleware/errorHandler";
-import { asyncHandler } from "../middleware/asyncHandler";
+import { competitionHandler as asyncHandler } from "../middleware/competitionHandler";
 import { applyConfirmedMatchStats } from "../services/rankingService";
 import { getLeagueSettings } from "../services/settingsService";
 import { expireInactivePlayers } from "../services/activityService";
 import { saveUploadedImage } from "../services/uploadService";
 import { locationIdSchema, matchLocationPatch } from "../services/locationService";
 import { ensureManualLeagueMatch, protectHybridMatch } from "../services/roundRobinService";
+import { scoreWinnerSide, validateMatchResult } from "../services/matchResultService";
+import { reopenConfirmedResult } from "../services/resultResetService";
 
 const setScoreSchema = z.object({
   player1Games: z.number().int().min(0),
@@ -60,10 +62,11 @@ export const submitResultSchema = resultSchema;
 export const updateMatchSchema = createMatchSchema.partial();
 
 export const adminResolveSchema = z.object({
-  action: z.enum(["confirm", "reject", "cancel"]),
+  action: z.enum(["confirm", "reject", "cancel", "restore_result", "reopen_result"]),
   sets: z.array(setScoreSchema).optional(),
   winner: z.string().optional(),
-  note: z.string().optional()
+  note: z.string().optional(),
+  legacyWinPoints: z.number().int().min(0).max(1000000).optional()
 });
 
 const isAdmin = (role?: string) => role === "admin";
@@ -237,6 +240,7 @@ export const listMatches = asyncHandler(async (req, res) => {
     .populate("player1Partner", "-password")
     .populate("player2Partner", "-password")
     .populate("winner", "-password")
+    .populate("resultSubmittedBy", "-password")
     .sort({ createdAt: -1 });
 
   res.json({ matches });
@@ -412,14 +416,13 @@ export const submitResult = asyncHandler(async (req, res) => {
   }
 
   validateWinner(match.player1.toString(), match.player2.toString(), req.body.winner);
+  validateMatchResult(match.player1.toString(), match.player2.toString(), req.body.sets, req.body.winner);
 
-  match.sets = req.body.sets;
-  match.winner = new Types.ObjectId(req.body.winner);
-  match.round = req.body.round ?? match.round;
-  match.status = "waiting_confirmation";
-  match.resultSubmittedBy = req.user!.playerId;
-  match.resultSubmittedAt = new Date();
-  await match.save();
+  const submitted = await Match.findOneAndUpdate({ _id: match._id, status: "accepted" }, {
+    $set: { sets: req.body.sets, winner: new Types.ObjectId(req.body.winner), round: req.body.round ?? match.round,
+      status: "waiting_confirmation", resultSubmittedBy: req.user!.playerId, resultSubmittedAt: new Date() }
+  });
+  if (!submitted) throw new AppError(409, "Meč je u međuvremenu promijenjen. Osvježite prikaz.");
 
   res.json({ match: await populateMatch(match._id) });
 });
@@ -451,11 +454,16 @@ export const confirmResult = asyncHandler(async (req, res) => {
     throw new AppError(403, "Rezultat mogu potvrditi samo učesnici meča.");
   }
 
-  match.status = "confirmed";
-  match.resultConfirmedBy = req.user!.playerId;
-  match.confirmedAt = new Date();
-  await match.save();
-  await applyConfirmedMatchStats(match);
+  validateMatchResult(match.player1.toString(), match.player2.toString(), match.sets, match.winner?.toString());
+
+  const confirmed = await Match.findOneAndUpdate(
+    { _id: match._id, status: "waiting_confirmation", statsApplied: { $ne: true },
+      resultSubmittedAt: match.resultSubmittedAt, winner: match.winner, sets: match.sets },
+    { $set: { status: "confirmed", resultConfirmedBy: req.user!.playerId, confirmedAt: new Date() } },
+    { new: true }
+  ).select("+statsApplied");
+  if (!confirmed) throw new AppError(409, "Meč je u međuvremenu promijenjen. Osvježite prikaz.");
+  await applyConfirmedMatchStats(confirmed);
 
   res.json({ match: await populateMatch(match._id) });
 });
@@ -477,40 +485,80 @@ export const disputeResult = asyncHandler(async (req, res) => {
     throw new AppError(400, "Igrač ne može osporiti rezultat koji je sam unio.");
   }
 
-  match.status = "disputed";
-  match.disputedAt = new Date();
-  await match.save();
+  const disputed = await Match.findOneAndUpdate({ _id: match._id, status: "waiting_confirmation" },
+    { $set: { status: "disputed", disputedAt: new Date() } });
+  if (!disputed) throw new AppError(409, "Meč je u međuvremenu promijenjen. Osvježite prikaz.");
 
   res.json({ match: await populateMatch(match._id) });
 });
 
 export const adminResolve = asyncHandler(async (req, res) => {
-  const match = await Match.findById(req.params.id).select("+statsApplied");
+  let match = await Match.findById(req.params.id).select("+statsApplied +statsOperationId +resultReset");
 
   if (!match) {
     throw new AppError(404, "Meč nije pronađen.");
   }
 
+  if (match.statsOperationId && !match.statsApplied) {
+    await applyConfirmedMatchStats(match);
+    match = (await Match.findById(match._id).select("+statsApplied +statsOperationId +resultReset"))!;
+  }
+  if (req.body.action === "reopen_result" && (match.resultReset || (match.status === "confirmed" && match.statsApplied))) {
+    await reopenConfirmedResult(match, req.user!.playerId, req.body.note, req.body.legacyWinPoints);
+    res.json({ match: await populateMatch(match._id) });
+    return;
+  }
+
   if (match.statsApplied) {
     throw new AppError(400, "Statistika ovog meča već je uračunata u rang-listu.");
+  }
+  if (req.body.action === "restore_result" || req.body.action === "reopen_result") {
+    const restore = req.body.action === "restore_result";
+    const allowed = restore ? ["disputed", "rejected", "cancelled"] : ["waiting_confirmation", "disputed", "rejected", "cancelled"];
+    if (!allowed.includes(match.status)) {
+      throw new AppError(400, "Meč u ovom statusu nije moguće vratiti ovom radnjom.");
+    }
+    if (restore) {
+      validateMatchResult(match.player1.toString(), match.player2.toString(), match.sets, match.winner?.toString());
+      if (!match.resultSubmittedBy) {
+        throw new AppError(400, "Nedostaje podatak o igraču koji je unio rezultat.");
+      }
+    }
+    const status = restore ? "waiting_confirmation" : "accepted";
+    await protectHybridMatch(match, { status });
+    const unset: Record<string, string> = { disputedAt: "", rejectedAt: "", cancelledAt: "", confirmedAt: "", resultConfirmedBy: "" };
+    if (!restore) Object.assign(unset, { winner: "", resultSubmittedBy: "", resultSubmittedAt: "" });
+    const restored = await Match.findOneAndUpdate(
+      { _id: match._id, status: match.status, statsApplied: { $ne: true } },
+      { $set: { status, acceptedAt: match.acceptedAt ?? new Date(), adminResolvedBy: req.user!.playerId,
+        adminResolutionNote: req.body.note, ...(!restore ? { sets: [] } : {}) }, $unset: unset,
+        $push: { resultHistory: { sets: match.sets, winner: match.winner, status: match.status,
+          actor: req.user!.playerId, note: req.body.note, changedAt: new Date() } } },
+      { new: true }
+    );
+    if (!restored) throw new AppError(409, "Meč je u međuvremenu promijenjen. Osvježite prikaz.");
+    res.json({ match: await populateMatch(match._id) });
+    return;
   }
   await protectHybridMatch(match, { ...req.body,
     status: req.body.action === "confirm" ? "confirmed" : req.body.action === "cancel" ? "cancelled" : "rejected"
   });
 
+  const previousStatus = match.status;
+  const previousUpdatedAt = match.get("updatedAt");
+  const previousResult = { sets: match.sets.map((set) => ({ player1Games: set.player1Games, player2Games: set.player2Games })),
+    winner: match.winner, status: previousStatus, actor: req.user!.playerId, note: req.body.note, changedAt: new Date() };
+
   if (req.body.action === "confirm") {
-    const winner = req.body.winner ?? match.winner?.toString();
     const sets = req.body.sets ?? match.sets;
+    const side = scoreWinnerSide(sets);
+    const winner = side ? match[side] : undefined;
+    validateMatchResult(match.player1.toString(), match.player2.toString(), sets, winner?.toString());
 
-    if (!winner || !sets?.length) {
-      throw new AppError(400, "Za potvrdu meča potrebno je unijeti pobjednika i rezultate setova.");
-    }
-
-    validateWinner(match.player1.toString(), match.player2.toString(), winner);
-
-    match.winner = new Types.ObjectId(winner);
+    match.winner = winner;
     match.sets = sets;
     match.status = "confirmed";
+    match.resultConfirmedBy = req.user!.playerId;
     match.confirmedAt = new Date();
   }
 
@@ -526,10 +574,20 @@ export const adminResolve = asyncHandler(async (req, res) => {
 
   match.adminResolvedBy = req.user!.playerId;
   match.adminResolutionNote = req.body.note;
-  await match.save();
+  const resolved = await Match.findOneAndUpdate(
+    { _id: match._id, status: previousStatus, updatedAt: previousUpdatedAt,
+      statsApplied: { $ne: true }, statsOperationId: { $exists: false } },
+    { $set: { status: match.status, sets: match.sets, winner: match.winner, confirmedAt: match.confirmedAt,
+      ...(req.body.action !== "confirm" ? { rejectedAt: match.rejectedAt, cancelledAt: match.cancelledAt } : {}),
+      resultConfirmedBy: match.resultConfirmedBy, adminResolvedBy: match.adminResolvedBy,
+      adminResolutionNote: match.adminResolutionNote },
+      ...(req.body.action === "confirm" ? { $unset: { disputedAt: "", rejectedAt: "", cancelledAt: "" },
+        $push: { resultHistory: previousResult } } : {}) }, { new: true }
+  ).select("+statsApplied");
+  if (!resolved) throw new AppError(409, "Meč je u međuvremenu promijenjen. Osvježite prikaz.");
 
-  if (match.status === "confirmed") {
-    await applyConfirmedMatchStats(match);
+  if (resolved.status === "confirmed") {
+    await applyConfirmedMatchStats(resolved);
   }
 
   res.json({ match: await populateMatch(match._id) });
@@ -543,6 +601,9 @@ export const createMatch = asyncHandler(async (req, res) => {
   await ensurePlayersAndTournament(req.body.player1, req.body.player2, req.body.player1Partner, req.body.player2Partner, req.body.tournament);
   await ensureScheduledAtWithinTournament(req.body.tournament, req.body.scheduledAt);
   validateWinner(req.body.player1, req.body.player2, req.body.winner);
+  if (req.body.winner || req.body.sets.length || ["waiting_confirmation", "confirmed", "disputed"].includes(req.body.status)) {
+    validateMatchResult(req.body.player1, req.body.player2, req.body.sets, req.body.winner);
+  }
 
   if (req.body.status === "confirmed" && !req.body.winner) {
     throw new AppError(400, "Potvrđeni meč mora imati pobjednika.");
@@ -570,10 +631,13 @@ export const createMatch = asyncHandler(async (req, res) => {
 });
 
 export const updateMatch = asyncHandler(async (req, res) => {
-  const match = await Match.findById(req.params.id).select("+statsApplied");
+  const match = await Match.findById(req.params.id).select("+statsApplied +statsOperationId +resultReset");
 
   if (!match) {
     throw new AppError(404, "Meč nije pronađen.");
+  }
+  if (match.resultReset || (match.statsOperationId && !match.statsApplied)) {
+    throw new AppError(409, "Meč je u međuvremenu promijenjen. Osvježite prikaz.");
   }
 
   const nextTournament = req.body.tournament ?? match.tournament?.toString();
@@ -598,7 +662,9 @@ export const updateMatch = asyncHandler(async (req, res) => {
       nextPlayer1Partner !== match.player1Partner?.toString() ||
       nextPlayer2Partner !== match.player2Partner?.toString() ||
       nextWinner !== match.winner?.toString() ||
-      nextStatus !== match.status;
+      nextStatus !== match.status ||
+      nextDiscipline !== match.discipline ||
+      (req.body.friendly ?? match.friendly) !== match.friendly;
 
     if (identityChanged) {
       throw new AppError(400, "Meč nije moguće mijenjati nakon obračuna statistike za rang-listu.");
@@ -611,6 +677,9 @@ export const updateMatch = asyncHandler(async (req, res) => {
   await ensurePlayersAndTournament(nextPlayer1, nextPlayer2, nextPlayer1Partner, nextPlayer2Partner, nextTournament);
   await ensureScheduledAtWithinTournament(nextTournament, nextScheduledAt);
   validateWinner(nextPlayer1, nextPlayer2, nextWinner);
+  if (nextWinner || (req.body.sets ?? match.sets).length || ["waiting_confirmation", "confirmed", "disputed"].includes(nextStatus)) {
+    validateMatchResult(nextPlayer1, nextPlayer2, req.body.sets ?? match.sets, nextWinner);
+  }
 
   if (nextStatus === "confirmed" && !nextWinner) {
     throw new AppError(400, "Potvrđeni meč mora imati pobjednika.");

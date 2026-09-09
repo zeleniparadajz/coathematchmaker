@@ -3,7 +3,7 @@ import { Tournament } from "../models/Tournament";
 import { Player } from "../models/Player";
 import { Match } from "../models/Match";
 import { AppError } from "../middleware/errorHandler";
-import { asyncHandler } from "../middleware/asyncHandler";
+import { competitionHandler as asyncHandler } from "../middleware/competitionHandler";
 import { awardTournamentWin } from "../services/rankingService";
 import { advanceTournamentRound, generateTournamentDraw } from "../services/bracketService";
 import { saveUploadedImage } from "../services/uploadService";
