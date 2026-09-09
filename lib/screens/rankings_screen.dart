@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-
 import '../models/player.dart';
 import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/league_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/player_avatar.dart';
+import '../widgets/load_error.dart';
 import 'players_screen.dart';
 
 class RankingsScreen extends StatefulWidget {
@@ -16,19 +16,16 @@ class RankingsScreen extends StatefulWidget {
     required this.auth,
     this.refreshTick = 0,
   });
-
   final LeagueService league;
   final ApiClient api;
   final AuthService auth;
   final int refreshTick;
-
   @override
   State<RankingsScreen> createState() => _RankingsScreenState();
 }
 
 class _RankingsScreenState extends State<RankingsScreen> {
   late Future<List<Player>> _future;
-
   @override
   void initState() {
     super.initState();
@@ -38,320 +35,278 @@ class _RankingsScreenState extends State<RankingsScreen> {
   @override
   void didUpdateWidget(covariant RankingsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.refreshTick != widget.refreshTick) {
-      setState(() {
-        _future = widget.league.rankings();
-      });
+    if (oldWidget.refreshTick != widget.refreshTick) _reload();
+  }
+
+  Future<void> _reload() async {
+    final future = widget.league.rankings();
+    setState(() {
+      _future = future;
+    });
+    try {
+      await future;
+    } catch (_) {
+      /* The list provides a retry action. */
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<List<Player>>(
-      future: _future,
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final rankings = [...snapshot.data!]..sort(_comparePlayers);
+  void _open(Player player) => Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => PlayerProfileScreen(
+        playerId: player.id,
+        league: widget.league,
+        api: widget.api,
+        auth: widget.auth,
+      ),
+    ),
+  );
 
-        return RefreshIndicator(
-          onRefresh: () async {
-            setState(() {
-              _future = widget.league.rankings();
-            });
-            await _future;
-          },
-          child: ListView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-            itemCount: rankings.length + 1,
-            itemBuilder: (context, index) {
-              if (index == 0) {
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: AppTheme.lime,
-                    borderRadius: BorderRadius.circular(28),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppTheme.court.withValues(alpha: .18),
-                        blurRadius: 22,
-                        offset: const Offset(0, 12),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 52,
-                        height: 52,
-                        decoration: const BoxDecoration(
-                          color: AppTheme.court,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.leaderboard,
-                          color: AppTheme.ink,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Rang lista',
-                              style: Theme.of(context).textTheme.titleLarge
-                                  ?.copyWith(fontWeight: FontWeight.w700),
+  @override
+  Widget build(BuildContext context) => FutureBuilder<List<Player>>(
+    future: _future,
+    builder: (context, snapshot) {
+      if (snapshot.hasError) return LoadError(onRetry: _reload);
+      if (!snapshot.hasData) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      // The API is the single source of ranking order, including ties.
+      final players = snapshot.data!;
+      final myIndex = players.indexWhere(
+        (player) => player.id == widget.auth.currentPlayer?.id,
+      );
+      return RefreshIndicator(
+        onRefresh: _reload,
+        child: ListView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+          itemCount: players.length + 1,
+          itemBuilder: (context, index) {
+            if (index == 0) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (players.length >= 3) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        for (final position in [1, 0, 2])
+                          Expanded(
+                            child: _PodiumPlayer(
+                              player: players[position],
+                              api: widget.api,
+                              position: position + 1,
+                              onTap: () => _open(players[position]),
                             ),
-                          ],
-                        ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 26),
+                  ],
+                  if (myIndex >= 0)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppTheme.court,
+                        borderRadius: BorderRadius.circular(24),
                       ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.leaderboard_outlined,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Moja pozicija: ${myIndex + 1}.',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${players[myIndex].totalPoints} poena',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  const SizedBox(height: 20),
+                  const Row(
+                    children: [
+                      SizedBox(width: 38, child: Text('#')),
+                      Expanded(child: Text('Igrač')),
+                      Text('Poeni'),
                     ],
                   ),
-                );
-              }
-              final rankingIndex = index - 1;
-              final player = rankings[rankingIndex];
-              return _RankingPlayerCard(
-                player: player,
-                rank: rankingIndex + 1,
-                api: widget.api,
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => PlayerProfileScreen(
-                      playerId: player.id,
-                      league: widget.league,
-                      api: widget.api,
-                      auth: widget.auth,
+                  const SizedBox(height: 8),
+                  if (players.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Text('Rang-lista je trenutno prazna.'),
+                    ),
+                ],
+              );
+            }
+            final player = players[index - 1];
+            final isMe = player.id == widget.auth.currentPlayer?.id;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Material(
+                borderRadius: BorderRadius.circular(24),
+                color: isMe
+                    ? AppTheme.lime
+                    : Colors.white.withValues(alpha: .8),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(24),
+                  onTap: () => _open(player),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 14,
+                      horizontal: 10,
+                    ),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 34,
+                          child: index <= 3
+                              ? Icon(
+                                  Icons.emoji_events,
+                                  size: 21,
+                                  color: [
+                                    AppTheme.gold,
+                                    AppTheme.muted,
+                                    AppTheme.clay,
+                                  ][index - 1],
+                                )
+                              : Text(
+                                  '$index',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                        ),
+                        PlayerAvatar(
+                          player: player,
+                          api: widget.api,
+                          radius: 21,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                player.fullName,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${player.wins} pobjeda · ${player.matchesPlayed} mečeva',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${player.totalPoints}',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ],
                     ),
                   ),
                 ),
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
+              ),
+            );
+          },
+        ),
+      );
+    },
+  );
 }
 
-class _RankingPlayerCard extends StatelessWidget {
-  const _RankingPlayerCard({
+class _PodiumPlayer extends StatelessWidget {
+  const _PodiumPlayer({
     required this.player,
-    required this.rank,
     required this.api,
+    required this.position,
     required this.onTap,
   });
-
   final Player player;
-  final int rank;
   final ApiClient api;
+  final int position;
   final VoidCallback onTap;
 
-  static const _gradients = [
-    [Color(0xFF6EC6FF), Color(0xFF7B8CFF)],
-    [Color(0xFFFFB15F), Color(0xFFFF8A45)],
-    [Color(0xFFFF5B8F), Color(0xFFE94C78)],
-    [Color(0xFFB45DFF), Color(0xFF726CFF)],
-  ];
-
   @override
   Widget build(BuildContext context) {
-    final colors = _gradients[(rank - 1) % _gradients.length];
-    return Container(
-      height: 124,
-      margin: const EdgeInsets.only(bottom: 14),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: colors.last.withValues(alpha: .22),
-            blurRadius: 18,
-            offset: const Offset(0, 9),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        colors.first.withValues(alpha: .86),
-                        colors.last.withValues(alpha: .78),
-                      ],
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                    ),
-                  ),
-                ),
-                Positioned(
-                  right: -28,
-                  top: -18,
-                  bottom: -18,
-                  child: Container(
-                    width: 126,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: .16),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 13, 12, 13),
-                  child: Row(
-                    children: [
-                      PlayerAvatar(player: player, api: api, radius: 26),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              player.fullName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              '${player.totalPoints} pts',
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: .88),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Row(
-                              children: [
-                                _RankingMiniStat(
-                                  value: '${player.wins}',
-                                  label: 'Wins',
-                                ),
-                                _RankingMiniStat(
-                                  value: '${player.matchesPlayed}',
-                                  label: 'Mečevi',
-                                ),
-                                _RankingMiniStat(
-                                  value: '${player.tournamentsWon}',
-                                  label: 'Titule',
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      SizedBox(
-                        width: 58,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              Icons.more_horiz,
-                              color: Colors.white,
-                              size: 20,
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              '$rank',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            Text(
-                              'Ranking',
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: .82),
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-int _comparePlayers(Player a, Player b) {
-  final points = b.totalPoints.compareTo(a.totalPoints);
-  if (points != 0) return points;
-
-  final wins = b.wins.compareTo(a.wins);
-  if (wins != 0) return wins;
-
-  final losses = a.losses.compareTo(b.losses);
-  if (losses != 0) return losses;
-
-  final matches = a.matchesPlayed.compareTo(b.matchesPlayed);
-  if (matches != 0) return matches;
-
-  return a.fullName.compareTo(b.fullName);
-}
-
-class _RankingMiniStat extends StatelessWidget {
-  const _RankingMiniStat({required this.value, required this.label});
-
-  final String value;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: SizedBox(
-        height: 24,
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 10.5,
-                  height: .95,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              Text(
-                label,
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: .72),
-                  fontSize: 8.5,
-                  height: .95,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
+    final first = position == 1;
+    final color = first
+        ? AppTheme.court
+        : (position == 2 ? AppTheme.blue : AppTheme.gold);
+    return InkWell(
+      borderRadius: BorderRadius.circular(24),
+      onTap: onTap,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(4, 4, 4, first ? 24 : 0),
+        child: Column(
+          children: [
+            if (first) ...[
+              const Icon(Icons.emoji_events, color: AppTheme.gold, size: 25),
+              const SizedBox(height: 10),
             ],
-          ),
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: color.withValues(alpha: .55),
+                  width: 2,
+                ),
+                color: Colors.white.withValues(alpha: .7),
+              ),
+              child: PlayerAvatar(
+                player: player,
+                api: api,
+                radius: first ? 36 : 29,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              player.fullName,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                height: 1.2,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${player.totalPoints}',
+              style: TextStyle(
+                fontSize: first ? 25 : 21,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '$position. mjesto',
+              style: const TextStyle(fontSize: 11, color: AppTheme.muted),
+            ),
+          ],
         ),
       ),
     );

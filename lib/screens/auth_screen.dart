@@ -65,7 +65,7 @@ class _AuthScreenState extends State<AuthScreen>
     _logoController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 3600),
-    )..repeat(period: const Duration(milliseconds: 4600));
+    )..forward();
     _logoScale = TweenSequence<double>([
       TweenSequenceItem(tween: ConstantTween(1), weight: 34),
       TweenSequenceItem(
@@ -259,8 +259,8 @@ class _AuthScreenState extends State<AuthScreen>
             const SizedBox(height: 14),
             SegmentedButton<bool>(
               segments: const [
-                ButtonSegment(value: false, label: Text('Login')),
-                ButtonSegment(value: true, label: Text('Register')),
+                ButtonSegment(value: false, label: Text('Prijava')),
+                ButtonSegment(value: true, label: Text('Registracija')),
               ],
               selected: {_register},
               onSelectionChanged: (value) =>

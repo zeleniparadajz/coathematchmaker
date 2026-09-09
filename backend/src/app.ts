@@ -11,6 +11,7 @@ import { playerRoutes } from "./routes/playerRoutes";
 import { rankingRoutes } from "./routes/rankingRoutes";
 import { settingsRoutes } from "./routes/settingsRoutes";
 import { tournamentRoutes } from "./routes/tournamentRoutes";
+import { locationRoutes } from "./routes/locationRoutes";
 import { errorHandler } from "./middleware/errorHandler";
 
 export const app = express();
@@ -32,5 +33,6 @@ app.use("/api/matches", matchRoutes);
 app.use("/api/messages", messageRoutes);
 app.use("/api/rankings", rankingRoutes);
 app.use("/api/settings", settingsRoutes);
+app.use("/api/locations", locationRoutes);
 
 app.use(errorHandler);

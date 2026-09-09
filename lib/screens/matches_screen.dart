@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../models/league_settings.dart';
 import '../models/match.dart';
+import '../models/display_labels.dart';
 import '../models/player.dart';
 import '../models/tournament.dart';
 import '../services/api_client.dart';
@@ -11,6 +12,10 @@ import '../services/league_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_form_fields.dart';
 import '../widgets/map_location_card.dart';
+import '../widgets/location_picker.dart';
+import '../models/app_location.dart';
+import '../widgets/load_error.dart';
+import '../widgets/photo_viewer.dart';
 
 class MatchesScreen extends StatefulWidget {
   const MatchesScreen({
@@ -34,6 +39,7 @@ class _MatchesScreenState extends State<MatchesScreen> {
   late Future<_MatchesData> _future;
   String _statusFilter = 'all';
   String _sortBy = 'scheduled_asc';
+  bool _acting = false;
 
   static const _filters = [
     'all',
@@ -74,11 +80,17 @@ class _MatchesScreenState extends State<MatchesScreen> {
     setState(() {
       _future = _load();
     });
-    await _future;
-    widget.onChanged?.call();
+    try {
+      await _future;
+      widget.onChanged?.call();
+    } catch (_) {
+      /* Retry is shown in the list. */
+    }
   }
 
   Future<void> _act(Future<void> Function() action) async {
+    if (_acting) return;
+    _acting = true;
     try {
       await action();
       await _refresh();
@@ -88,12 +100,15 @@ class _MatchesScreenState extends State<MatchesScreen> {
           context,
         ).showSnackBar(SnackBar(content: Text(error.message)));
       }
+    } finally {
+      _acting = false;
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.transparent,
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'matches-create-challenge-fab',
         onPressed: () async {
@@ -101,6 +116,7 @@ class _MatchesScreenState extends State<MatchesScreen> {
             MaterialPageRoute(
               builder: (_) => ChallengeFormScreen(
                 league: widget.league,
+                canManageLocations: widget.auth.isAdmin,
                 currentPlayerId: widget.auth.currentPlayer!.id,
               ),
             ),
@@ -108,11 +124,12 @@ class _MatchesScreenState extends State<MatchesScreen> {
           await _refresh();
         },
         icon: const Icon(Icons.add),
-        label: const Text('Challenge'),
+        label: const Text('Izazov'),
       ),
       body: FutureBuilder<_MatchesData>(
         future: _future,
         builder: (context, snapshot) {
+          if (snapshot.hasError) return LoadError(onRetry: _refresh);
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -127,7 +144,7 @@ class _MatchesScreenState extends State<MatchesScreen> {
           return RefreshIndicator(
             onRefresh: _refresh,
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
               children: [
                 _StatusFilterBar(
                   statuses: _filters,
@@ -267,7 +284,7 @@ class _MatchCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(26),
         onTap: onOpen,
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -310,7 +327,10 @@ class _MatchCard extends StatelessWidget {
                   const SizedBox(width: 8),
                   Align(
                     alignment: Alignment.topRight,
-                    child: _StatusBadge(status: match.status),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 112),
+                      child: _StatusBadge(status: match.status),
+                    ),
                   ),
                 ],
               ),
@@ -321,9 +341,10 @@ class _MatchCard extends StatelessWidget {
                 children: [
                   _MetaPill(
                     icon: Icons.flag,
-                    label: match.tournament?.name ?? 'Challenge',
+                    label: match.tournament?.name ?? 'Izazov',
                   ),
-                  _MetaPill(icon: Icons.label, label: match.round),
+                  if (match.round.isNotEmpty && match.round != 'Challenge')
+                    _MetaPill(icon: Icons.label, label: match.round),
                   if (match.friendly)
                     const _MetaPill(
                       icon: Icons.favorite,
@@ -393,11 +414,11 @@ class _MatchCard extends StatelessWidget {
                   if (match.status == 'pending' && (_isPlayer2 || isAdmin)) ...[
                     FilledButton.tonal(
                       onPressed: onAccept,
-                      child: const Text('Accept'),
+                      child: const Text('Prihvati'),
                     ),
                     OutlinedButton(
                       onPressed: onReject,
-                      child: const Text('Reject'),
+                      child: const Text('Odbij'),
                     ),
                   ],
                   if (match.status == 'accepted' && (!tooEarly || isAdmin))
@@ -410,11 +431,11 @@ class _MatchCard extends StatelessWidget {
                       (!_isSubmitter || isAdmin)) ...[
                     FilledButton(
                       onPressed: onConfirm,
-                      child: const Text('Confirm Result'),
+                      child: const Text('Potvrdi rezultat'),
                     ),
                     OutlinedButton(
                       onPressed: onDispute,
-                      child: const Text('Dispute Result'),
+                      child: const Text('Ospori rezultat'),
                     ),
                   ],
                   if (isAdmin &&
@@ -422,7 +443,7 @@ class _MatchCard extends StatelessWidget {
                           match.status == 'waiting_confirmation'))
                     FilledButton.tonal(
                       onPressed: onAdminResolve,
-                      child: const Text('Admin resolve'),
+                      child: const Text('Rješavanje spora'),
                     ),
                 ],
               ),
@@ -476,7 +497,7 @@ class _StatusFilterBar extends StatelessWidget {
           final status = statuses[index];
           return ChoiceChip(
             selected: selected == status,
-            label: Text(status == 'all' ? 'Svi' : status.replaceAll('_', ' ')),
+            label: Text(status == 'all' ? 'Svi' : matchStatusLabel(status)),
             avatar: selected == status
                 ? const Icon(Icons.check, size: 16)
                 : null,
@@ -547,11 +568,13 @@ class _MatchSortBar extends StatelessWidget {
             children: [
               const Icon(Icons.sort, size: 18, color: AppTheme.court),
               const SizedBox(width: 8),
-              Text(
-                'Sort: ${_options[selected] ?? 'Termin'}',
-                style: const TextStyle(
-                  color: AppTheme.court,
-                  fontWeight: FontWeight.w900,
+              Flexible(
+                child: Text(
+                  _options[selected] ?? 'Termin',
+                  style: const TextStyle(
+                    color: AppTheme.court,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               const SizedBox(width: 4),
@@ -785,7 +808,7 @@ class _FriendlyMatchInfoCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppTheme.lime.withValues(alpha: .28),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: AppTheme.court.withValues(alpha: .18)),
       ),
       child: Row(
@@ -945,7 +968,10 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
           ],
           if ((_match.location ?? '').isNotEmpty) ...[
             const SizedBox(height: 12),
-            MapLocationCard(location: _match.location!),
+            MapLocationCard(
+              location: _match.venue?.label ?? _match.location!,
+              googlePlaceId: _match.venue?.googlePlaceId,
+            ),
           ],
           const SizedBox(height: 12),
           Card(
@@ -1006,11 +1032,20 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
               crossAxisSpacing: 10,
               children: _match.images
                   .map(
-                    (image) => ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        widget.league.api.imageUrl(image),
-                        fit: BoxFit.cover,
+                    (image) => GestureDetector(
+                      onTap: () => openPhotoViewer(
+                        context,
+                        _match.images.map(widget.league.api.imageUrl).toList(),
+                        initialIndex: _match.images.indexOf(image),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          widget.league.api.imageUrl(image),
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) =>
+                              const Icon(Icons.broken_image_outlined),
+                        ),
                       ),
                     ),
                   )
@@ -1166,10 +1201,10 @@ class _StatusBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
-        status.replaceAll('_', ' '),
+        matchStatusLabel(status),
         style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.w800,
+          color: Color.lerp(color, Colors.black, .4),
+          fontWeight: FontWeight.w700,
           fontSize: 12,
         ),
       ),
@@ -1256,10 +1291,14 @@ class ChallengeFormScreen extends StatefulWidget {
     super.key,
     required this.league,
     required this.currentPlayerId,
+    this.initialOpponentId,
+    this.canManageLocations = false,
   });
 
   final LeagueService league;
   final String currentPlayerId;
+  final String? initialOpponentId;
+  final bool canManageLocations;
 
   @override
   State<ChallengeFormScreen> createState() => _ChallengeFormScreenState();
@@ -1268,6 +1307,7 @@ class ChallengeFormScreen extends StatefulWidget {
 class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
   final _round = TextEditingController(text: 'Challenge');
   final _location = TextEditingController();
+  AppLocation? _venue;
   final _search = TextEditingController();
   List<Player> _players = [];
   List<Tournament> _tournaments = [];
@@ -1280,6 +1320,7 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
   bool _friendly = false;
   bool _loading = true;
   bool _saving = false;
+  bool _failed = false;
 
   @override
   void initState() {
@@ -1296,17 +1337,46 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
   }
 
   Future<void> _load() async {
-    final players = await widget.league.players();
-    final tournaments = await widget.league.tournaments();
-    final opponents = players
-        .where((player) => player.id != widget.currentPlayerId)
-        .toList();
-    setState(() {
-      _players = opponents;
-      _tournaments = tournaments;
-      _opponent = opponents.isNotEmpty ? opponents.first : null;
-      _loading = false;
-    });
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _failed = false;
+      });
+    }
+    try {
+      final results = await Future.wait([
+        widget.league.players(),
+        widget.league.tournaments(),
+      ]);
+      final players = results[0] as List<Player>;
+      final tournaments = results[1] as List<Tournament>;
+      final opponents = players
+          .where(
+            (player) =>
+                player.id != widget.currentPlayerId &&
+                player.active &&
+                player.isAvailableForMatch,
+          )
+          .toList();
+      if (!mounted) return;
+      setState(() {
+        _players = opponents;
+        _tournaments = tournaments;
+        _opponent =
+            opponents
+                .where((p) => p.id == widget.initialOpponentId)
+                .firstOrNull ??
+            (opponents.isNotEmpty ? opponents.first : null);
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _failed = true;
+        });
+      }
+    }
   }
 
   Future<void> _save() async {
@@ -1354,13 +1424,14 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
         tournamentId: _tournament?.id,
         round: _round.text.trim().isEmpty ? 'Challenge' : _round.text.trim(),
         location: _location.text.trim().isEmpty ? null : _location.text.trim(),
+        locationId: _venue?.id,
         scheduledAt: _scheduledAt,
         friendly: _tournament?.friendly ?? _friendly,
       );
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Challenge je poslat')));
+        ).showSnackBar(const SnackBar(content: Text('Izazov je poslat')));
         Navigator.of(context).pop();
       }
     } on ApiException catch (error) {
@@ -1385,9 +1456,11 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
         .toList();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Novi challenge')),
+      appBar: AppBar(title: const Text('Novi izazov')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
+          : _failed
+          ? LoadError(onRetry: _load)
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
@@ -1617,16 +1690,23 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
                         AppSelectField(
                           label: 'Lokacija (opciono)',
                           value: _location.text.trim().isEmpty
-                              ? 'Izaberi ili ukucaj lokaciju'
+                              ? 'Izaberi lokaciju'
                               : _location.text.trim(),
                           icon: Icons.place,
                           onTap: () async {
-                            final value = await showAppLocationPicker(
+                            final value = await showLocationPicker(
                               context: context,
-                              initialValue: _location.text,
+                              league: widget.league,
+                              selected: _venue == null ? [] : [_venue!],
+                              legacy: _venue == null ? _location.text : '',
+                              canManage: widget.canManageLocations,
+                              optional: true,
                             );
-                            if (value != null) {
-                              setState(() => _location.text = value);
+                            if (mounted && value != null) {
+                              setState(() {
+                                _location.text = value.label;
+                                _venue = value.locations.firstOrNull;
+                              });
                             }
                           },
                         ),
@@ -1646,7 +1726,7 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
                                     ),
                                   )
                                 : const Icon(Icons.send),
-                            label: const Text('Pošalji challenge'),
+                            label: const Text('Pošalji izazov'),
                           ),
                         ),
                       ],
@@ -2120,7 +2200,7 @@ class _AdminResolveScreenState extends State<AdminResolveScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Admin resolve')),
+      appBar: AppBar(title: const Text('Rješavanje spora')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

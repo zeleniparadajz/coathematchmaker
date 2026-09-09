@@ -9,6 +9,7 @@ import '../services/auth_service.dart';
 import '../services/league_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_form_fields.dart';
+import '../widgets/load_error.dart';
 import '../widgets/player_avatar.dart';
 
 class MessagesScreen extends StatefulWidget {
@@ -31,25 +32,44 @@ class MessagesScreen extends StatefulWidget {
   State<MessagesScreen> createState() => _MessagesScreenState();
 }
 
-class _MessagesScreenState extends State<MessagesScreen> {
+class _MessagesScreenState extends State<MessagesScreen>
+    with WidgetsBindingObserver {
   final List<Conversation> _conversations = [];
   Timer? _refreshTimer;
   bool _loading = true;
   bool _refreshing = false;
+  bool _failed = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _refresh(silent: false);
+    _startTimer();
+  }
+
+  void _startTimer() {
+    _refreshTimer?.cancel();
     _refreshTimer = Timer.periodic(
-      const Duration(seconds: 8),
+      const Duration(seconds: 15),
       (_) => _refresh(silent: true),
     );
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _startTimer();
+      _refresh(silent: true);
+    } else {
+      _refreshTimer?.cancel();
+    }
+  }
+
+  @override
   void dispose() {
     _refreshTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
@@ -74,9 +94,10 @@ class _MessagesScreenState extends State<MessagesScreen> {
           ..clear()
           ..addAll(conversations);
         _loading = false;
+        _failed = false;
       });
-      widget.onChanged?.call();
     } on ApiException catch (error) {
+      if (mounted) setState(() => _failed = true);
       if (!silent && mounted) {
         ScaffoldMessenger.of(
           context,
@@ -133,6 +154,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
+          : _failed && _conversations.isEmpty
+          ? LoadError(onRetry: () => _refresh())
           : RefreshIndicator(
               onRefresh: () => _refresh(silent: false),
               child: ListView(
@@ -199,7 +222,7 @@ class _ConversationCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
             color: AppTheme.ink.withValues(alpha: .05),
@@ -262,7 +285,7 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
   final _message = TextEditingController();
   final _scrollController = ScrollController();
   final List<DirectMessage> _messages = [];
@@ -274,16 +297,33 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _refresh(silent: false);
+    _startTimer();
+  }
+
+  void _startTimer() {
+    _refreshTimer?.cancel();
     _refreshTimer = Timer.periodic(
-      const Duration(seconds: 3),
+      const Duration(seconds: 5),
       (_) => _refresh(silent: true),
     );
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _startTimer();
+      _refresh(silent: true);
+    } else {
+      _refreshTimer?.cancel();
+    }
+  }
+
+  @override
   void dispose() {
     _refreshTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _message.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -296,7 +336,6 @@ class _ChatScreenState extends State<ChatScreen> {
 
     try {
       final messages = await widget.league.messages(widget.conversation.id);
-      await widget.league.markConversationRead(widget.conversation.id);
       final hadNewMessage =
           _messages.isEmpty ||
           messages.length != _messages.length ||
@@ -308,8 +347,14 @@ class _ChatScreenState extends State<ChatScreen> {
           ..addAll(messages);
         _loading = false;
       });
-      widget.onChanged?.call();
-      if (hadNewMessage) _scrollToBottom();
+      if (hadNewMessage) {
+        await widget.league.markConversationRead(widget.conversation.id);
+        widget.onChanged?.call();
+        if (!_scrollController.hasClients ||
+            _scrollController.position.extentAfter < 160) {
+          _scrollToBottom();
+        }
+      }
     } on ApiException catch (error) {
       if (!silent && mounted) {
         ScaffoldMessenger.of(
@@ -396,7 +441,7 @@ class _ChatScreenState extends State<ChatScreen> {
                             ),
                             decoration: BoxDecoration(
                               color: mine ? AppTheme.court : Colors.white,
-                              borderRadius: BorderRadius.circular(18),
+                              borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
                               message.text,
@@ -464,7 +509,7 @@ class _EmptyInbox extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: const Column(
         children: [

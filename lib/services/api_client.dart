@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:async';
 
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
@@ -18,10 +19,34 @@ class ApiException implements Exception {
 class ApiClient {
   //ApiClient({this.baseUrl = 'http://localhost:4000'});
 
-  ApiClient({String? baseUrl}) : baseUrl = baseUrl ?? Env.apiUrl;
+  ApiClient({String? baseUrl, http.Client? client})
+    : baseUrl = baseUrl ?? Env.apiUrl,
+      _client = client ?? http.Client();
 
   final String baseUrl;
+  final http.Client _client;
+  final Map<String, Future<Map<String, dynamic>>> _requests = {};
   String? token;
+
+  void close() => _client.close();
+
+  Future<Map<String, dynamic>> _request(
+    Future<http.Response> Function() send,
+  ) async {
+    try {
+      return _decode(await send().timeout(const Duration(seconds: 20)));
+    } on ApiException {
+      rethrow;
+    } on TimeoutException {
+      throw ApiException('Server ne odgovara. Pokušaj ponovo.');
+    } on SocketException {
+      throw ApiException('Nema internet veze. Pokušaj ponovo.');
+    } on http.ClientException {
+      throw ApiException('Veza sa serverom nije dostupna.');
+    } on FormatException {
+      throw ApiException('Server je vratio neispravan odgovor.');
+    }
+  }
 
   Uri uri(String path, [Map<String, String>? query]) {
     return Uri.parse('$baseUrl$path').replace(queryParameters: query);
@@ -53,37 +78,43 @@ class ApiClient {
     String path, [
     Map<String, String>? query,
   ]) async {
-    final response = await http.get(uri(path, query), headers: headers);
-    return _decode(response);
+    final url = uri(path, query);
+    final key = '$token:$url';
+    final existing = _requests[key];
+    if (existing != null) return existing;
+    final request = _request(() => _client.get(url, headers: headers));
+    _requests[key] = request;
+    try {
+      return await request;
+    } finally {
+      _requests.remove(key);
+    }
   }
 
   Future<Map<String, dynamic>> postJson(
     String path, [
     Map<String, dynamic>? body,
   ]) async {
-    final response = await http.post(
-      uri(path),
-      headers: headers,
-      body: jsonEncode(body ?? <String, dynamic>{}),
+    return _request(
+      () => _client.post(
+        uri(path),
+        headers: headers,
+        body: jsonEncode(body ?? <String, dynamic>{}),
+      ),
     );
-    return _decode(response);
   }
 
   Future<Map<String, dynamic>> patchJson(
     String path,
     Map<String, dynamic> body,
   ) async {
-    final response = await http.patch(
-      uri(path),
-      headers: headers,
-      body: jsonEncode(body),
+    return _request(
+      () => _client.patch(uri(path), headers: headers, body: jsonEncode(body)),
     );
-    return _decode(response);
   }
 
   Future<Map<String, dynamic>> deleteJson(String path) async {
-    final response = await http.delete(uri(path), headers: headers);
-    return _decode(response);
+    return _request(() => _client.delete(uri(path), headers: headers));
   }
 
   Future<Map<String, dynamic>> uploadProfileImage(XFile file) async {
@@ -104,15 +135,26 @@ class ApiClient {
 
     request.files.add(await http.MultipartFile.fromPath(fieldName, file.path));
 
-    final streamed = await request.send();
-    final response = await http.Response.fromStream(streamed);
-    return _decode(response);
+    return _request(() async {
+      final streamed = await _client.send(request);
+      return http.Response.fromStream(streamed);
+    });
   }
 
   Map<String, dynamic> _decode(http.Response response) {
-    final decoded = response.body.isEmpty
-        ? <String, dynamic>{}
-        : jsonDecode(response.body) as Map<String, dynamic>;
+    Map<String, dynamic> decoded;
+    try {
+      final value = response.body.isEmpty
+          ? <String, dynamic>{}
+          : jsonDecode(response.body);
+      if (value is! Map<String, dynamic>) throw const FormatException();
+      decoded = value;
+    } on FormatException {
+      throw ApiException(
+        'Server trenutno nije dostupan. Pokušaj ponovo.',
+        response.statusCode,
+      );
+    }
 
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(

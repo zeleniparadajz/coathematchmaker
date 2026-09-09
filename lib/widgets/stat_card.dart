@@ -69,12 +69,20 @@ class StatCard extends StatelessWidget {
                   ],
                 ),
                 const Spacer(),
-                Text(
-                  value,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontFamily: 'Avenir Next Rounded',
-                    fontFamilyFallback: const ['Avenir Next', 'SF Pro Display'],
-                    fontWeight: FontWeight.w700,
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value,
+                    maxLines: 1,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontFamily: 'Avenir Next Rounded',
+                      fontFamilyFallback: const [
+                        'Avenir Next',
+                        'SF Pro Display',
+                      ],
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
                 Text(

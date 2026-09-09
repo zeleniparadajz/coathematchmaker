@@ -1,4 +1,5 @@
 import 'player.dart';
+import 'app_location.dart';
 
 class Tournament {
   const Tournament({
@@ -6,6 +7,7 @@ class Tournament {
     required this.name,
     required this.discipline,
     required this.location,
+    this.locations = const [],
     required this.surface,
     required this.category,
     required this.format,
@@ -25,6 +27,10 @@ class Tournament {
   final String name;
   final String discipline;
   final String location;
+  final List<AppLocation> locations;
+  String get locationLabel => locations.isEmpty
+      ? location
+      : locations.map((item) => item.label).join('; ');
   final String surface;
   final String category;
   final String format;
@@ -54,6 +60,10 @@ class Tournament {
       name: json['name'] ?? '',
       discipline: json['discipline'] ?? 'singles',
       location: json['location'] ?? '',
+      locations: (json['locations'] as List? ?? [])
+          .whereType<Map<String, dynamic>>()
+          .map(AppLocation.fromJson)
+          .toList(),
       surface: json['surface'] ?? 'Hard',
       category: json['category'] ?? '',
       format: json['format'] ?? 'elimination',

@@ -56,3 +56,7 @@ android/key.properties
 android/upload-keystore.jks
 *.jks
 *.keystore
+
+# Local restore points and visual verification
+.local-backups/
+.local-cache/

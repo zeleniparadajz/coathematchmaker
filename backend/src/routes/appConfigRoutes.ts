@@ -1,55 +1,16 @@
 import { Router } from "express";
 import { env } from "../config/env";
+import { appVersionPolicy } from "../services/appVersionService";
 
 export const appConfigRoutes = Router();
 
-type AppPlatform = "android" | "ios" | "default";
-
-const normalizePlatform = (value: unknown): AppPlatform => {
-  const platform = typeof value === "string" ? value.toLowerCase() : "";
-
-  if (platform === "android") return "android";
-  if (platform === "ios") return "ios";
-
-  return "default";
-};
-
-const platformConfig = (platform: AppPlatform) => {
-  if (platform === "android") {
-    return {
-      minSupportedBuild: env.androidMinSupportedBuild,
-      latestBuild: env.androidLatestBuild,
-      storeUrl: env.playStoreUrl
-    };
-  }
-
-  if (platform === "ios") {
-    return {
-      minSupportedBuild: env.iosMinSupportedBuild,
-      latestBuild: env.iosLatestBuild,
-      storeUrl: env.appStoreUrl
-    };
-  }
-
-  return {
-    minSupportedBuild: env.minSupportedBuild,
-    latestBuild: env.latestBuild,
-    storeUrl: env.playStoreUrl || env.appStoreUrl
-  };
-};
-
 appConfigRoutes.get("/", (req, res) => {
   const currentBuild = Number(req.query.build ?? 0);
-  const platform = normalizePlatform(req.query.platform);
-  const config = platformConfig(platform);
-
-  res.json({
-    platform,
-    minSupportedBuild: config.minSupportedBuild,
-    latestBuild: config.latestBuild,
-    updateRequired: currentBuild > 0 && currentBuild < config.minSupportedBuild,
-    storeUrl: config.storeUrl,
-    playStoreUrl: config.storeUrl,
-    message: env.appUpdateMessage
-  });
+  if (!Number.isSafeInteger(currentBuild) || currentBuild < 0 ||
+      (req.query.build !== undefined && (typeof req.query.build !== "string" || !/^\d+$/.test(req.query.build)))) {
+    res.status(400).json({ message: "build must be a non-negative integer" });
+    return;
+  }
+  res.setHeader("Cache-Control", "no-store");
+  res.json(appVersionPolicy(req.query.platform, currentBuild, env));
 });

@@ -77,7 +77,7 @@ export const awardTournamentWin = async (tournamentId: string, winnerId: string)
 export const getGeneralRanking = async () => {
   return Player.find({ active: true })
     .select("-password")
-    .sort({ totalPoints: -1, wins: -1, lastName: 1, firstName: 1 });
+    .sort({ totalPoints: -1, wins: -1, lastName: 1, firstName: 1, _id: 1 });
 };
 
 export const getTournamentRanking = async (tournamentId: string) => {

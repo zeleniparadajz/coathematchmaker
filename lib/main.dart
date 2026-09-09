@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import 'screens/auth_screen.dart';
@@ -8,8 +7,9 @@ import 'screens/matches_screen.dart';
 import 'screens/messages_screen.dart';
 import 'screens/players_screen.dart';
 import 'screens/profile_screen.dart';
-import 'screens/rankings_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/locations_screen.dart';
+import 'screens/rankings_screen.dart';
 import 'screens/tournaments_screen.dart';
 import 'services/api_client.dart';
 import 'services/app_config_service.dart';
@@ -17,151 +17,145 @@ import 'services/auth_service.dart';
 import 'services/league_service.dart';
 import 'theme/app_theme.dart';
 import 'widgets/player_avatar.dart';
+import 'widgets/update_screen.dart';
+import 'widgets/sport_surfaces.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const CoaMatchmakerApp());
 }
 
 class CoaMatchmakerApp extends StatefulWidget {
-  const CoaMatchmakerApp({super.key});
-
+  const CoaMatchmakerApp({super.key, this.api, this.configService});
+  final ApiClient? api;
+  final AppConfigService? configService;
   @override
   State<CoaMatchmakerApp> createState() => _CoaMatchmakerAppState();
 }
 
-class _CoaMatchmakerAppState extends State<CoaMatchmakerApp> {
-  final api = ApiClient();
+class _CoaMatchmakerAppState extends State<CoaMatchmakerApp>
+    with WidgetsBindingObserver {
+  late final api = widget.api ?? ApiClient();
   late final auth = AuthService(api);
   late final league = LeagueService(api);
-  late final appConfig = AppConfigService(api);
-  bool _checkingUpdate = true;
+  late final appConfig = widget.configService ?? AppConfigService(api);
+  bool _starting = true;
+  bool _checking = false;
+  bool _sessionRestored = false;
   AppConfig? _config;
+  Timer? _timer;
+  DateTime? _checkedAt;
 
   @override
   void initState() {
     super.initState();
-    auth.addListener(() => setState(() {}));
-    _bootstrap();
+    auth.addListener(_authChanged);
+    WidgetsBinding.instance.addObserver(this);
+    _checkUpdate();
+    _startTimer();
   }
 
-  Future<void> _bootstrap() async {
+  void _authChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _startTimer() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(minutes: 5), (_) => _checkUpdate());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _startTimer();
+      if (_checkedAt == null ||
+          DateTime.now().difference(_checkedAt!) >
+              const Duration(seconds: 15)) {
+        _checkUpdate();
+      }
+    } else {
+      _timer?.cancel();
+    }
+  }
+
+  Future<void> _checkUpdate() async {
+    if (_checking) return;
+    _checking = true;
     try {
-      _config = await appConfig.load();
+      final config = await appConfig.load();
+      if (!mounted) return;
+      setState(() => _config = config);
+      if (!appConfig.lastCheckUsedCache) _checkedAt = DateTime.now();
     } catch (_) {
-      _config = null;
+      // Keep a known mandatory update in place if a later request fails.
+    } finally {
+      _checking = false;
     }
-
     if (!mounted) return;
-    setState(() => _checkingUpdate = false);
-
-    if (_config?.updateRequired != true) {
-      auth.restoreSession();
+    if (_config?.updateRequired != true && !_sessionRestored) {
+      _sessionRestored = true;
+      await auth.restoreSession();
     }
+    if (mounted) setState(() => _starting = false);
   }
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Coa The Matchmaker',
-      theme: AppTheme.light,
-      home: _checkingUpdate
-          ? const _SplashScreen()
-          : _config?.updateRequired == true
-          ? ForceUpdateScreen(config: _config!)
-          : auth.loading
-          ? const _SplashScreen()
-          : auth.isLoggedIn
-          ? MainShell(auth: auth, league: league, api: api)
-          : AuthScreen(auth: auth),
-    );
+  void dispose() {
+    _timer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    auth.removeListener(_authChanged);
+    auth.dispose();
+    if (widget.api == null) api.close();
+    super.dispose();
   }
-}
-
-class ForceUpdateScreen extends StatelessWidget {
-  const ForceUpdateScreen({super.key, required this.config});
-
-  final AppConfig config;
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Center(
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(28),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppTheme.ink.withValues(alpha: .08),
-                    blurRadius: 30,
-                    offset: const Offset(0, 16),
+  Widget build(BuildContext context) => MaterialApp(
+    debugShowCheckedModeBanner: false,
+    title: 'COA The Matchmaker',
+    theme: AppTheme.light,
+    builder: (context, child) => Stack(
+      children: [
+        Offstage(
+          offstage: _config?.updateRequired == true,
+          child: TickerMode(
+            enabled: _config?.updateRequired != true,
+            child: child!,
+          ),
+        ),
+        // A separate navigator keeps the gate above all previously opened routes.
+        if (_config?.updateRequired == true)
+          Positioned.fill(
+            child: HeroControllerScope.none(
+              child: Navigator(
+                key: ValueKey(
+                  'update:${_config!.minSupportedBuild}:${_config!.storeUrl}',
+                ),
+                onGenerateRoute: (_) => MaterialPageRoute<void>(
+                  builder: (_) => ForceUpdateScreen(
+                    config: _config!,
+                    onRetry: _checkUpdate,
                   ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 74,
-                    height: 74,
-                    decoration: BoxDecoration(
-                      color: AppTheme.lime,
-                      borderRadius: BorderRadius.circular(26),
-                    ),
-                    child: const Icon(
-                      Icons.system_update,
-                      color: AppTheme.courtDark,
-                      size: 36,
-                    ),
-                  ),
-                  const SizedBox(height: 22),
-                  Text(
-                    'Potrebna je nova verzija',
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    config.message,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: AppTheme.ink.withValues(alpha: .62),
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  Text(
-                    config.playStoreUrl.isEmpty
-                        ? 'Otvori Google Play i ažuriraj aplikaciju COA The Matchmaker.'
-                        : config.playStoreUrl,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontWeight: FontWeight.w900),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SplashScreen extends StatelessWidget {
-  const _SplashScreen();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(body: Center(child: CircularProgressIndicator()));
-  }
+      ],
+    ),
+    home: _config?.updateRequired == true && !_sessionRestored
+        ? const Scaffold()
+        : _starting || auth.loading
+        ? const Scaffold(body: Center(child: CircularProgressIndicator()))
+        : auth.isLoggedIn
+        ? MainShell(
+            auth: auth,
+            league: league,
+            api: api,
+            config: _config,
+            onCheckUpdate: _checkUpdate,
+          )
+        : AuthScreen(auth: auth),
+  );
 }
 
 class MainShell extends StatefulWidget {
@@ -170,414 +164,395 @@ class MainShell extends StatefulWidget {
     required this.auth,
     required this.league,
     required this.api,
+    this.config,
+    this.onCheckUpdate,
   });
-
   final AuthService auth;
   final LeagueService league;
   final ApiClient api;
-
+  final AppConfig? config;
+  final Future<void> Function()? onCheckUpdate;
   @override
   State<MainShell> createState() => _MainShellState();
 }
 
 class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   int _index = 0;
-  int _pendingChallengeCount = 0;
-  int _unreadMessageCount = 0;
-  int _refreshVersion = 0;
-  Timer? _refreshTimer;
+  int _pending = 0;
+  int _unread = 0;
+  bool _refreshing = false;
+  final _ticks = List.filled(5, 0);
+  Timer? _timer;
+  int? _dismissedUpdate;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _refreshVisibleData();
-    _refreshTimer = Timer.periodic(
-      const Duration(seconds: 25),
-      (_) => _refreshVisibleData(),
+    _refreshBadges();
+    _startTimer();
+  }
+
+  void _startTimer() {
+    _timer?.cancel();
+    _timer = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => _refreshBadges(),
     );
   }
 
-  @override
-  void dispose() {
-    _refreshTimer?.cancel();
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
+  Future<void> _refreshBadges() async {
+    if (_refreshing) return;
+    _refreshing = true;
+    try {
+      final result = await Future.wait([
+        widget.league.pendingMatches().then((items) => items.length),
+        widget.league.unreadMessageCount(),
+      ]);
+      if (mounted) {
+        setState(() {
+          _pending = result[0];
+          _unread = result[1];
+        });
+      }
+    } catch (_) {
+      // A failed poll must not erase unread indicators or restart every screen.
+    } finally {
+      _refreshing = false;
+    }
+  }
+
+  void _select(int index) {
+    setState(() {
+      _index = index;
+      _ticks[index]++;
+    });
+    _refreshBadges();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _refreshVisibleData();
+      _startTimer();
+      _select(_index);
+    } else {
+      _timer?.cancel();
     }
   }
 
-  Future<int> _loadPendingChallengeCount() async {
-    try {
-      final pending = await widget.league.pendingMatches();
-      return pending.length;
-    } catch (_) {
-      return 0;
-    }
+  @override
+  void dispose() {
+    _timer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
-  Future<int> _loadUnreadMessageCount() async {
-    try {
-      return widget.league.unreadMessageCount();
-    } catch (_) {
-      return 0;
-    }
+  Future<void> _openMessages() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: const Text('Poruke')),
+          body: MessagesScreen(
+            league: widget.league,
+            auth: widget.auth,
+            api: widget.api,
+            onChanged: _refreshBadges,
+          ),
+        ),
+      ),
+    );
+    _refreshBadges();
   }
 
-  Future<void> _refreshVisibleData() async {
-    final results = await Future.wait([
-      _loadPendingChallengeCount(),
-      _loadUnreadMessageCount(),
-    ]);
-    if (!mounted) return;
-    setState(() {
-      _pendingChallengeCount = results[0];
-      _unreadMessageCount = results[1];
-      _refreshVersion++;
-    });
+  Future<void> _profileAction(String value) async {
+    Widget? page;
+    switch (value) {
+      case 'profile':
+        page = ProfileScreen(
+          auth: widget.auth,
+          league: widget.league,
+          api: widget.api,
+        );
+      case 'status':
+        page = PlayStatusScreen(
+          auth: widget.auth,
+          league: widget.league,
+          api: widget.api,
+        );
+      case 'delete':
+        page = DeleteAccountScreen(auth: widget.auth);
+      case 'settings':
+        if (!widget.auth.isAdmin) return;
+        page = Scaffold(
+          appBar: AppBar(title: const Text('Podešavanja lige')),
+          body: SettingsScreen(league: widget.league),
+        );
+      case 'locations':
+        if (!widget.auth.isAdmin) return;
+        page = LocationsScreen(league: widget.league);
+      case 'logout':
+        await widget.auth.logout();
+        return;
+      case 'version':
+        await showModalBottomSheet<void>(
+          context: context,
+          showDragHandle: true,
+          builder: (_) => VersionSheet(
+            config: widget.config,
+            onCheck: widget.onCheckUpdate,
+          ),
+        );
+        return;
+    }
+    if (page != null && mounted) {
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute<void>(builder: (_) => page!));
+      if (mounted) _select(_index);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    const titles = ['Početna', 'Igrači', 'Turniri', 'Mečevi', 'Rang-lista'];
     final pages = [
       DashboardScreen(
         auth: widget.auth,
         league: widget.league,
         api: widget.api,
-        refreshTick: _refreshVersion,
+        refreshTick: _ticks[0],
+        onNavigate: _select,
       ),
       PlayersScreen(
         league: widget.league,
         api: widget.api,
         auth: widget.auth,
-        refreshTick: _refreshVersion,
+        refreshTick: _ticks[1],
       ),
       TournamentsScreen(
         league: widget.league,
         api: widget.api,
         auth: widget.auth,
-        refreshTick: _refreshVersion,
+        refreshTick: _ticks[2],
       ),
       MatchesScreen(
         league: widget.league,
         auth: widget.auth,
-        onChanged: () => _refreshVisibleData(),
-        refreshTick: _refreshVersion,
+        onChanged: _refreshBadges,
+        refreshTick: _ticks[3],
       ),
       RankingsScreen(
         league: widget.league,
         api: widget.api,
         auth: widget.auth,
-        refreshTick: _refreshVersion,
+        refreshTick: _ticks[4],
       ),
-      MessagesScreen(
-        league: widget.league,
-        auth: widget.auth,
-        api: widget.api,
-        onChanged: () => _refreshVisibleData(),
-        refreshTick: _refreshVersion,
-      ),
-      if (widget.auth.isAdmin)
-        SettingsScreen(league: widget.league, refreshTick: _refreshVersion),
     ];
-    final titles = [
-      'Dashboard',
-      'Igrači',
-      'Turniri',
-      'Challenges',
-      'Ranking',
-      'Poruke',
-      if (widget.auth.isAdmin) 'Podešavanja',
-    ];
-    final destinations = [
-      const NavigationDestination(icon: Icon(Icons.dashboard), label: 'Home'),
-      const NavigationDestination(icon: Icon(Icons.groups), label: 'Igrači'),
-      const NavigationDestination(
-        icon: Icon(Icons.emoji_events),
-        label: 'Turniri',
-      ),
-      NavigationDestination(
-        icon: _ChallengeTabIcon(count: _pendingChallengeCount),
-        selectedIcon: _ChallengeTabIcon(
-          count: _pendingChallengeCount,
-          selected: true,
-        ),
-        label: 'Mečevi',
-      ),
-      const NavigationDestination(
-        icon: Icon(Icons.leaderboard),
-        label: 'Ranking',
-      ),
-      NavigationDestination(
-        icon: _BadgeIcon(
-          icon: Icons.chat_bubble_outline,
-          count: _unreadMessageCount,
-        ),
-        selectedIcon: _BadgeIcon(
-          icon: Icons.chat_bubble,
-          count: _unreadMessageCount,
-          selected: true,
-        ),
-        label: 'Poruke',
-      ),
-      if (widget.auth.isAdmin)
-        const NavigationDestination(
-          icon: Icon(Icons.settings),
-          label: 'Settings',
-        ),
-    ];
-
-    return Scaffold(
-      appBar: AppBar(
-        title: _BrandTitle(section: titles[_index]),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 10),
-            child: _ProfileMenu(
-              auth: widget.auth,
-              league: widget.league,
-              api: widget.api,
-            ),
+    final config = widget.config;
+    return SportBackdrop(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          toolbarHeight: 76,
+          title: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: Image.asset(
+                  'assets/images/coa.png',
+                  width: 42,
+                  height: 42,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _index == 0 ? 'COA Matchmaker' : titles[_index],
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      _index == 0
+                          ? 'Tvoja teniska zajednica'
+                          : 'COA Matchmaker',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppTheme.muted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
-      extendBody: false,
-      body: IndexedStack(index: _index, children: pages),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: AppTheme.lime,
-          boxShadow: [
-            BoxShadow(
-              color: AppTheme.ink.withValues(alpha: .12),
-              blurRadius: 16,
-              offset: const Offset(0, -6),
+          actions: [
+            IconButton(
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.white.withValues(alpha: .65),
+              ),
+              tooltip: 'Poruke',
+              onPressed: _openMessages,
+              icon: Badge(
+                isLabelVisible: _unread > 0,
+                label: Text('$_unread'),
+                child: const Icon(Icons.chat_bubble_outline),
+              ),
+            ),
+            PopupMenuButton<String>(
+              tooltip: 'Profil i podešavanja',
+              onSelected: _profileAction,
+              itemBuilder: (_) => [
+                const PopupMenuItem(
+                  value: 'profile',
+                  child: ListTile(
+                    leading: Icon(Icons.person_outline),
+                    title: Text('Moj profil'),
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'status',
+                  child: ListTile(
+                    leading: Icon(Icons.sports_tennis),
+                    title: Text('Dostupnost za meč'),
+                  ),
+                ),
+                if (widget.auth.isAdmin)
+                  const PopupMenuItem(
+                    value: 'locations',
+                    child: ListTile(
+                      leading: Icon(Icons.edit_location_alt_outlined),
+                      title: Text('Lokacije'),
+                    ),
+                  ),
+                if (widget.auth.isAdmin)
+                  const PopupMenuItem(
+                    value: 'settings',
+                    child: ListTile(
+                      leading: Icon(Icons.settings_outlined),
+                      title: Text('Podešavanja lige'),
+                    ),
+                  ),
+                const PopupMenuItem(
+                  value: 'version',
+                  child: ListTile(
+                    leading: Icon(Icons.system_update),
+                    title: Text('Verzija aplikacije'),
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'logout',
+                  child: ListTile(
+                    leading: Icon(Icons.logout),
+                    title: Text('Odjavi se'),
+                  ),
+                ),
+                const PopupMenuDivider(),
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: ListTile(
+                    leading: Icon(Icons.delete_outline),
+                    title: Text('Obriši nalog'),
+                  ),
+                ),
+              ],
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(4, 4, 16, 4),
+                child: PlayerAvatar(
+                  player: widget.auth.currentPlayer!,
+                  api: widget.api,
+                  radius: 18,
+                ),
+              ),
             ),
           ],
         ),
-        child: SafeArea(
-          top: false,
-          minimum: const EdgeInsets.fromLTRB(6, 0, 6, 6),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(24),
-            child: NavigationBar(
-              selectedIndex: _index,
-              onDestinationSelected: (index) {
-                setState(() => _index = index);
-                _refreshVisibleData();
-              },
-              destinations: destinations,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ProfileMenu extends StatelessWidget {
-  const _ProfileMenu({
-    required this.auth,
-    required this.league,
-    required this.api,
-  });
-
-  final AuthService auth;
-  final LeagueService league;
-  final ApiClient api;
-
-  @override
-  Widget build(BuildContext context) {
-    final player = auth.currentPlayer!;
-    return PopupMenuButton<String>(
-      tooltip: 'Profil',
-      offset: const Offset(0, 44),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-      onSelected: (value) {
-        if (value == 'profile') {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) =>
-                  ProfileScreen(auth: auth, league: league, api: api),
-            ),
-          );
-        }
-        if (value == 'status') {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) =>
-                  PlayStatusScreen(auth: auth, league: league, api: api),
-            ),
-          );
-        }
-        if (value == 'delete') {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => DeleteAccountScreen(auth: auth)),
-          );
-        }
-        if (value == 'logout') {
-          auth.logout();
-        }
-      },
-      itemBuilder: (context) => const [
-        PopupMenuItem(
-          value: 'profile',
-          child: Row(
-            children: [
-              Icon(Icons.person_outline),
-              SizedBox(width: 10),
-              Text('Profil'),
-            ],
-          ),
-        ),
-        PopupMenuItem(
-          value: 'status',
-          child: Row(
-            children: [
-              Icon(Icons.sports_tennis),
-              SizedBox(width: 10),
-              Text('Status'),
-            ],
-          ),
-        ),
-        PopupMenuItem(
-          value: 'logout',
-          child: Row(
-            children: [Icon(Icons.logout), SizedBox(width: 10), Text('Logout')],
-          ),
-        ),
-        PopupMenuItem(
-          value: 'delete',
-          child: Row(
-            children: [
-              Icon(Icons.delete_forever_outlined),
-              SizedBox(width: 10),
-              Text('Obriši nalog'),
-            ],
-          ),
-        ),
-      ],
-      child: Padding(
-        padding: const EdgeInsets.all(6),
-        child: PlayerAvatar(player: player, api: api, radius: 18),
-      ),
-    );
-  }
-}
-
-class _BrandTitle extends StatelessWidget {
-  const _BrandTitle({required this.section});
-
-  final String section;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Image.asset(
-          'assets/images/coa.png',
-          width: 34,
-          height: 34,
-          gaplessPlayback: true,
-          filterQuality: FilterQuality.high,
-        ),
-        const SizedBox(width: 8),
-        RichText(
-          text: const TextSpan(
-            style: TextStyle(
-              color: AppTheme.ink,
-              fontSize: 20,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0,
-            ),
-            children: [
-              TextSpan(text: 'C'),
-              TextSpan(
-                text: 'O',
-                style: TextStyle(color: AppTheme.court),
+        body: Column(
+          children: [
+            if (config != null &&
+                config.updateAvailable &&
+                _dismissedUpdate != config.latestBuild)
+              MaterialBanner(
+                content: const Text('Dostupna je nova verzija aplikacije.'),
+                leading: const Icon(Icons.system_update),
+                actions: [
+                  IconButton(
+                    tooltip: 'Kasnije',
+                    onPressed: () =>
+                        setState(() => _dismissedUpdate = config.latestBuild),
+                    icon: const Icon(Icons.close),
+                  ),
+                  TextButton(
+                    onPressed: () => openAppStore(context, config),
+                    child: const Text('Ažuriraj'),
+                  ),
+                ],
               ),
-              TextSpan(text: 'A'),
-            ],
-          ),
+            Expanded(
+              child: IndexedStack(index: _index, children: pages),
+            ),
+          ],
         ),
-        if (section.isNotEmpty) ...[
-          const SizedBox(width: 8),
-          Text(
-            '- $section',
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: AppTheme.ink,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
+        bottomNavigationBar: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 8, 18, 10),
+            child: Center(
+              heightFactor: 1,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 560),
+                child: FrostedSurface(
+                  radius: 36,
+                  child: NavigationBar(
+                    selectedIndex: _index,
+                    onDestinationSelected: _select,
+                    destinations: [
+                      const NavigationDestination(
+                        icon: Icon(Icons.home_outlined),
+                        selectedIcon: Icon(Icons.home),
+                        label: 'Početna',
+                      ),
+                      const NavigationDestination(
+                        icon: Icon(Icons.people_outline),
+                        selectedIcon: Icon(Icons.people),
+                        label: 'Igrači',
+                      ),
+                      const NavigationDestination(
+                        icon: Icon(Icons.emoji_events_outlined),
+                        selectedIcon: Icon(Icons.emoji_events),
+                        label: 'Turniri',
+                      ),
+                      NavigationDestination(
+                        icon: Badge(
+                          isLabelVisible: _pending > 0,
+                          label: Text('$_pending'),
+                          child: const Icon(Icons.sports_tennis),
+                        ),
+                        label: 'Mečevi',
+                      ),
+                      const NavigationDestination(
+                        icon: Icon(Icons.leaderboard_outlined),
+                        selectedIcon: Icon(Icons.leaderboard),
+                        label: 'Rang-lista',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
-        ],
-      ],
-    );
-  }
-}
-
-class _ChallengeTabIcon extends StatelessWidget {
-  const _ChallengeTabIcon({required this.count, this.selected = false});
-
-  final int count;
-  final bool selected;
-
-  @override
-  Widget build(BuildContext context) {
-    final icon = Icon(
-      Icons.sports_tennis,
-      color: selected ? AppTheme.court : null,
-    );
-
-    if (count == 0) return icon;
-
-    return Container(
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.clay.withValues(alpha: .45),
-            blurRadius: 18,
-            spreadRadius: 2,
-          ),
-        ],
+        ),
       ),
-      child: Badge.count(
-        count: count,
-        backgroundColor: AppTheme.clay,
-        textColor: Colors.white,
-        child: icon,
-      ),
-    );
-  }
-}
-
-class _BadgeIcon extends StatelessWidget {
-  const _BadgeIcon({
-    required this.icon,
-    required this.count,
-    this.selected = false,
-  });
-
-  final IconData icon;
-  final int count;
-  final bool selected;
-
-  @override
-  Widget build(BuildContext context) {
-    final child = Icon(icon, color: selected ? AppTheme.court : null);
-    if (count == 0) return child;
-
-    return Badge.count(
-      count: count,
-      backgroundColor: AppTheme.clay,
-      textColor: Colors.white,
-      child: child,
     );
   }
 }

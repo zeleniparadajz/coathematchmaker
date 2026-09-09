@@ -373,6 +373,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _lastName = TextEditingController();
   final _birthYear = TextEditingController();
   final _club = TextEditingController();
+  final _city = TextEditingController();
   bool _saving = false;
   bool _uploading = false;
   String _country = 'Montenegro';
@@ -415,6 +416,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _lastName.dispose();
     _birthYear.dispose();
     _club.dispose();
+    _city.dispose();
     super.dispose();
   }
 
@@ -425,6 +427,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _birthDate = player.birthDate;
     _birthYear.text = _dateLabel(player.birthDate);
     _club.text = player.club ?? '';
+    _city.text = player.city ?? '';
     _sport = player.sport;
     _country = _countries.contains(player.country)
         ? player.country
@@ -442,6 +445,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         country: _country,
         sport: _sport,
         club: _club.text.trim(),
+        city: _city.text.trim(),
       );
       await widget.auth.refreshMe();
       if (mounted) {
@@ -509,7 +513,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Stack(
                     alignment: Alignment.bottomRight,
                     children: [
-                      PlayerAvatar(player: player, api: widget.api, radius: 62),
+                      PlayerAvatar(
+                        player: player,
+                        api: widget.api,
+                        radius: 62,
+                        allowPreview: true,
+                      ),
                       IconButton.filled(
                         tooltip: 'Promijeni sliku',
                         onPressed: _uploading ? null : _pickImage,
@@ -532,7 +541,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       fontWeight: FontWeight.w900,
                     ),
                   ),
-                  Text('${player.email}  |  ${player.role}'),
+                  Text(player.email),
+                  if (player.isAdmin) const Text('Administrator'),
                 ],
               ),
             ),
@@ -609,6 +619,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       label: 'Klub',
                       hint: 'Individualni igrač / klub',
                       icon: Icons.shield,
+                    ),
+                    const SizedBox(height: 12),
+                    AppTextField(
+                      controller: _city,
+                      label: 'Grad',
+                      icon: Icons.location_city,
+                      validator: (value) => (value?.length ?? 0) > 100
+                          ? 'Najviše 100 znakova.'
+                          : null,
                     ),
                     const SizedBox(height: 18),
                     SizedBox(

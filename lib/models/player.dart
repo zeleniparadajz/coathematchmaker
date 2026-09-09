@@ -16,6 +16,7 @@ class Player {
     required this.tournamentsWon,
     required this.role,
     this.club,
+    this.city,
     this.profileImage,
   });
 
@@ -28,6 +29,7 @@ class Player {
   final String country;
   final String sport;
   final String? club;
+  final String? city;
   final String? profileImage;
   final bool active;
   final String playStatus;
@@ -72,6 +74,7 @@ class Player {
       country: json['country'] ?? '',
       sport: json['sport'] ?? 'tennis',
       club: json['club'],
+      city: json['city'],
       profileImage: json['profileImage'],
       active: json['active'] ?? false,
       playStatus: json['playStatus'] ?? 'available',

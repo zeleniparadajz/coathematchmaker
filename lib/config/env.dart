@@ -6,10 +6,6 @@ class Env {
     "API_URL",
     defaultValue: "https://coabackapi.zeleniparadajz.me",
   );
-  static const int appBuildNumber = int.fromEnvironment(
-    "APP_BUILD_NUMBER",
-    defaultValue: 6,
-  );
 
   static String get platform {
     if (Platform.isIOS) return 'ios';

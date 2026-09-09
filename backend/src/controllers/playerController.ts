@@ -11,6 +11,7 @@ export const updatePlayerSchema = z.object({
   birthYear: z.number().int().min(1900).max(new Date().getFullYear()).optional(),
   country: z.string().min(1).optional(),
   club: z.string().optional(),
+  city: z.string().trim().max(100).optional(),
   sport: z.string().min(1).optional(),
   profileImage: z.string().url().optional(),
   active: z.boolean().optional(),
@@ -70,6 +71,7 @@ export const updateMyProfile = asyncHandler(async (req, res) => {
     birthDate: req.body.birthDate ?? (req.body.birthYear ? new Date(`${req.body.birthYear}-01-01`) : undefined),
     country: req.body.country,
     club: req.body.club,
+    city: req.body.city,
     sport: req.body.sport
   };
 

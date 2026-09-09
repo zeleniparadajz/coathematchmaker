@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../models/match.dart';
+import '../models/app_location.dart';
+import '../models/display_labels.dart';
 import '../models/player.dart';
 import '../models/tournament.dart';
 import '../services/api_client.dart';
@@ -9,9 +11,13 @@ import '../services/auth_service.dart';
 import '../services/league_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_form_fields.dart';
+import '../widgets/location_picker.dart';
 import '../widgets/map_location_card.dart';
 import '../widgets/player_avatar.dart';
 import '../widgets/section_header.dart';
+import '../widgets/load_error.dart';
+import '../widgets/photo_viewer.dart';
+import '../widgets/sport_surfaces.dart';
 
 class TournamentsScreen extends StatefulWidget {
   const TournamentsScreen({
@@ -55,16 +61,27 @@ class _TournamentsScreenState extends State<TournamentsScreen> {
     return FutureBuilder<List<Tournament>>(
       future: _future,
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return LoadError(
+            onRetry: () => setState(() {
+              _future = widget.league.tournaments();
+            }),
+          );
+        }
         if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
         return Scaffold(
+          backgroundColor: Colors.transparent,
           floatingActionButton: FloatingActionButton.extended(
             heroTag: 'tournaments-create-fab',
             onPressed: () async {
               await Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (_) => TournamentFormScreen(league: widget.league),
+                  builder: (_) => TournamentFormScreen(
+                    league: widget.league,
+                    canManageLocations: widget.auth.isAdmin,
+                  ),
                 ),
               );
               setState(() {
@@ -82,19 +99,17 @@ class _TournamentsScreenState extends State<TournamentsScreen> {
               await _future;
             },
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 96),
               children: [
-                Text(
-                  'Žrijebovi, učesnici i galerije turnira.',
-                  style: TextStyle(
-                    color: AppTheme.ink.withValues(alpha: .58),
-                    fontWeight: FontWeight.w600,
+                if (snapshot.data!.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 40),
+                    child: Center(child: Text('Trenutno nema turnira.')),
                   ),
-                ),
-                const SizedBox(height: 12),
                 ...snapshot.data!.map((tournament) {
                   return _TournamentListCard(
                     tournament: tournament,
+                    api: widget.api,
                     onTap: () async {
                       await Navigator.of(context).push(
                         MaterialPageRoute(
@@ -124,113 +139,116 @@ class _TournamentsScreenState extends State<TournamentsScreen> {
 }
 
 class _TournamentListCard extends StatelessWidget {
-  const _TournamentListCard({required this.tournament, required this.onTap});
-
+  const _TournamentListCard({
+    required this.tournament,
+    required this.api,
+    required this.onTap,
+  });
   final Tournament tournament;
+  final ApiClient api;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(26),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.ink.withValues(alpha: .07),
-            blurRadius: 22,
-            offset: const Offset(0, 12),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(26),
-        child: Material(
-          color: Colors.white,
-          child: InkWell(
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+    final photo = tournament.images.isEmpty
+        ? null
+        : api.imageUrl(tournament.images.first);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        elevation: 3,
+        shadowColor: AppTheme.blue.withValues(alpha: .15),
+        child: InkWell(
+          onTap: onTap,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 270),
+            child: Stack(
+              children: [
+                Positioned.fill(child: SportPhoto(url: photo)),
+                const Positioned.fill(child: PhotoShade(strong: true)),
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        width: 46,
-                        height: 46,
-                        decoration: BoxDecoration(
-                          color: AppTheme.lime,
-                          borderRadius: BorderRadius.circular(16),
+                      Row(
+                        children: [
+                          _TournamentStatusPill(status: tournament.status),
+                          const Spacer(),
+                          const CircleAvatar(
+                            radius: 20,
+                            backgroundColor: Color(0xE6FFFFFF),
+                            child: Icon(
+                              Icons.arrow_outward,
+                              size: 20,
+                              color: AppTheme.ink,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 60),
+                      Text(
+                        tournament.name.replaceAllMapped(
+                          RegExp(r'(\S+) +(\d+\))'),
+                          (match) => '${match[1]}\u00a0${match[2]}',
                         ),
-                        child: const Icon(
-                          Icons.emoji_events,
-                          color: AppTheme.ink,
+                        semanticsLabel: tournament.name,
+                        softWrap: true,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 25,
+                          height: 1.15,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              tournament.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.w900),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              '${tournament.location}  |  ${tournament.category}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: AppTheme.ink.withValues(alpha: .58),
-                                fontWeight: FontWeight.w600,
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.place_outlined,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 5),
+                          Expanded(
+                            child: Text(
+                              tournament.locationLabel,
+                              softWrap: true,
+                              style: const TextStyle(
+                                color: Color(0xFFE0EDE8),
+                                fontSize: 13,
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                      _TournamentStatusPill(status: tournament.status),
+                      const SizedBox(height: 18),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          _TournamentMiniPill(
+                            icon: Icons.grass,
+                            label: surfaceLabel(tournament.surface),
+                          ),
+                          _TournamentMiniPill(
+                            icon: Icons.groups,
+                            label: '${tournament.participants.length} igrača',
+                          ),
+                          _TournamentMiniPill(
+                            icon: Icons.account_tree,
+                            label: _TournamentHero._formatLabel(
+                              tournament.format,
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 14),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      _TournamentMiniPill(
-                        icon: Icons.grass,
-                        label: tournament.surface,
-                      ),
-                      _TournamentMiniPill(
-                        icon: Icons.account_tree,
-                        label: _TournamentHero._formatLabel(tournament.format),
-                      ),
-                      _TournamentMiniPill(
-                        icon: Icons.groups,
-                        label: '${tournament.participants.length} igrača',
-                      ),
-                      _TournamentMiniPill(
-                        icon: tournament.isPrivate ? Icons.lock : Icons.public,
-                        label: tournament.isPrivate ? 'Privatni' : 'Javni',
-                      ),
-                      if (tournament.friendly)
-                        const _TournamentMiniPill(
-                          icon: Icons.favorite,
-                          label: 'Prijateljski',
-                        )
-                      else
-                        const _TournamentMiniPill(
-                          icon: Icons.leaderboard,
-                          label: 'Takmičarski',
-                        ),
-                    ],
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -258,9 +276,9 @@ class _TournamentStatusPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
-        status,
-        style: const TextStyle(
-          color: AppTheme.ink,
+        tournamentStatusLabel(status),
+        style: TextStyle(
+          color: status == 'active' ? Colors.white : AppTheme.ink,
           fontSize: 12,
           fontWeight: FontWeight.w900,
         ),
@@ -280,7 +298,7 @@ class _TournamentMiniPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
-        color: AppTheme.ink.withValues(alpha: .045),
+        color: Colors.white.withValues(alpha: .9),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
@@ -288,12 +306,14 @@ class _TournamentMiniPill extends StatelessWidget {
         children: [
           Icon(icon, size: 14, color: AppTheme.ink.withValues(alpha: .65)),
           const SizedBox(width: 5),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: AppTheme.ink.withValues(alpha: .72),
-              fontWeight: FontWeight.w700,
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: AppTheme.ink.withValues(alpha: .72),
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
@@ -464,8 +484,11 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
   Future<void> _editTournament(Tournament tournament) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) =>
-            TournamentFormScreen(league: widget.league, tournament: tournament),
+        builder: (_) => TournamentFormScreen(
+          league: widget.league,
+          tournament: tournament,
+          canManageLocations: widget.auth.isAdmin,
+        ),
       ),
     );
     if (mounted) {
@@ -482,6 +505,13 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
       body: FutureBuilder<_TournamentDetailsData>(
         future: _future,
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return LoadError(
+              onRetry: () => setState(() {
+                _future = _load();
+              }),
+            );
+          }
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -527,7 +557,15 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
                 ),
                 const SizedBox(height: 12),
               ],
-              MapLocationCard(location: tournament.location),
+              if (tournament.locations.isEmpty)
+                MapLocationCard(location: tournament.location)
+              else
+                ...tournament.locations.map(
+                  (location) => MapLocationCard(
+                    location: location.label,
+                    googlePlaceId: location.googlePlaceId,
+                  ),
+                ),
               const SizedBox(height: 14),
               _TournamentGallery(
                 tournament: tournament,
@@ -654,7 +692,9 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
                       color: AppTheme.court,
                     ),
                     title: Text('${match.team1Name} vs ${match.team2Name}'),
-                    subtitle: Text('${match.round}  |  ${match.status}'),
+                    subtitle: Text(
+                      '${match.round} · ${matchStatusLabel(match.status)}',
+                    ),
                     trailing: Text(
                       match.scoreText.isEmpty ? '-' : match.scoreText,
                     ),
@@ -708,7 +748,7 @@ class _TournamentHero extends StatelessWidget {
                 child: const Icon(Icons.emoji_events, color: AppTheme.lime),
               ),
               const Spacer(),
-              _HeroBadge(label: tournament.status),
+              _HeroBadge(label: tournamentStatusLabel(tournament.status)),
             ],
           ),
           const SizedBox(height: 18),
@@ -724,7 +764,7 @@ class _TournamentHero extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              _HeroMeta(icon: Icons.place, label: tournament.location),
+              _HeroMeta(icon: Icons.place, label: tournament.locationLabel),
               _HeroMeta(icon: Icons.grass, label: tournament.surface),
               _HeroMeta(icon: Icons.category, label: tournament.category),
               _HeroMeta(
@@ -897,13 +937,22 @@ class _TournamentGallery extends StatelessWidget {
                   separatorBuilder: (_, _) => const SizedBox(width: 10),
                   itemBuilder: (context, index) {
                     final image = tournament.images[index];
-                    return ClipRRect(
-                      borderRadius: BorderRadius.circular(14),
-                      child: AspectRatio(
-                        aspectRatio: 1,
-                        child: Image.network(
-                          api.imageUrl(image),
-                          fit: BoxFit.cover,
+                    return GestureDetector(
+                      onTap: () => openPhotoViewer(
+                        context,
+                        tournament.images.map(api.imageUrl).toList(),
+                        initialIndex: index,
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: AspectRatio(
+                          aspectRatio: 1,
+                          child: Image.network(
+                            api.imageUrl(image),
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) =>
+                                const Icon(Icons.broken_image_outlined),
+                          ),
                         ),
                       ),
                     );
@@ -1140,7 +1189,7 @@ class _FriendlyInfoCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppTheme.lime.withValues(alpha: .28),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: AppTheme.court.withValues(alpha: .18)),
       ),
       child: Row(
@@ -1191,10 +1240,12 @@ class TournamentFormScreen extends StatefulWidget {
     super.key,
     required this.league,
     this.tournament,
+    this.canManageLocations = false,
   });
 
   final LeagueService league;
   final Tournament? tournament;
+  final bool canManageLocations;
 
   @override
   State<TournamentFormScreen> createState() => _TournamentFormScreenState();
@@ -1203,6 +1254,7 @@ class TournamentFormScreen extends StatefulWidget {
 class _TournamentFormScreenState extends State<TournamentFormScreen> {
   final _name = TextEditingController();
   final _location = TextEditingController();
+  List<AppLocation> _locations = [];
   final _category = TextEditingController(text: 'Seniori');
   final _surface = TextEditingController(text: 'Tvrda podloga');
   DateTime _startDate = DateTime.now();
@@ -1231,7 +1283,8 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
     final tournament = widget.tournament;
     if (tournament != null) {
       _name.text = tournament.name;
-      _location.text = tournament.location;
+      _location.text = tournament.locationLabel;
+      _locations = [...tournament.locations];
       _category.text = tournament.category;
       _surface.text = tournament.surface;
       _discipline = tournament.discipline;
@@ -1252,6 +1305,7 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
           name: _name.text.trim(),
           discipline: _discipline,
           location: _location.text.trim(),
+          locationIds: _locations.map((item) => item.id).toList(),
           surface: _surface.text.trim(),
           category: _category.text.trim(),
           format: _format,
@@ -1267,6 +1321,7 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
           name: _name.text.trim(),
           discipline: _discipline,
           location: _location.text.trim(),
+          locationIds: _locations.map((item) => item.id).toList(),
           surface: _surface.text.trim(),
           category: _category.text.trim(),
           format: _format,
@@ -1346,18 +1401,25 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
                   _field(_name, 'Naziv turnira', Icons.title),
                   const SizedBox(height: 12),
                   AppSelectField(
-                    label: 'Lokacija',
+                    label: 'Lokacije',
                     value: _location.text.trim().isEmpty
-                        ? 'Izaberi ili ukucaj lokaciju'
+                        ? 'Izaberi lokacije'
                         : _location.text.trim(),
                     icon: Icons.place,
                     onTap: () async {
-                      final value = await showAppLocationPicker(
+                      final value = await showLocationPicker(
                         context: context,
-                        initialValue: _location.text,
+                        league: widget.league,
+                        selected: _locations,
+                        legacy: _locations.isEmpty ? _location.text : '',
+                        multiple: true,
+                        canManage: widget.canManageLocations,
                       );
-                      if (value != null) {
-                        setState(() => _location.text = value);
+                      if (mounted && value != null) {
+                        setState(() {
+                          _location.text = value.label;
+                          _locations = value.locations;
+                        });
                       }
                     },
                   ),

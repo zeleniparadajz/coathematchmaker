@@ -1,6 +1,7 @@
 import 'package:image_picker/image_picker.dart';
 
 import '../models/match.dart';
+import '../models/app_location.dart';
 import '../models/dm.dart';
 import '../models/league_settings.dart';
 import '../models/player.dart';
@@ -11,6 +12,41 @@ class LeagueService {
   LeagueService(this.api);
 
   final ApiClient api;
+
+  Future<List<AppLocation>> locations({bool includeInactive = false}) async {
+    final data = await api.getJson('/api/locations', {
+      'all': '$includeInactive',
+    });
+    return (data['locations'] as List)
+        .map((item) => AppLocation.fromJson(item))
+        .toList();
+  }
+
+  Future<List<GooglePlaceResult>> searchPlaces(String query) async {
+    final data = await api.postJson('/api/locations/search', {'query': query});
+    return (data['places'] as List)
+        .map((item) => GooglePlaceResult.fromJson(item))
+        .toList();
+  }
+
+  Future<AppLocation> saveLocation({
+    String? id,
+    required String name,
+    required String address,
+    String? googlePlaceId,
+    required bool active,
+  }) async {
+    final body = {
+      'name': name,
+      'address': address,
+      'googlePlaceId': googlePlaceId,
+      'active': active,
+    };
+    final data = id == null
+        ? await api.postJson('/api/locations', body)
+        : await api.patchJson('/api/locations/$id', body);
+    return AppLocation.fromJson(data['location']);
+  }
 
   Future<List<Player>> players() async {
     final data = await api.getJson('/api/players');
@@ -31,6 +67,7 @@ class LeagueService {
     required String country,
     required String sport,
     String? club,
+    String? city,
   }) async {
     final data = await api.patchJson('/api/players/me', {
       'firstName': firstName,
@@ -39,6 +76,7 @@ class LeagueService {
       'country': country,
       'sport': sport,
       'club': club ?? '',
+      'city': city ?? '',
     });
     return Player.fromJson(data['player']);
   }
@@ -77,6 +115,7 @@ class LeagueService {
     required String name,
     required String discipline,
     required String location,
+    List<String>? locationIds,
     required String surface,
     required String category,
     required String format,
@@ -90,6 +129,7 @@ class LeagueService {
       'name': name,
       'discipline': discipline,
       'location': location,
+      'locationIds': ?locationIds,
       'surface': surface,
       'category': category,
       'format': format,
@@ -107,6 +147,7 @@ class LeagueService {
     required String name,
     required String discipline,
     required String location,
+    List<String>? locationIds,
     required String surface,
     required String category,
     required String format,
@@ -120,6 +161,7 @@ class LeagueService {
       'name': name,
       'discipline': discipline,
       'location': location,
+      'locationIds': ?locationIds,
       'surface': surface,
       'category': category,
       'format': format,
@@ -246,6 +288,7 @@ class LeagueService {
     String? tournamentId,
     String round = 'Challenge',
     String? location,
+    String? locationId,
     DateTime? scheduledAt,
     bool friendly = false,
   }) async {
@@ -257,6 +300,7 @@ class LeagueService {
       'tournamentId': ?tournamentId,
       'round': round,
       'location': ?location,
+      'locationId': ?locationId,
       'scheduledAt': ?scheduledAt?.toIso8601String(),
       'friendly': friendly,
     });

@@ -15,6 +15,7 @@ export interface TournamentAttrs {
   name: string;
   discipline: "singles" | "doubles";
   location: string;
+  locations: Types.ObjectId[];
   surface: string;
   category: string;
   format: TournamentFormat;
@@ -38,6 +39,7 @@ const tournamentSchema = new Schema<TournamentAttrs>(
     name: { type: String, required: true, trim: true },
     discipline: { type: String, enum: ["singles", "doubles"], default: "singles" },
     location: { type: String, required: true, trim: true },
+    locations: [{ type: Schema.Types.ObjectId, ref: "Location" }],
     surface: { type: String, required: true, trim: true, default: "Hard" },
     category: { type: String, required: true, trim: true },
     format: {

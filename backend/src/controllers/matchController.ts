@@ -8,6 +8,7 @@ import { asyncHandler } from "../middleware/asyncHandler";
 import { applyConfirmedMatchStats } from "../services/rankingService";
 import { getLeagueSettings } from "../services/settingsService";
 import { saveUploadedImage } from "../services/uploadService";
+import { locationIdSchema, matchLocationPatch } from "../services/locationService";
 
 const setScoreSchema = z.object({
   player1Games: z.number().int().min(0),
@@ -31,6 +32,7 @@ export const createMatchSchema = z.object({
   winner: z.string().optional(),
   round: z.string().min(1).default("Challenge"),
   location: z.string().optional(),
+  locationId: locationIdSchema.nullable().optional(),
   scheduledAt: z.coerce.date().optional(),
   friendly: z.boolean().default(false),
   status: z
@@ -46,6 +48,7 @@ export const challengeMatchSchema = z.object({
   tournamentId: z.string().min(1).optional(),
   round: z.string().min(1).default("Challenge"),
   location: z.string().optional(),
+  locationId: locationIdSchema.nullable().optional(),
   scheduledAt: z.coerce.date().optional(),
   friendly: z.boolean().default(false)
 });
@@ -197,6 +200,7 @@ const canSubmitResult = async (acceptedAt?: Date): Promise<{ allowed: boolean; m
 const populateMatch = (id: Types.ObjectId | string) => {
   return Match.findById(id)
     .populate("tournament")
+    .populate("venue")
     .populate("player1", "-password")
     .populate("player2", "-password")
     .populate("player1Partner", "-password")
@@ -225,6 +229,7 @@ export const listMatches = asyncHandler(async (req, res) => {
 
   const matches = await Match.find(visibleMatchFilter(req.user!.id, req.user!.role, filter))
     .populate("tournament")
+    .populate("venue")
     .populate("player1", "-password")
     .populate("player2", "-password")
     .populate("player1Partner", "-password")
@@ -240,6 +245,7 @@ export const getMyMatches = asyncHandler(async (req, res) => {
     $or: [{ player1: req.user!.id }, { player2: req.user!.id }, { player1Partner: req.user!.id }, { player2Partner: req.user!.id }]
   })
     .populate("tournament")
+    .populate("venue")
     .populate("player1", "-password")
     .populate("player2", "-password")
     .populate("player1Partner", "-password")
@@ -257,6 +263,7 @@ export const getPendingMatches = asyncHandler(async (req, res) => {
     status: "pending"
   })
     .populate("tournament")
+    .populate("venue")
     .populate("player1", "-password")
     .populate("player2", "-password")
     .populate("player1Partner", "-password")
@@ -269,6 +276,7 @@ export const getPendingMatches = asyncHandler(async (req, res) => {
 export const getDisputedMatches = asyncHandler(async (_req, res) => {
   const matches = await Match.find({ status: "disputed" })
     .populate("tournament")
+    .populate("venue")
     .populate("player1", "-password")
     .populate("player2", "-password")
     .populate("player1Partner", "-password")
@@ -325,6 +333,7 @@ export const createChallenge = asyncHandler(async (req, res) => {
     player2Partner,
     round: req.body.round,
     location: req.body.location,
+    ...await matchLocationPatch(req.body),
     scheduledAt: req.body.scheduledAt,
     friendly: tournament?.friendly ?? req.body.friendly,
     status: "pending",
@@ -538,6 +547,7 @@ export const createMatch = asyncHandler(async (req, res) => {
   const tournament = req.body.tournament ? await Tournament.findById(req.body.tournament) : null;
   const match = await Match.create({
     ...req.body,
+    ...await matchLocationPatch(req.body),
     friendly: tournament?.friendly ?? req.body.friendly,
     acceptedAt: ["accepted", "waiting_confirmation", "confirmed"].includes(req.body.status as MatchStatus) ? now : undefined,
     resultSubmittedBy: ["waiting_confirmation", "confirmed"].includes(req.body.status as MatchStatus) ? req.user!.playerId : undefined,
@@ -599,6 +609,7 @@ export const updateMatch = asyncHandler(async (req, res) => {
 
   Object.assign(match, {
     ...req.body,
+    ...await matchLocationPatch(req.body, match),
     tournament: nextTournament ? new Types.ObjectId(nextTournament) : undefined,
     discipline: nextDiscipline,
     player1: new Types.ObjectId(nextPlayer1),

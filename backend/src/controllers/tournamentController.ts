@@ -7,11 +7,13 @@ import { asyncHandler } from "../middleware/asyncHandler";
 import { awardTournamentWin } from "../services/rankingService";
 import { advanceTournamentRound, generateTournamentDraw } from "../services/bracketService";
 import { saveUploadedImage } from "../services/uploadService";
+import { locationIdsSchema, tournamentLocationPatch } from "../services/locationService";
 
 export const createTournamentSchema = z.object({
   name: z.string().min(1),
   discipline: z.enum(["singles", "doubles"]).default("singles"),
-  location: z.string().min(1),
+  location: z.string().trim().max(10000).optional(),
+  locationIds: locationIdsSchema.optional(),
   surface: z.string().min(1).default("Hard"),
   category: z.string().min(1),
   format: z
@@ -117,6 +119,7 @@ export const listTournaments = asyncHandler(async (req, res) => {
         ]
       };
   const tournaments = await Tournament.find(filter)
+    .populate("locations")
     .populate("participants", "-password")
     .populate("owner", "-password")
     .populate("admins", "-password")
@@ -128,6 +131,7 @@ export const listTournaments = asyncHandler(async (req, res) => {
 
 export const getTournament = asyncHandler(async (req, res) => {
   const tournament = await Tournament.findById(req.params.id)
+    .populate("locations")
     .populate("participants", "-password")
     .populate("owner", "-password")
     .populate("admins", "-password")
@@ -162,6 +166,7 @@ export const createTournament = asyncHandler(async (req, res) => {
   const body = normalizeTournamentBody(req.body);
   const tournament = await Tournament.create({
     ...body,
+    ...await tournamentLocationPatch(body),
     owner: req.user!.playerId,
     admins: [req.user!.playerId],
     participants: [req.user!.playerId]
@@ -169,6 +174,7 @@ export const createTournament = asyncHandler(async (req, res) => {
   await tournament.populate("participants", "-password");
   await tournament.populate("owner", "-password");
   await tournament.populate("admins", "-password");
+  await tournament.populate("locations");
   res.status(201).json({ tournament });
 });
 
@@ -186,10 +192,13 @@ export const updateTournament = asyncHandler(async (req, res) => {
   ensureTournamentManager(existing, req.user!.id, req.user!.role);
 
   const body = normalizeTournamentBody(req.body);
-  const tournament = await Tournament.findByIdAndUpdate(req.params.id, body, {
+  const tournament = await Tournament.findByIdAndUpdate(req.params.id, {
+    ...body, ...await tournamentLocationPatch(body, existing)
+  }, {
     new: true,
     runValidators: true
   })
+    .populate("locations")
     .populate("participants", "-password")
     .populate("owner", "-password")
     .populate("admins", "-password");

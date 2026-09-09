@@ -4,6 +4,7 @@
   "description": "REST API backend for a local tennis league Flutter app.",
   "main": "dist/server.js",
   "scripts": {
+    "test": "tsx --test test/*.test.ts",
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",

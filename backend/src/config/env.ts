@@ -17,7 +17,10 @@ const numberFromEnv = (name: string, fallback: number): number => {
   if (raw === undefined || raw === "") return fallback;
 
   const parsed = Number(raw);
-  return Number.isFinite(parsed) ? parsed : fallback;
+  if (!Number.isSafeInteger(parsed) || parsed < 1) {
+    throw new Error(`${name} must be a positive integer build number`);
+  }
+  return parsed;
 };
 
 const defaultMinSupportedBuild = numberFromEnv("APP_MIN_SUPPORTED_BUILD", 1);
@@ -42,8 +45,9 @@ export const env = {
   appStoreUrl: process.env.APP_STORE_URL ?? "",
   appUpdateMessage:
     process.env.APP_UPDATE_MESSAGE ??
-    "Nova verzija aplikacije je obavezna. Ažuriraj COA The Matchmaker preko Google Play-a.",
+    "Nova verzija aplikacije je obavezna. Ažuriraj COA The Matchmaker.",
   requireEmailVerification: process.env.REQUIRE_EMAIL_VERIFICATION !== "false",
   resendApiKey: process.env.RESEND_API_KEY,
+  googlePlacesApiKey: process.env.GOOGLE_PLACES_API_KEY ?? "",
   emailFrom: process.env.EMAIL_FROM ?? "Coa The Matchmaker <onboarding@resend.dev>"
 };

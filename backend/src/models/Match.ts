@@ -25,6 +25,7 @@ export interface MatchAttrs {
   winner?: Types.ObjectId;
   round: string;
   location?: string;
+  venue?: Types.ObjectId;
   scheduledAt?: Date;
   friendly: boolean;
   status: MatchStatus;
@@ -63,6 +64,7 @@ const matchSchema = new Schema<MatchAttrs>(
     winner: { type: Schema.Types.ObjectId, ref: "Player" },
     round: { type: String, required: true, trim: true },
     location: { type: String, trim: true },
+    venue: { type: Schema.Types.ObjectId, ref: "Location" },
     scheduledAt: { type: Date },
     friendly: { type: Boolean, default: false },
     status: {

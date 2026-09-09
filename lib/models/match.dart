@@ -1,4 +1,5 @@
 import 'player.dart';
+import 'app_location.dart';
 import 'tournament.dart';
 
 class SetScore {
@@ -32,6 +33,7 @@ class TennisMatch {
     required this.status,
     required this.friendly,
     this.location,
+    this.venue,
     this.scheduledAt,
     this.createdAt,
     this.images = const [],
@@ -55,6 +57,7 @@ class TennisMatch {
   final String status;
   final bool friendly;
   final String? location;
+  final AppLocation? venue;
   final DateTime? scheduledAt;
   final DateTime? createdAt;
   final List<String> images;
@@ -75,6 +78,9 @@ class TennisMatch {
       : '${player2.fullName} / ${player2Partner!.fullName}';
 
   factory TennisMatch.fromJson(Map<String, dynamic> json) {
+    final venue = json['venue'] is Map<String, dynamic>
+        ? AppLocation.fromJson(json['venue'])
+        : null;
     return TennisMatch(
       id: (json['_id'] ?? json['id']).toString(),
       tournament: json['tournament'] is Map<String, dynamic>
@@ -99,7 +105,8 @@ class TennisMatch {
       round: json['round'] ?? '',
       status: json['status'] ?? 'pending',
       friendly: json['friendly'] == true,
-      location: json['location'],
+      location: venue?.label ?? json['location'],
+      venue: venue,
       scheduledAt: DateTime.tryParse(json['scheduledAt'] ?? ''),
       createdAt: DateTime.tryParse(json['createdAt'] ?? ''),
       images: (json['images'] as List? ?? [])

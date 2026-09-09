@@ -1,7 +1,6 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/league_settings.dart';
 import '../models/match.dart';
@@ -11,10 +10,13 @@ import '../services/api_client.dart';
 import '../services/auth_service.dart';
 import '../services/league_service.dart';
 import '../theme/app_theme.dart';
-import '../widgets/app_form_fields.dart';
 import '../widgets/player_avatar.dart';
 import '../widgets/stat_card.dart';
+import '../widgets/load_error.dart';
+import '../widgets/photo_viewer.dart';
+import '../widgets/sport_surfaces.dart';
 import 'messages_screen.dart';
+import 'matches_screen.dart';
 
 class PlayersScreen extends StatefulWidget {
   const PlayersScreen({
@@ -24,12 +26,10 @@ class PlayersScreen extends StatefulWidget {
     required this.auth,
     this.refreshTick = 0,
   });
-
   final LeagueService league;
   final ApiClient api;
   final AuthService auth;
   final int refreshTick;
-
   @override
   State<PlayersScreen> createState() => _PlayersScreenState();
 }
@@ -38,16 +38,55 @@ class _PlayersScreenState extends State<PlayersScreen> {
   late Future<List<Player>> _future;
   final _search = TextEditingController();
   String _query = '';
+  String? _city;
+  String? _club;
+  bool _available = false;
+  bool _compact = false;
 
   @override
   void initState() {
     super.initState();
     _future = _loadPlayers();
+    _restoreView();
+  }
+
+  Future<void> _restoreView() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() => _compact = prefs.getBool('players_compact') ?? false);
+    }
+  }
+
+  Future<void> _setCompact(bool value) async {
+    setState(() => _compact = value);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('players_compact', value);
   }
 
   Future<List<Player>> _loadPlayers() async {
     final players = await widget.league.players();
-    return [...players]..shuffle(Random());
+    return players
+        .where((p) => p.active || p.id == widget.auth.currentPlayer?.id)
+        .toList()
+      ..sort((a, b) => a.fullName.compareTo(b.fullName));
+  }
+
+  Future<void> _reload() async {
+    final future = _loadPlayers();
+    setState(() {
+      _future = future;
+    });
+    try {
+      await future;
+    } catch (_) {
+      /* The view shows a retry action. */
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant PlayersScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshTick != widget.refreshTick) _reload();
   }
 
   @override
@@ -56,202 +95,96 @@ class _PlayersScreenState extends State<PlayersScreen> {
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<List<Player>>(
-      future: _future,
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final players = snapshot.data!
-            .where(
-              (player) =>
-                  player.fullName.toLowerCase().contains(_query.toLowerCase()),
-            )
-            .toList();
-        return RefreshIndicator(
-          onRefresh: () async {
-            setState(() {
-              _future = _loadPlayers();
-            });
-            await _future;
-          },
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-            children: [
-              AppTextField(
-                controller: _search,
-                label: 'Pronađi',
-                icon: Icons.search,
-                onChanged: (value) => setState(() => _query = value),
-              ),
-              const SizedBox(height: 2),
-              ...players.map(
-                (player) => _PlayerDiscoveryCard(
-                  player: player,
-                  api: widget.api,
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => PlayerProfileScreen(
-                        playerId: player.id,
-                        league: widget.league,
-                        api: widget.api,
-                        auth: widget.auth,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _PlayerDiscoveryCard extends StatelessWidget {
-  const _PlayerDiscoveryCard({
-    required this.player,
-    required this.api,
-    required this.onTap,
-  });
-
-  final Player player;
-  final ApiClient api;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 252,
-      margin: const EdgeInsets.only(top: 14),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.ink.withValues(alpha: .08),
-            blurRadius: 22,
-            offset: const Offset(0, 12),
-          ),
-        ],
+  void _open(Player player) => Navigator.of(context).push(
+    MaterialPageRoute<void>(
+      builder: (_) => PlayerProfileScreen(
+        playerId: player.id,
+        league: widget.league,
+        api: widget.api,
+        auth: widget.auth,
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(18),
-        child: Material(
-          color: Colors.white,
-          child: InkWell(
-            onTap: onTap,
-            child: Stack(
-              fit: StackFit.expand,
+    ),
+  );
+
+  Future<void> _filters(List<Player> players) async {
+    var city = _city;
+    var club = _club;
+    final cities =
+        players
+            .map((p) => p.city?.trim() ?? '')
+            .where((v) => v.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
+    final clubs =
+        players
+            .map((p) => p.club?.trim() ?? '')
+            .where((v) => v.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
+    if (!cities.contains(city)) city = null;
+    if (!clubs.contains(club)) club = null;
+    final apply = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, update) => SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 4, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _PlayerCardBackdrop(player: player, api: api),
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        AppTheme.ink.withValues(alpha: .78),
-                        AppTheme.ink.withValues(alpha: .18),
-                        Colors.transparent,
-                      ],
-                      begin: Alignment.bottomLeft,
-                      end: Alignment.topRight,
-                      stops: const [0, .52, 1],
-                    ),
-                  ),
+                Text(
+                  'Filteri igrača',
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          _CardPill(
-                            icon: Icons.location_on_outlined,
-                            label: player.country,
-                            glass: true,
-                          ),
-                          const Spacer(),
-                          _CardPill(
-                            icon: Icons.bolt,
-                            label: player.isAvailableForMatch
-                                ? 'Aktivan'
-                                : 'Neaktivan',
-                            bright: player.isAvailableForMatch,
-                          ),
-                        ],
-                      ),
-                      const Spacer(),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Flexible(
-                            child: Text(
-                              player.fullName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: _PlayerCardTypography.name,
-                            ),
-                          ),
-                          const SizedBox(width: 2),
-                          Transform.rotate(
-                            angle: -.55,
-                            child: Container(
-                              width: 13,
-                              height: 8,
-                              margin: const EdgeInsets.only(bottom: 2),
-                              decoration: BoxDecoration(
-                                color: AppTheme.court,
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 5),
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              player.club ?? 'Individual',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: _PlayerCardTypography.meta,
-                            ),
-                          ),
-                          const SizedBox(width: 7),
-                          Text('|', style: _PlayerCardTypography.meta),
-                          const SizedBox(width: 7),
-                          Icon(
-                            Icons.sports_tennis,
-                            color: Colors.white.withValues(alpha: .84),
-                            size: 13,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 11),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: [
-                          _CardPill(
-                            icon: Icons.sports_tennis,
-                            label: '${player.matchesPlayed} ',
-                          ),
-                          _CardPill(
-                            icon: Icons.bar_chart,
-                            label: '${player.wins}W ${player.losses}L',
-                          ),
-                          const _CardPill(
-                            icon: Icons.person_outline,
-                            label: 'Singl / Dubl',
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                const SizedBox(height: 20),
+                DropdownButtonFormField<String>(
+                  initialValue: city ?? '',
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Grad'),
+                  items: [
+                    const DropdownMenuItem(
+                      value: '',
+                      child: Text('Svi gradovi'),
+                    ),
+                    ...cities.map(
+                      (v) => DropdownMenuItem(value: v, child: Text(v)),
+                    ),
+                  ],
+                  onChanged: (v) => update(() => city = v == '' ? null : v),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: club ?? '',
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Klub'),
+                  items: [
+                    const DropdownMenuItem(
+                      value: '',
+                      child: Text('Svi klubovi'),
+                    ),
+                    ...clubs.map(
+                      (v) => DropdownMenuItem(value: v, child: Text(v)),
+                    ),
+                  ],
+                  onChanged: (v) => update(() => club = v == '' ? null : v),
+                ),
+                const SizedBox(height: 20),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Prikaži igrače'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    city = null;
+                    club = null;
+                    Navigator.pop(context, true);
+                  },
+                  child: const Text('Ukloni filtere'),
                 ),
               ],
             ),
@@ -259,114 +192,358 @@ class _PlayerDiscoveryCard extends StatelessWidget {
         ),
       ),
     );
+    if (apply == true && mounted) {
+      setState(() {
+        _city = city;
+        _club = club;
+      });
+    }
   }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<List<Player>>(
+    future: _future,
+    builder: (context, snapshot) {
+      if (snapshot.hasError) return LoadError(onRetry: _reload);
+      if (!snapshot.hasData) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      final all = snapshot.data!;
+      final players = all.where((p) {
+        final haystack =
+            '${p.fullName} ${p.city ?? ''} ${p.club ?? ''} ${p.country}'
+                .toLowerCase();
+        return haystack.contains(_query.toLowerCase().trim()) &&
+            (!_available || p.isAvailableForMatch) &&
+            (_city == null || p.city == _city) &&
+            (_club == null || p.club == _club);
+      }).toList();
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _search,
+                    onChanged: (v) => setState(() => _query = v),
+                    decoration: InputDecoration(
+                      hintText: 'Pronađi igrača',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _query.isEmpty
+                          ? null
+                          : IconButton(
+                              tooltip: 'Obriši pretragu',
+                              onPressed: () {
+                                _search.clear();
+                                setState(() => _query = '');
+                              },
+                              icon: const Icon(Icons.close),
+                            ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  tooltip: 'Filteri',
+                  onPressed: () => _filters(all),
+                  icon: Badge(
+                    isLabelVisible: _city != null || _club != null,
+                    child: const Icon(Icons.tune),
+                  ),
+                ),
+                IconButton(
+                  tooltip: _compact ? 'Prikaz fotografija' : 'Sažeta lista',
+                  onPressed: () => _setCompact(!_compact),
+                  icon: Icon(
+                    _compact ? Icons.grid_view : Icons.view_list_outlined,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 4,
+              children: [
+                FilterChip(
+                  label: const Text('Dostupni za meč'),
+                  selected: _available,
+                  onSelected: (v) => setState(() => _available = v),
+                ),
+                Text(
+                  '${players.length} igrača',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _reload,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  if (players.isEmpty) {
+                    return ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        const SizedBox(height: 64),
+                        const Icon(Icons.person_search_outlined, size: 40),
+                        const SizedBox(height: 16),
+                        const Center(
+                          child: Text('Nema igrača za izabrane filtere.'),
+                        ),
+                        Center(
+                          child: TextButton(
+                            onPressed: () {
+                              _search.clear();
+                              setState(() {
+                                _city = null;
+                                _club = null;
+                                _available = false;
+                                _query = '';
+                              });
+                            },
+                            child: const Text('Prikaži sve igrače'),
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+                  if (_compact) {
+                    return ListView.separated(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                      itemCount: players.length,
+                      separatorBuilder: (_, _) => const Divider(height: 1),
+                      itemBuilder: (_, index) {
+                        final p = players[index];
+                        return ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 6,
+                          ),
+                          leading: PlayerAvatar(player: p, api: widget.api),
+                          title: Text(p.fullName),
+                          subtitle: Text(
+                            [p.city, p.club]
+                                .whereType<String>()
+                                .where((v) => v.isNotEmpty)
+                                .join(' · '),
+                          ),
+                          trailing: Icon(
+                            Icons.circle,
+                            size: 10,
+                            color: p.isAvailableForMatch
+                                ? AppTheme.court
+                                : AppTheme.muted,
+                          ),
+                          onTap: () => _open(p),
+                        );
+                      },
+                    );
+                  }
+                  final columns = constraints.maxWidth >= 1000
+                      ? 3
+                      : constraints.maxWidth >= 650
+                      ? 2
+                      : 1;
+                  final width =
+                      (constraints.maxWidth - 32 - (columns - 1) * 16) /
+                      columns;
+                  return GridView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: columns,
+                      crossAxisSpacing: 16,
+                      mainAxisSpacing: 16,
+                      mainAxisExtent:
+                          width * 1.12 +
+                          100 * (MediaQuery.textScalerOf(context).scale(1) - 1),
+                    ),
+                    itemCount: players.length,
+                    itemBuilder: (_, index) => _PlayerCard(
+                      player: players[index],
+                      api: widget.api,
+                      onOpen: () => _open(players[index]),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      );
+    },
+  );
 }
 
-class _PlayerCardTypography {
-  static final name = TextStyle(
-    color: Colors.white,
-    fontFamily: 'Avenir Next Rounded',
-    fontFamilyFallback: const ['Avenir Next', 'SF Pro Display'],
-    fontSize: 20,
-    height: 1,
-    fontWeight: FontWeight.w700,
-    letterSpacing: 0,
-    shadows: [
-      Shadow(
-        color: Colors.black.withValues(alpha: .30),
-        blurRadius: 10,
-        offset: const Offset(0, 2),
-      ),
-    ],
-  );
-
-  static final meta = TextStyle(
-    color: Colors.white.withValues(alpha: .92),
-    fontFamily: 'Avenir Next Rounded',
-    fontFamilyFallback: const ['Avenir Next', 'SF Pro Text'],
-    fontSize: 11,
-    height: 1,
-    fontWeight: FontWeight.w700,
-    letterSpacing: .05,
-    shadows: [
-      Shadow(
-        color: Colors.black.withValues(alpha: .28),
-        blurRadius: 8,
-        offset: const Offset(0, 2),
-      ),
-    ],
-  );
-}
-
-class _PlayerCardBackdrop extends StatelessWidget {
-  const _PlayerCardBackdrop({required this.player, required this.api});
-
+class _PlayerCard extends StatelessWidget {
+  const _PlayerCard({
+    required this.player,
+    required this.api,
+    required this.onOpen,
+  });
   final Player player;
   final ApiClient api;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
     final url = api.imageUrl(player.profileImage);
-    if (url.isEmpty) {
-      return Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [AppTheme.court, AppTheme.lime],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: Icon(
-          Icons.sports_tennis,
-          size: 76,
-          color: Colors.white.withValues(alpha: .24),
-        ),
-      );
-    }
-
-    return Image.network(url, fit: BoxFit.cover);
-  }
-}
-
-class _CardPill extends StatelessWidget {
-  const _CardPill({
-    required this.icon,
-    required this.label,
-    this.bright = false,
-    this.glass = false,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool bright;
-  final bool glass;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
-      decoration: BoxDecoration(
-        color: glass
-            ? Colors.black.withValues(alpha: .20)
-            : bright
-            ? AppTheme.lime.withValues(alpha: .92)
-            : Colors.white.withValues(alpha: .92),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+    final available = player.isAvailableForMatch;
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      elevation: 3,
+      shadowColor: AppTheme.courtDark.withValues(alpha: .14),
+      child: Stack(
+        fit: StackFit.expand,
         children: [
-          Icon(icon, size: 13, color: glass ? Colors.white : AppTheme.ink),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              color: glass ? Colors.white : AppTheme.ink,
-              fontFamily: 'Avenir Next Rounded',
-              fontFamilyFallback: const ['Avenir Next', 'SF Pro Text'],
-              fontSize: 10.5,
-              height: 1,
-              fontWeight: FontWeight.w700,
+          if (url.isNotEmpty)
+            SportPhoto(url: url, alignment: Alignment.topCenter)
+          else ...[
+            const SportPhoto(),
+            const ColoredBox(color: Color(0x881C5968)),
+            Align(
+              alignment: const Alignment(0, -.28),
+              child: PlayerAvatar(player: player, api: api, radius: 54),
+            ),
+          ],
+          const PhotoShade(),
+          Positioned.fill(
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: url.isEmpty
+                    ? onOpen
+                    : () => openPhotoViewer(context, [url]),
+                child: const SizedBox.expand(),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 14,
+            left: 14,
+            right: 14,
+            child: Row(
+              children: [
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: available
+                          ? AppTheme.court
+                          : const Color(0xDD243D41),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: .3),
+                      ),
+                    ),
+                    child: Text(
+                      available ? 'Dostupan za meč' : 'Nedostupan',
+                      maxLines: 2,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                if (url.isNotEmpty)
+                  IconButton(
+                    tooltip: 'Prikaži cijelu fotografiju',
+                    onPressed: () => openPhotoViewer(context, [url]),
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.white.withValues(alpha: .88),
+                      foregroundColor: AppTheme.ink,
+                    ),
+                    icon: const Icon(Icons.open_in_full, size: 19),
+                  ),
+              ],
+            ),
+          ),
+          Positioned(
+            left: 20,
+            right: 20,
+            bottom: 18,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  player.fullName,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 26,
+                    height: 1.12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  [
+                    player.city?.isNotEmpty == true
+                        ? player.city!
+                        : player.country,
+                    if (player.club?.isNotEmpty == true) player.club!,
+                  ].join(' · '),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xFFE0EDE8),
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.sports_tennis,
+                      color: Color(0xFFDFF2AE),
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${player.wins} pobjeda · ${player.totalPoints} poena',
+                        maxLines: 2,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    FilledButton(
+                      onPressed: onOpen,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: AppTheme.ink,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text('Profil'),
+                          SizedBox(width: 8),
+                          Icon(Icons.arrow_forward, size: 17),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ],
@@ -451,6 +628,13 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
       body: FutureBuilder<_PlayerProfileData>(
         future: _future,
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return LoadError(
+              onRetry: () => setState(() {
+                _future = _load();
+              }),
+            );
+          }
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -464,7 +648,12 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                 child: Stack(
                   alignment: Alignment.bottomRight,
                   children: [
-                    PlayerAvatar(player: player, api: widget.api, radius: 62),
+                    PlayerAvatar(
+                      player: player,
+                      api: widget.api,
+                      radius: 62,
+                      allowPreview: true,
+                    ),
                     if (canEdit)
                       IconButton.filled(
                         tooltip: 'Promijeni sliku',
@@ -498,6 +687,22 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
               ),
               if (!canEdit) ...[
                 const SizedBox(height: 14),
+                if (player.isAvailableForMatch)
+                  FilledButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ChallengeFormScreen(
+                          league: widget.league,
+                          canManageLocations: widget.auth.isAdmin,
+                          currentPlayerId: widget.auth.currentPlayer!.id,
+                          initialOpponentId: player.id,
+                        ),
+                      ),
+                    ),
+                    icon: const Icon(Icons.sports_tennis),
+                    label: const Text('Izazovi na meč'),
+                  ),
+                const SizedBox(height: 8),
                 FilledButton.icon(
                   onPressed: () async {
                     final conversation = await widget.league.startConversation(
@@ -520,13 +725,19 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                 ),
               ],
               const SizedBox(height: 18),
-              GridView.count(
+              GridView(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 2,
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
-                childAspectRatio: 1.25,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: MediaQuery.sizeOf(context).width >= 700
+                      ? 3
+                      : 2,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                  mainAxisExtent:
+                      158 +
+                      52 * (MediaQuery.textScalerOf(context).scale(1) - 1),
+                ),
                 children: [
                   StatCard(
                     label: 'Poeni',
@@ -1069,7 +1280,7 @@ class _StatBreakdownSheet extends StatelessWidget {
       return _baseCard(
         icon: Icons.emoji_events,
         title: item.name,
-        subtitle: '${item.location} | ${_dateLabel(item.endDate)}',
+        subtitle: '${item.locationLabel} | ${_dateLabel(item.endDate)}',
         trailing: 'titula',
       );
     }
