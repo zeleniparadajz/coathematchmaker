@@ -3,7 +3,7 @@ import { Match } from "../models/Match";
 import { Tournament } from "../models/Tournament";
 import { AppError } from "../middleware/errorHandler";
 
-const roundLabelForSize = (size: number): string => {
+export const roundLabelForSize = (size: number): string => {
   if (size === 2) return "F";
   if (size === 4) return "SF";
   if (size === 8) return "QF";
@@ -84,6 +84,7 @@ export const generateTournamentDraw = async (tournamentId: string) => {
 
     tournament.matches = createdMatchIds;
     tournament.drawGeneratedAt = new Date();
+    tournament.status = "active";
     await tournament.save();
     return { tournament, byes, matches: createdMatchIds };
   }

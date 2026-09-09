@@ -11,6 +11,9 @@ class Tournament {
     required this.surface,
     required this.category,
     required this.format,
+    this.knockoutSize = 0,
+    this.knockoutStarted = false,
+    this.hasDraw = false,
     required this.startDate,
     required this.endDate,
     required this.status,
@@ -34,6 +37,21 @@ class Tournament {
   final String surface;
   final String category;
   final String format;
+  final int knockoutSize;
+  final bool knockoutStarted;
+  final bool hasDraw;
+  String get formatLabel => format == 'round_robin' && knockoutSize > 0
+      ? 'Round-robin + knockout'
+      : switch (format) {
+          'round_robin' => 'Round-robin',
+          'elimination' => 'Eliminacija',
+          'qualification' => 'Kvalifikacije',
+          'group_knockout' => 'Grupe + knockout',
+          'double_elimination' => 'Double elimination',
+          'compass' => 'Compass draw',
+          'swiss' => 'Swiss system',
+          _ => format,
+        };
   final DateTime startDate;
   final DateTime endDate;
   final String status;
@@ -67,6 +85,11 @@ class Tournament {
       surface: json['surface'] ?? 'Hard',
       category: json['category'] ?? '',
       format: json['format'] ?? 'elimination',
+      knockoutSize: json['knockoutSize'] ?? 0,
+      knockoutStarted: json['knockoutStartedAt'] != null,
+      hasDraw:
+          json['drawGeneratedAt'] != null ||
+          (json['matches'] as List? ?? []).isNotEmpty,
       startDate: DateTime.tryParse(json['startDate'] ?? '') ?? DateTime.now(),
       endDate: DateTime.tryParse(json['endDate'] ?? '') ?? DateTime.now(),
       status: json['status'] ?? 'upcoming',

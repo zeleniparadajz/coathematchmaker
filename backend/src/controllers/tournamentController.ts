@@ -8,6 +8,7 @@ import { awardTournamentWin } from "../services/rankingService";
 import { advanceTournamentRound, generateTournamentDraw } from "../services/bracketService";
 import { saveUploadedImage } from "../services/uploadService";
 import { locationIdsSchema, tournamentLocationPatch } from "../services/locationService";
+import { advanceRoundRobinKnockout, ensureManualLeagueMatch, roundRobinState, startRoundRobinKnockout, validateKnockoutSettings } from "../services/roundRobinService";
 
 export const createTournamentSchema = z.object({
   name: z.string().min(1),
@@ -23,7 +24,8 @@ export const createTournamentSchema = z.object({
   endDate: z.coerce.date(),
   status: z.enum(["upcoming", "active", "finished"]).optional(),
   visibility: z.enum(["public", "private"]).default("public"),
-  friendly: z.boolean().default(false)
+  friendly: z.boolean().default(false),
+  knockoutSize: z.union([z.literal(0), z.literal(2), z.literal(4), z.literal(8), z.literal(16)]).default(0)
 });
 
 export const updateTournamentSchema = createTournamentSchema.partial().extend({
@@ -32,6 +34,10 @@ export const updateTournamentSchema = createTournamentSchema.partial().extend({
 
 export const finishTournamentSchema = z.object({
   winnerId: z.string().min(1)
+});
+
+export const startKnockoutSchema = z.object({
+  seeds: z.array(z.string().regex(/^[a-f\d]{24}$/i)).min(2).max(16)
 });
 
 export const addParticipantSchema = z.object({
@@ -164,6 +170,8 @@ export const createTournament = asyncHandler(async (req, res) => {
   }
 
   const body = normalizeTournamentBody(req.body);
+  validateKnockoutSettings({ format: body.format ?? "elimination", discipline: body.discipline ?? "singles", knockoutSize: body.knockoutSize ?? 0 });
+  if (body.knockoutSize && body.status === "finished") throw new AppError(400, "Zavrsnica se zavrsava potvrdom finala.");
   const tournament = await Tournament.create({
     ...body,
     ...await tournamentLocationPatch(body),
@@ -192,7 +200,27 @@ export const updateTournament = asyncHandler(async (req, res) => {
   ensureTournamentManager(existing, req.user!.id, req.user!.role);
 
   const body = normalizeTournamentBody(req.body);
-  const tournament = await Tournament.findByIdAndUpdate(req.params.id, {
+  const knockoutSize = body.knockoutSize ?? existing.knockoutSize;
+  validateKnockoutSettings({ knockoutSize, format: body.format ?? existing.format, discipline: body.discipline ?? existing.discipline });
+  if (existing.format === "round_robin" && await Match.exists({ tournament: existing._id })) {
+    if ((body.format && body.format !== existing.format) || (body.discipline && body.discipline !== existing.discipline)) {
+      throw new AppError(400, "Format i disciplina se ne mijenjaju nakon pocetka lige. Zavrsnicu ukljucite posebno.");
+    }
+    if (knockoutSize && body.friendly !== undefined && body.friendly !== existing.friendly) {
+      throw new AppError(400, "Bodovanje se ne mijenja nakon pocetka lige sa zavrsnicom.");
+    }
+  }
+  if ((existing.knockoutStartedAt || existing.status === "finished") && knockoutSize !== existing.knockoutSize) {
+    throw new AppError(400, "Zavrsnica je vec pokrenuta ili je turnir zavrsen.");
+  }
+  if (knockoutSize && (body.winner || (body.status === "finished" && existing.status !== "finished") ||
+    (existing.knockoutStartedAt && body.status && body.status !== existing.status))) {
+    throw new AppError(400, "Status i pobjednik zavrsnice odredjuju se potvrdjenim finalom.");
+  }
+  const tournament = await Tournament.findOneAndUpdate({ _id: req.params.id,
+    knockoutStartedAt: existing.knockoutStartedAt ?? { $exists: false },
+    ...(existing.knockoutSize ? { status: existing.status } : {})
+  }, {
     ...body, ...await tournamentLocationPatch(body, existing)
   }, {
     new: true,
@@ -204,7 +232,7 @@ export const updateTournament = asyncHandler(async (req, res) => {
     .populate("admins", "-password");
 
   if (!tournament) {
-    throw new AppError(404, "Tournament not found");
+    throw new AppError(409, "Turnir je izmijenjen. Osvjezite pregled.");
   }
 
   res.json({ tournament });
@@ -232,6 +260,10 @@ export const registerForTournament = asyncHandler(async (req, res) => {
     throw new AppError(400, "Registration is allowed only for upcoming tournaments");
   }
 
+  if (tournament.format === "round_robin" && await Match.exists({ tournament: tournament._id })) {
+    throw new AppError(400, "Ucesnici lige se ne mijenjaju nakon formiranja meceva.");
+  }
+
   if (!tournament.participants.some((participantId) => participantId.toString() === playerId)) {
     tournament.participants.push(req.user!.playerId);
     await tournament.save();
@@ -257,6 +289,10 @@ export const addParticipant = asyncHandler(async (req, res) => {
 
   ensureTournamentManager(tournament, req.user!.id, req.user!.role);
 
+  if (tournament.format === "round_robin" && await Match.exists({ tournament: tournament._id })) {
+    throw new AppError(400, "Ucesnici lige se ne mijenjaju nakon formiranja meceva.");
+  }
+
   if (!tournament.participants.some((participantId) => participantId.toString() === playerId)) {
     tournament.participants.push(player._id);
     await tournament.save();
@@ -277,7 +313,7 @@ export const removeParticipant = asyncHandler(async (req, res) => {
 
   ensureTournamentManager(tournament, req.user!.id, req.user!.role);
 
-  if (tournament.matches.length > 0) {
+  if (tournament.matches.length > 0 || await Match.exists({ tournament: tournament._id })) {
     throw new AppError(400, "Cannot remove participants after draw is generated");
   }
 
@@ -307,6 +343,9 @@ export const addTournamentAdmin = asyncHandler(async (req, res) => {
   ensureTournamentManager(tournament, req.user!.id, req.user!.role);
 
   if (!tournament.participants.some((participantId) => participantId.toString() === playerId)) {
+    if (tournament.format === "round_robin" && await Match.exists({ tournament: tournament._id })) {
+      throw new AppError(400, "Nakon pocetka lige admin se bira medju postojecim ucesnicima.");
+    }
     tournament.participants.push(player._id);
   }
 
@@ -329,6 +368,7 @@ export const createTournamentMatch = asyncHandler(async (req, res) => {
   }
 
   ensureTournamentManager(tournament, req.user!.id, req.user!.role);
+  await ensureManualLeagueMatch(String(tournament._id), req.body.round, req.body.discipline);
 
   const playerIds = [
     req.body.player1,
@@ -422,6 +462,12 @@ export const advanceRound = asyncHandler(async (req, res) => {
 
   ensureTournamentManager(existing, req.user!.id, req.user!.role);
 
+  if (existing.knockoutSize) {
+    if (typeof req.body.round !== "string") throw new AppError(400, "Izaberite knockout rundu.");
+    res.json({ roundRobin: await advanceRoundRobinKnockout(String(existing._id), req.body.round) });
+    return;
+  }
+
   const result = await advanceTournamentRound(String(req.params.id));
   const tournament = await Tournament.findById(req.params.id)
     .populate("participants", "-password")
@@ -447,6 +493,8 @@ export const finishTournament = asyncHandler(async (req, res) => {
 
   ensureTournamentManager(existing, req.user!.id, req.user!.role);
 
+  if (existing.knockoutSize) throw new AppError(400, "Pobjednik zavrsnice odredjuje se potvrdjenim finalom.");
+
   await awardTournamentWin(String(req.params.id), req.body.winnerId);
 
   const tournament = await Tournament.findById(req.params.id)
@@ -454,6 +502,20 @@ export const finishTournament = asyncHandler(async (req, res) => {
     .populate("winner", "-password");
 
   res.json({ tournament });
+});
+
+export const getRoundRobin = asyncHandler(async (req, res) => {
+  const tournament = await Tournament.findById(req.params.id);
+  if (!tournament || !canViewTournament(tournament, req.user!.id, req.user!.role)) throw new AppError(404, "Tournament not found");
+  if (tournament.format !== "round_robin") throw new AppError(400, "Turnir nije round-robin.");
+  res.json({ roundRobin: await roundRobinState(tournament) });
+});
+
+export const startKnockout = asyncHandler(async (req, res) => {
+  const tournament = await Tournament.findById(req.params.id);
+  if (!tournament) throw new AppError(404, "Tournament not found");
+  ensureTournamentManager(tournament, req.user!.id, req.user!.role);
+  res.json({ roundRobin: await startRoundRobinKnockout(String(tournament._id), req.body.seeds) });
 });
 
 export const uploadTournamentImage = asyncHandler(async (req, res) => {

@@ -6,6 +6,7 @@ import '../models/dm.dart';
 import '../models/league_settings.dart';
 import '../models/player.dart';
 import '../models/tournament.dart';
+import '../models/round_robin.dart';
 import 'api_client.dart';
 
 class LeagueService {
@@ -124,6 +125,7 @@ class LeagueService {
     String visibility = 'public',
     bool friendly = false,
     String status = 'upcoming',
+    int knockoutSize = 0,
   }) async {
     final data = await api.postJson('/api/tournaments', {
       'name': name,
@@ -133,6 +135,7 @@ class LeagueService {
       'surface': surface,
       'category': category,
       'format': format,
+      'knockoutSize': knockoutSize,
       'startDate': startDate.toIso8601String(),
       'endDate': endDate.toIso8601String(),
       'visibility': visibility,
@@ -156,6 +159,7 @@ class LeagueService {
     required String status,
     required String visibility,
     required bool friendly,
+    int? knockoutSize,
   }) async {
     final data = await api.patchJson('/api/tournaments/$id', {
       'name': name,
@@ -165,6 +169,7 @@ class LeagueService {
       'surface': surface,
       'category': category,
       'format': format,
+      'knockoutSize': ?knockoutSize,
       'startDate': startDate.toIso8601String(),
       'endDate': endDate.toIso8601String(),
       'status': status,
@@ -200,6 +205,19 @@ class LeagueService {
 
   Future<void> generateTournamentDraw(String tournamentId) async {
     await api.postJson('/api/tournaments/$tournamentId/generate-draw');
+  }
+
+  Future<RoundRobinState> roundRobin(String id) async {
+    final data = await api.getJson('/api/tournaments/$id/round-robin');
+    return RoundRobinState.fromJson(data['roundRobin']);
+  }
+
+  Future<void> startKnockout(String id, List<String> seeds) async {
+    await api.postJson('/api/tournaments/$id/start-knockout', {'seeds': seeds});
+  }
+
+  Future<void> advanceKnockout(String id, String round) async {
+    await api.postJson('/api/tournaments/$id/advance-round', {'round': round});
   }
 
   Future<List<TournamentRanking>> tournamentRankings(String id) async {

@@ -18,6 +18,8 @@ import '../widgets/section_header.dart';
 import '../widgets/load_error.dart';
 import '../widgets/photo_viewer.dart';
 import '../widgets/sport_surfaces.dart';
+import '../widgets/tournament_phases.dart';
+import 'matches_screen.dart';
 
 class TournamentsScreen extends StatefulWidget {
   const TournamentsScreen({
@@ -239,9 +241,7 @@ class _TournamentListCard extends StatelessWidget {
                           ),
                           _TournamentMiniPill(
                             icon: Icons.account_tree,
-                            label: _TournamentHero._formatLabel(
-                              tournament.format,
-                            ),
+                            label: tournament.formatLabel,
                           ),
                         ],
                       ),
@@ -498,6 +498,31 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
     }
   }
 
+  Future<void> _openMatch(TennisMatch match) async {
+    try {
+      final settings = await widget.league.settings();
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => MatchDetailsScreen(
+            league: widget.league,
+            match: match,
+            settings: settings,
+            currentPlayerId: widget.auth.currentPlayer?.id ?? '',
+            isAdmin: widget.auth.isAdmin,
+          ),
+        ),
+      );
+      if (mounted) setState(() => _future = _load());
+    } on ApiException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -578,12 +603,23 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
               const SizedBox(height: 14),
               _TournamentActions(
                 canManage: canManage,
+                canGenerate: snapshot.data!.matches.isEmpty,
                 isUpcoming: tournament.isUpcoming,
                 registered: registered,
                 onRegister: _register,
                 onEdit: () => _editTournament(tournament),
                 onGenerateDraw: _generateDraw,
               ),
+              if (tournament.format == 'round_robin' &&
+                  tournament.discipline == 'singles')
+                TournamentPhases(
+                  tournament: tournament,
+                  matches: snapshot.data!.matches,
+                  league: widget.league,
+                  canManage: canManage,
+                  onChanged: () => setState(() => _future = _load()),
+                  onOpenMatch: _openMatch,
+                ),
               if (canManage && tournament.admins.isNotEmpty) ...[
                 const SectionHeader('Admini turnira'),
                 ...tournament.admins.map(
@@ -600,7 +636,10 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
                   ),
                 ),
               ],
-              if (canManage && availablePlayers.isNotEmpty) ...[
+              if (canManage &&
+                  availablePlayers.isNotEmpty &&
+                  !(tournament.format == 'round_robin' &&
+                      tournament.hasDraw)) ...[
                 const SectionHeader('Dodaj igrača'),
                 AppSelectField(
                   label: 'Igrač',
@@ -657,7 +696,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
                     leading: PlayerAvatar(player: player, api: widget.api),
                     title: Text(player.fullName),
                     subtitle: Text(player.club ?? player.country),
-                    trailing: canManage
+                    trailing: canManage && !tournament.hasDraw
                         ? IconButton(
                             tooltip: 'Ukloni',
                             onPressed: () => _removeParticipant(player.id),
@@ -667,40 +706,43 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
                   ),
                 ),
               ),
-              const SectionHeader('Ranking turnira'),
-              ...snapshot.data!.rankings.map(
-                (ranking) => Card(
-                  child: ListTile(
-                    leading: PlayerAvatar(
-                      player: ranking.player,
-                      api: widget.api,
-                    ),
-                    title: Text(ranking.player.fullName),
-                    subtitle: Text(
-                      '${ranking.wins} pobjeda, ${ranking.losses} poraza',
-                    ),
-                    trailing: Text('${ranking.points} pts'),
-                  ),
-                ),
-              ),
-              const SectionHeader('Mečevi turnira'),
-              ...snapshot.data!.matches.map(
-                (match) => Card(
-                  child: ListTile(
-                    leading: const Icon(
-                      Icons.sports_tennis,
-                      color: AppTheme.court,
-                    ),
-                    title: Text('${match.team1Name} vs ${match.team2Name}'),
-                    subtitle: Text(
-                      '${match.round} · ${matchStatusLabel(match.status)}',
-                    ),
-                    trailing: Text(
-                      match.scoreText.isEmpty ? '-' : match.scoreText,
+              if (tournament.format != 'round_robin' ||
+                  tournament.discipline != 'singles') ...[
+                const SectionHeader('Ranking turnira'),
+                ...snapshot.data!.rankings.map(
+                  (ranking) => Card(
+                    child: ListTile(
+                      leading: PlayerAvatar(
+                        player: ranking.player,
+                        api: widget.api,
+                      ),
+                      title: Text(ranking.player.fullName),
+                      subtitle: Text(
+                        '${ranking.wins} pobjeda, ${ranking.losses} poraza',
+                      ),
+                      trailing: Text('${ranking.points} pts'),
                     ),
                   ),
                 ),
-              ),
+                const SectionHeader('Mečevi turnira'),
+                ...snapshot.data!.matches.map(
+                  (match) => Card(
+                    child: ListTile(
+                      leading: const Icon(
+                        Icons.sports_tennis,
+                        color: AppTheme.court,
+                      ),
+                      title: Text('${match.team1Name} vs ${match.team2Name}'),
+                      subtitle: Text(
+                        '${match.round} · ${matchStatusLabel(match.status)}',
+                      ),
+                      trailing: Text(
+                        match.scoreText.isEmpty ? '-' : match.scoreText,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ],
           );
         },
@@ -769,7 +811,7 @@ class _TournamentHero extends StatelessWidget {
               _HeroMeta(icon: Icons.category, label: tournament.category),
               _HeroMeta(
                 icon: Icons.account_tree,
-                label: _formatLabel(tournament.format),
+                label: tournament.formatLabel,
               ),
               _HeroMeta(
                 icon: tournament.isPrivate ? Icons.lock : Icons.public,
@@ -806,19 +848,6 @@ class _TournamentHero extends StatelessWidget {
     final day = date.day.toString().padLeft(2, '0');
     final month = date.month.toString().padLeft(2, '0');
     return '$day.$month.${date.year}';
-  }
-
-  static String _formatLabel(String value) {
-    return switch (value) {
-      'elimination' => 'Eliminacija',
-      'round_robin' => 'Round-robin',
-      'qualification' => 'Kvalifikacije',
-      'group_knockout' => 'Grupe + knockout',
-      'double_elimination' => 'Double elimination',
-      'compass' => 'Compass draw',
-      'swiss' => 'Swiss',
-      _ => value,
-    };
   }
 }
 
@@ -986,6 +1015,7 @@ class _TournamentGallery extends StatelessWidget {
 class _TournamentActions extends StatelessWidget {
   const _TournamentActions({
     required this.canManage,
+    required this.canGenerate,
     required this.isUpcoming,
     required this.registered,
     required this.onRegister,
@@ -994,6 +1024,7 @@ class _TournamentActions extends StatelessWidget {
   });
 
   final bool canManage;
+  final bool canGenerate;
   final bool isUpcoming;
   final bool registered;
   final VoidCallback onRegister;
@@ -1024,7 +1055,7 @@ class _TournamentActions extends StatelessWidget {
             icon: const Icon(Icons.edit),
             label: const Text('Uredi turnir'),
           ),
-        if (canManage)
+        if (canManage && canGenerate)
           FilledButton.icon(
             onPressed: onGenerateDraw,
             icon: const Icon(Icons.account_tree),
@@ -1261,6 +1292,12 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
   DateTime _endDate = DateTime.now().add(const Duration(days: 2));
   String _discipline = 'singles';
   String _format = 'elimination';
+  int _knockoutSize = 0;
+  bool get _structureLocked =>
+      widget.tournament?.format == 'round_robin' && widget.tournament!.hasDraw;
+  bool get _knockoutLocked =>
+      widget.tournament?.knockoutStarted == true ||
+      widget.tournament?.status == 'finished';
   String _status = 'upcoming';
   String _visibility = 'public';
   bool _friendly = false;
@@ -1291,6 +1328,7 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
       _startDate = tournament.startDate;
       _endDate = tournament.endDate;
       _format = tournament.format;
+      _knockoutSize = tournament.knockoutSize;
       _status = tournament.status;
       _visibility = tournament.visibility;
       _friendly = tournament.friendly;
@@ -1309,6 +1347,7 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
           surface: _surface.text.trim(),
           category: _category.text.trim(),
           format: _format,
+          knockoutSize: _format == 'round_robin' ? _knockoutSize : 0,
           startDate: _startDate,
           endDate: _endDate,
           visibility: _visibility,
@@ -1325,6 +1364,7 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
           surface: _surface.text.trim(),
           category: _category.text.trim(),
           format: _format,
+          knockoutSize: _format == 'round_robin' ? _knockoutSize : 0,
           startDate: _startDate,
           endDate: _endDate,
           status: _status,
@@ -1457,6 +1497,7 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
                     value: _discipline == 'doubles' ? 'Dubl' : 'Singl',
                     icon: Icons.sports_tennis,
                     onTap: () async {
+                      if (_structureLocked || _knockoutLocked) return;
                       final value = await showAppOptionPicker<String>(
                         context: context,
                         title: 'Disciplina',
@@ -1465,7 +1506,12 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
                         labelBuilder: (value) =>
                             value == 'doubles' ? 'Dubl' : 'Singl',
                       );
-                      if (value != null) setState(() => _discipline = value);
+                      if (value != null) {
+                        setState(() {
+                          _discipline = value;
+                          if (value != 'singles') _knockoutSize = 0;
+                        });
+                      }
                     },
                   ),
                   const SizedBox(height: 12),
@@ -1518,11 +1564,45 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
                   ),
                   _formatCard(
                     value: 'round_robin',
-                    title: 'Round-robin',
+                    title: 'Round-robin + knockout (opciono)',
                     subtitle:
                         'Svako igra sa svakim. Najbolje za male grupe i ligu.',
                     icon: Icons.all_inclusive,
                   ),
+                  if (_format == 'round_robin') ...[
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Knockout zavrsnica'),
+                      value: _knockoutSize > 0,
+                      onChanged: _knockoutLocked || _discipline != 'singles'
+                          ? null
+                          : (enabled) =>
+                                setState(() => _knockoutSize = enabled ? 4 : 0),
+                    ),
+                    if (_discipline != 'singles')
+                      const Text('Knockout zavrsnica: samo singl.'),
+                    if (_knockoutSize > 0) ...[
+                      const SizedBox(height: 8),
+                      const Text('Broj ucesnika u zavrsnici'),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: SegmentedButton<int>(
+                          segments: [
+                            for (final size in [2, 4, 8, 16])
+                              ButtonSegment(value: size, label: Text('$size')),
+                          ],
+                          selected: {_knockoutSize},
+                          showSelectedIcon: false,
+                          onSelectionChanged: _knockoutLocked
+                              ? null
+                              : (value) =>
+                                    setState(() => _knockoutSize = value.first),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  ],
                   _formatCard(
                     value: 'group_knockout',
                     title: 'Grupe + knockout',
@@ -1630,7 +1710,7 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
     final selected = _format == value;
     return InkWell(
       borderRadius: BorderRadius.circular(12),
-      onTap: () => setState(() => _format = value),
+      onTap: _structureLocked ? null : () => setState(() => _format = value),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         margin: const EdgeInsets.only(bottom: 10),

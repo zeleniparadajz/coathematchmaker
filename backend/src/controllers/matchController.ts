@@ -9,6 +9,7 @@ import { applyConfirmedMatchStats } from "../services/rankingService";
 import { getLeagueSettings } from "../services/settingsService";
 import { saveUploadedImage } from "../services/uploadService";
 import { locationIdSchema, matchLocationPatch } from "../services/locationService";
+import { ensureManualLeagueMatch, protectHybridMatch } from "../services/roundRobinService";
 
 const setScoreSchema = z.object({
   player1Games: z.number().int().min(0),
@@ -303,6 +304,7 @@ export const getMatch = asyncHandler(async (req, res) => {
 });
 
 export const createChallenge = asyncHandler(async (req, res) => {
+  await ensureManualLeagueMatch(req.body.tournamentId, req.body.round, req.body.discipline);
   const player1 = req.user!.id;
   const player2 = req.body.opponentId;
   const player1Partner = req.body.partnerId;
@@ -395,6 +397,7 @@ export const submitResult = asyncHandler(async (req, res) => {
   }
 
   ensureParticipantOrAdmin(match, req.user!.id, req.user!.role);
+  await protectHybridMatch(match, req.body);
 
   if (match.status !== "accepted") {
     throw new AppError(400, "Result can only be submitted for accepted matches");
@@ -489,6 +492,9 @@ export const adminResolve = asyncHandler(async (req, res) => {
   if (match.statsApplied) {
     throw new AppError(400, "Ranking stats are already applied for this match");
   }
+  await protectHybridMatch(match, { ...req.body,
+    status: req.body.action === "confirm" ? "confirmed" : req.body.action === "cancel" ? "cancelled" : "rejected"
+  });
 
   if (req.body.action === "confirm") {
     const winner = req.body.winner ?? match.winner?.toString();
@@ -528,6 +534,7 @@ export const adminResolve = asyncHandler(async (req, res) => {
 });
 
 export const createMatch = asyncHandler(async (req, res) => {
+  await ensureManualLeagueMatch(req.body.tournament, req.body.round, req.body.discipline);
   if (req.body.discipline === "doubles" && (!req.body.player1Partner || !req.body.player2Partner)) {
     throw new AppError(400, "Doubles matches require four players");
   }
@@ -568,6 +575,10 @@ export const updateMatch = asyncHandler(async (req, res) => {
   }
 
   const nextTournament = req.body.tournament ?? match.tournament?.toString();
+  await protectHybridMatch(match, req.body);
+  if (nextTournament !== match.tournament?.toString()) {
+    await ensureManualLeagueMatch(nextTournament, req.body.round ?? match.round, req.body.discipline ?? match.discipline);
+  }
   const nextPlayer1 = req.body.player1 ?? match.player1.toString();
   const nextPlayer2 = req.body.player2 ?? match.player2.toString();
   const nextPlayer1Partner = req.body.player1Partner ?? match.player1Partner?.toString();

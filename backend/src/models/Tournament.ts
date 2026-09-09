@@ -19,6 +19,10 @@ export interface TournamentAttrs {
   surface: string;
   category: string;
   format: TournamentFormat;
+  knockoutSize: number;
+  knockoutSeeds: Types.ObjectId[];
+  knockoutStartedAt?: Date;
+  knockoutRounds: { round: string; matchIds: Types.ObjectId[] }[];
   startDate: Date;
   endDate: Date;
   status: TournamentStatus;
@@ -48,6 +52,14 @@ const tournamentSchema = new Schema<TournamentAttrs>(
       default: "elimination"
     },
     startDate: { type: Date, required: true },
+    knockoutSize: { type: Number, enum: [0, 2, 4, 8, 16], default: 0 },
+    knockoutSeeds: [{ type: Schema.Types.ObjectId, ref: "Player" }],
+    knockoutStartedAt: { type: Date },
+    knockoutRounds: [{
+      _id: false,
+      round: { type: String, required: true },
+      matchIds: [{ type: Schema.Types.ObjectId, ref: "Match" }]
+    }],
     endDate: { type: Date, required: true },
     status: { type: String, enum: ["upcoming", "active", "finished"], default: "upcoming" },
     visibility: { type: String, enum: ["public", "private"], default: "public" },

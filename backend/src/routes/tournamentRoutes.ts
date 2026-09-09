@@ -14,6 +14,9 @@ import {
   finishTournamentSchema,
   generateDraw,
   getTournament,
+  getRoundRobin,
+  startKnockout,
+  startKnockoutSchema,
   listTournaments,
   removeParticipant,
   registerForTournament,
@@ -40,6 +43,8 @@ tournamentRoutes.post("/:id/admins", validate(addTournamentAdminSchema), addTour
 tournamentRoutes.post("/:id/matches", validate(createTournamentMatchSchema), createTournamentMatch);
 tournamentRoutes.post("/:id/generate-draw", generateDraw);
 tournamentRoutes.post("/:id/advance-round", advanceRound);
+tournamentRoutes.get("/:id/round-robin", getRoundRobin);
+tournamentRoutes.post("/:id/start-knockout", validate(startKnockoutSchema), startKnockout);
 tournamentRoutes.post("/:id/finish", validate(finishTournamentSchema), finishTournament);
 tournamentRoutes.post("/:id/images", express.raw({ type: "multipart/form-data", limit: "9mb" }), uploadTournamentImage);
 tournamentRoutes.get("/:id/rankings", tournamentRanking);
