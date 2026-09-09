@@ -1,3 +1,4 @@
+import 'package:coathematchmaker/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 
 import '../services/api_client.dart';
@@ -162,8 +163,10 @@ class _AuthScreenState extends State<AuthScreen>
           setState(() => _register = false);
           _showInfo(
             needsVerification
-                ? 'Poslali smo ti email za potvrdu naloga. Otvori link, pa se prijavi.'
-                : 'Nalog je kreiran. Možeš se prijaviti.',
+                ? context.tr(
+                    "Poslali smo ti email za potvrdu naloga. Otvori link, pa se prijavi.",
+                  )
+                : context.tr("Nalog je kreiran. Možeš se prijaviti."),
           );
         }
       } else {
@@ -183,7 +186,9 @@ class _AuthScreenState extends State<AuthScreen>
     setState(() => _resendingVerification = true);
     try {
       await widget.auth.resendVerification(email);
-      if (mounted) _showInfo('Poslali smo novi verification link.');
+      if (mounted) {
+        _showInfo(context.tr("Poslali smo novi link za potvrdu naloga."));
+      }
     } on ApiException catch (error) {
       if (mounted) _showInfo(error.message);
     } finally {
@@ -197,7 +202,8 @@ class _AuthScreenState extends State<AuthScreen>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _ForgotPasswordSheet(initialEmail: _email.text.trim()),
+      builder: (context) =>
+          _ForgotPasswordSheet(initialEmail: _email.text.trim()),
     );
     if (email == null || email.isEmpty) return;
 
@@ -205,7 +211,11 @@ class _AuthScreenState extends State<AuthScreen>
     try {
       await widget.auth.forgotPassword(email);
       if (mounted) {
-        _showInfo('Ako nalog postoji, poslali smo email za reset passworda.');
+        _showInfo(
+          context.tr(
+            "Ako nalog postoji, poslali smo email za promjenu lozinke.",
+          ),
+        );
       }
     } on ApiException catch (error) {
       if (mounted) _showInfo(error.message);
@@ -221,10 +231,12 @@ class _AuthScreenState extends State<AuthScreen>
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Text(context.serverMessage(message)),
         action: needsVerification
             ? SnackBarAction(
-                label: _resendingVerification ? 'Šaljem...' : 'Pošalji opet',
+                label: _resendingVerification
+                    ? context.tr("Šaljem...")
+                    : context.tr("Pošalji opet"),
                 onPressed: _resendVerification,
               )
             : null,
@@ -235,7 +247,7 @@ class _AuthScreenState extends State<AuthScreen>
   void _showInfo(String message) {
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ).showSnackBar(SnackBar(content: Text(context.serverMessage(message))));
   }
 
   @override
@@ -258,9 +270,12 @@ class _AuthScreenState extends State<AuthScreen>
             ),
             const SizedBox(height: 14),
             SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(value: false, label: Text('Prijava')),
-                ButtonSegment(value: true, label: Text('Registracija')),
+              segments: [
+                ButtonSegment(value: false, label: Text(context.tr("Prijava"))),
+                ButtonSegment(
+                  value: true,
+                  label: Text(context.tr("Registracija")),
+                ),
               ],
               selected: {_register},
               onSelectionChanged: (value) =>
@@ -300,7 +315,7 @@ class _AuthScreenState extends State<AuthScreen>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _BirthDatePickerSheet(
+      builder: (context) => _BirthDatePickerSheet(
         initialDate: _dateOfBirth,
         firstYear: now.year - 90,
         lastYear: now.year - 8,
@@ -393,7 +408,9 @@ class _AuthFormCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        register ? 'Registracija igrača' : 'Prijava',
+                        register
+                            ? context.tr("Registracija igrača")
+                            : context.tr("Prijava"),
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w900,
                         ),
@@ -401,8 +418,8 @@ class _AuthFormCard extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         register
-                            ? 'Napravi profil'
-                            : 'Uđi u svoj teniski dashboard.',
+                            ? context.tr("Napravi profil")
+                            : context.tr("Dobro došao na svoj teniski profil."),
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: AppTheme.ink.withValues(alpha: .62),
                         ),
@@ -415,13 +432,13 @@ class _AuthFormCard extends StatelessWidget {
                             final fields = [
                               _field(
                                 firstName,
-                                'Ime',
+                                context.tr("Ime"),
                                 icon: Icons.person,
                                 validator: _required,
                               ),
                               _field(
                                 lastName,
-                                'Prezime',
+                                context.tr("Prezime"),
                                 icon: Icons.badge,
                                 validator: _required,
                               ),
@@ -450,7 +467,7 @@ class _AuthFormCard extends StatelessWidget {
                       ],
                       _field(
                         email,
-                        'Email adresa',
+                        context.tr("Email adresa"),
                         icon: Icons.mail,
                         keyboardType: TextInputType.emailAddress,
                         validator: _emailValidator,
@@ -458,7 +475,7 @@ class _AuthFormCard extends StatelessWidget {
                       const SizedBox(height: 14),
                       _field(
                         password,
-                        'Password',
+                        context.tr("Lozinka"),
                         icon: Icons.lock,
                         obscure: true,
                         validator: _passwordValidator,
@@ -466,20 +483,20 @@ class _AuthFormCard extends StatelessWidget {
                       if (register) ...[
                         const SizedBox(height: 14),
                         AppSelectField(
-                          label: 'Datum rođenja',
+                          label: context.tr("Datum rođenja"),
                           value: _dateLabel(dateOfBirth),
                           icon: Icons.cake,
                           onTap: onPickBirthDate,
                         ),
                         const SizedBox(height: 14),
                         AppSelectField(
-                          label: 'Država',
+                          label: context.tr("Država"),
                           value: country,
                           icon: Icons.flag,
                           onTap: () async {
                             final value = await _pickStringOption(
                               context: context,
-                              title: 'Država',
+                              title: context.tr("Država"),
                               selected: country,
                               options: countries,
                             );
@@ -488,16 +505,17 @@ class _AuthFormCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 14),
                         AppSelectField(
-                          label: 'Sport',
-                          value: _sportLabel(sport),
+                          label: context.tr("Sport"),
+                          value: context.tr(_sportLabel(sport)),
                           icon: Icons.sports_tennis,
                           onTap: () async {
                             final value = await _pickStringOption(
                               context: context,
-                              title: 'Sport',
+                              title: context.tr("Sport"),
                               selected: sport,
                               options: const ['tennis'],
-                              labelBuilder: _sportLabel,
+                              labelBuilder: (value) =>
+                                  context.tr(_sportLabel(value)),
                             );
                             if (value != null) onSportChanged(value);
                           },
@@ -505,16 +523,16 @@ class _AuthFormCard extends StatelessWidget {
                         const SizedBox(height: 14),
                         _field(
                           club,
-                          'Klub',
-                          hint: 'Individualni igrač / klub',
+                          context.tr("Klub"),
+                          hint: context.tr("Individualni igrač / klub"),
                           icon: Icons.shield,
                           required: false,
                         ),
                         const SizedBox(height: 14),
                         _field(
                           phone,
-                          'Telefon',
-                          hint: 'Nije obavezno',
+                          context.tr("Telefon"),
+                          hint: context.tr("Nije obavezno"),
                           icon: Icons.phone,
                           keyboardType: TextInputType.phone,
                           required: false,
@@ -535,7 +553,11 @@ class _AuthFormCard extends StatelessWidget {
                                   ),
                                 )
                               : const Icon(Icons.arrow_forward),
-                          label: Text(register ? 'Registruj se' : 'Prijavi se'),
+                          label: Text(
+                            register
+                                ? context.tr("Registruj se")
+                                : context.tr("Prijavi se"),
+                          ),
                         ),
                       ),
                       if (register) ...[
@@ -543,7 +565,9 @@ class _AuthFormCard extends StatelessWidget {
                         Center(
                           child: TextButton(
                             onPressed: onSwitchToLogin,
-                            child: const Text('Već imaš nalog? Prijavi se'),
+                            child: Text(
+                              context.tr("Već imaš nalog? Prijavi se"),
+                            ),
                           ),
                         ),
                       ] else ...[
@@ -552,7 +576,7 @@ class _AuthFormCard extends StatelessWidget {
                           alignment: Alignment.centerRight,
                           child: TextButton(
                             onPressed: onForgotPassword,
-                            child: const Text('Zaboravljen password?'),
+                            child: Text(context.tr("Zaboravljena lozinka?")),
                           ),
                         ),
                       ],
@@ -590,11 +614,11 @@ class _AuthFormCard extends StatelessWidget {
   static String? _emailValidator(String? value) {
     final text = value?.trim() ?? '';
     final valid = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(text);
-    return valid ? null : 'Unesi validan email';
+    return valid ? null : 'Unesi ispravnu email adresu';
   }
 
   static String? _passwordValidator(String? value) {
-    return (value ?? '').length >= 8 ? null : 'Minimum 8 karaktera';
+    return (value ?? '').length >= 8 ? null : 'Najmanje 8 znakova';
   }
 
   static String _dateLabel(DateTime date) {
@@ -713,14 +737,16 @@ class _ForgotPasswordSheetState extends State<_ForgotPasswordSheet> {
                 ),
                 const SizedBox(height: 18),
                 Text(
-                  'Reset passworda',
+                  context.tr("Promjena lozinke"),
                   style: Theme.of(
                     context,
                   ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Upiši email naloga. Poslaćemo link za novi password.',
+                  context.tr(
+                    "Unesi email adresu naloga. Poslaćemo link za promjenu lozinke.",
+                  ),
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppTheme.ink.withValues(alpha: .62),
                   ),
@@ -728,7 +754,7 @@ class _ForgotPasswordSheetState extends State<_ForgotPasswordSheet> {
                 const SizedBox(height: 16),
                 AppTextField(
                   controller: _email,
-                  label: 'Email adresa',
+                  label: context.tr("Email adresa"),
                   icon: Icons.mail,
                   keyboardType: TextInputType.emailAddress,
                   validator: _AuthFormCard._emailValidator,
@@ -740,7 +766,7 @@ class _ForgotPasswordSheetState extends State<_ForgotPasswordSheet> {
                   child: FilledButton.icon(
                     onPressed: _submit,
                     icon: const Icon(Icons.mark_email_read),
-                    label: const Text('Pošalji reset link'),
+                    label: Text(context.tr("Pošalji link")),
                   ),
                 ),
               ],
@@ -808,7 +834,7 @@ class _BirthDatePickerSheetState extends State<_BirthDatePickerSheet> {
               ),
               const SizedBox(height: 18),
               Text(
-                'Datum rođenja',
+                context.tr("Datum rođenja"),
                 style: Theme.of(
                   context,
                 ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
@@ -818,7 +844,7 @@ class _BirthDatePickerSheetState extends State<_BirthDatePickerSheet> {
                 children: [
                   Expanded(
                     child: _pickerDropdown<int>(
-                      label: 'Dan',
+                      label: context.tr("Dan"),
                       value: _day,
                       values: List.generate(_daysInMonth, (index) => index + 1),
                       labelFor: (value) => value.toString().padLeft(2, '0'),
@@ -829,17 +855,17 @@ class _BirthDatePickerSheetState extends State<_BirthDatePickerSheet> {
                   Expanded(
                     flex: 2,
                     child: _pickerDropdown<int>(
-                      label: 'Mjesec',
+                      label: context.tr("Mjesec"),
                       value: _month,
                       values: List.generate(12, (index) => index + 1),
-                      labelFor: (value) => _months[value - 1],
+                      labelFor: (value) => context.tr(_months[value - 1]),
                       onChanged: (value) => setState(() => _month = value),
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: _pickerDropdown<int>(
-                      label: 'Godina',
+                      label: context.tr("Godina"),
                       value: _year,
                       values: [
                         for (
@@ -862,7 +888,7 @@ class _BirthDatePickerSheetState extends State<_BirthDatePickerSheet> {
                 child: FilledButton(
                   onPressed: () =>
                       Navigator.of(context).pop(DateTime(_year, _month, _day)),
-                  child: const Text('Sačuvaj datum'),
+                  child: Text(context.tr("Sačuvaj datum")),
                 ),
               ),
             ],

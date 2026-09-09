@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:coathematchmaker/l10n/app_strings.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -53,9 +55,10 @@ ApiClient locationApi({
                     },
                   ],
                 }
-              : {'message': 'Google Maps pretraga nije podesena na serveru.'},
+              : {'message': 'Google Maps pretraga nije podešena na serveru.'},
         ),
         searchError ?? 200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
     if (request.method == 'POST' || request.method == 'PATCH') {
@@ -70,9 +73,21 @@ ApiClient locationApi({
   }),
 );
 
-Widget host(Widget child, {double scale = 1}) => RepaintBoundary(
+Widget host(
+  Widget child, {
+  double scale = 1,
+  Locale locale = const Locale('sr'),
+}) => RepaintBoundary(
   key: const Key('capture'),
   child: MaterialApp(
+    locale: locale,
+    supportedLocales: AppStrings.supportedLocales,
+    localizationsDelegates: const [
+      AppStrings.delegate,
+      GlobalMaterialLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+    ],
     theme: const bool.fromEnvironment('CAPTURE_LOCATIONS')
         ? AppTheme.light.copyWith(
             textTheme: AppTheme.light.textTheme.apply(fontFamily: 'Roboto'),
@@ -236,77 +251,81 @@ void main() {
     );
   }
 
-  testWidgets(
-    'admin links Google place without persisting Google name/address',
-    (tester) async {
-      var searches = 0;
-      Map<String, dynamic>? saved;
-      final api = locationApi(
-        onRequest: (request) {
-          if (request.url.path.endsWith('/search')) searches++;
-          if (request.method == 'POST' &&
-              request.url.path == '/api/locations') {
-            saved = jsonDecode(request.body);
-          }
-        },
-      );
-      await tester.pumpWidget(
-        host(LocationEditScreen(league: LeagueService(api))),
-      );
-      await tester.enterText(
-        find.byType(TextFormField).first,
-        'Moj teniski klub',
-      );
-      await tester.enterText(find.byType(TextFormField).last, 'Moja adresa');
-      await tester.tap(find.text('Pronadji na Google Maps'));
-      await tester.pumpAndSettle();
-      expect(searches, 0);
-      await tester.tap(find.byTooltip('Pretrazi'));
-      await tester.pumpAndSettle();
-      expect(searches, 1);
-      expect(find.text('Google Maps'), findsOneWidget);
-      await capture('google-search');
-      await tester.tap(find.text('Google naziv'));
-      await tester.pumpAndSettle();
-      expect(find.text('Moj teniski klub'), findsOneWidget);
-      expect(find.text('Google naziv'), findsNothing);
-      await tester.ensureVisible(find.text('Sacuvaj lokaciju'));
-      await tester.tap(find.text('Sacuvaj lokaciju'));
-      await tester.pumpAndSettle();
-      expect(saved, {
-        'name': 'Moj teniski klub',
-        'address': 'Moja adresa',
-        'googlePlaceId': 'place-a',
-        'active': true,
-      });
-      await tester.pumpWidget(const SizedBox());
-      api.close();
-    },
-  );
+  for (final locale in AppStrings.supportedLocales) {
+    final tr = AppStrings(locale).text;
+    testWidgets(
+      'admin links Google place without persisting Google name/address, $locale',
+      (tester) async {
+        var searches = 0;
+        Map<String, dynamic>? saved;
+        final api = locationApi(
+          onRequest: (request) {
+            if (request.url.path.endsWith('/search')) searches++;
+            if (request.method == 'POST' &&
+                request.url.path == '/api/locations') {
+              saved = jsonDecode(request.body);
+            }
+          },
+        );
+        await tester.pumpWidget(
+          host(LocationEditScreen(league: LeagueService(api)), locale: locale),
+        );
+        await tester.enterText(
+          find.byType(TextFormField).first,
+          'Moj teniski klub',
+        );
+        await tester.enterText(find.byType(TextFormField).last, 'Moja adresa');
+        await tester.tap(find.text(tr('Pronađi na Google mapama')));
+        await tester.pumpAndSettle();
+        expect(searches, 0);
+        await tester.tap(find.byTooltip(tr('Pretraži')));
+        await tester.pumpAndSettle();
+        expect(searches, 1);
+        expect(find.text('Google Maps'), findsOneWidget);
+        if (locale.languageCode != 'en') await capture('google-search');
+        await tester.tap(find.text('Google naziv'));
+        await tester.pumpAndSettle();
+        expect(find.text('Moj teniski klub'), findsOneWidget);
+        expect(find.text('Google naziv'), findsNothing);
+        await tester.ensureVisible(find.text(tr('Sačuvaj lokaciju')));
+        await tester.tap(find.text(tr('Sačuvaj lokaciju')));
+        await tester.pumpAndSettle();
+        expect(saved, {
+          'name': 'Moj teniski klub',
+          'address': 'Moja adresa',
+          'googlePlaceId': 'place-a',
+          'active': true,
+        });
+        await tester.pumpWidget(const SizedBox());
+        api.close();
+      },
+    );
 
-  testWidgets(
-    'missing Maps key is shown without preventing manual location creation',
-    (tester) async {
-      final api = locationApi(searchError: 503);
-      await tester.pumpWidget(
-        host(
-          GooglePlaceSearchScreen(
-            league: LeagueService(api),
-            initialQuery: 'Budva',
+    testWidgets(
+      'missing Maps key is shown without preventing manual location creation, $locale',
+      (tester) async {
+        final api = locationApi(searchError: 503);
+        await tester.pumpWidget(
+          host(
+            GooglePlaceSearchScreen(
+              league: LeagueService(api),
+              initialQuery: 'Budva',
+            ),
+            locale: locale,
           ),
-        ),
-      );
-      await tester.tap(find.byTooltip('Pretrazi'));
-      await tester.pumpAndSettle();
-      expect(
-        find.text('Google Maps pretraga nije podesena na serveru.'),
-        findsOneWidget,
-      );
-      expect(find.byType(LinearProgressIndicator), findsNothing);
-      await tester.pumpWidget(const SizedBox());
-      api.close();
-    },
-  );
+        );
+        await tester.tap(find.byTooltip(tr('Pretraži')));
+        await tester.pumpAndSettle();
+        expect(
+          find.text(tr('Google Maps pretraga nije podešena na serveru.')),
+          findsOneWidget,
+        );
+        expect(find.byType(LinearProgressIndicator), findsNothing);
+        await tester.pumpWidget(const SizedBox());
+        api.close();
+      },
+    );
+  }
 
   testWidgets('legacy selection and single-venue matches remain supported', (
     tester,
@@ -375,12 +394,12 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byType(SwitchListTile));
     await tester.scrollUntilVisible(
-      find.text('Sacuvaj lokaciju'),
+      find.text('Sačuvaj lokaciju'),
       150,
       scrollable: find.byType(Scrollable).first,
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Sacuvaj lokaciju'));
+    await tester.tap(find.text('Sačuvaj lokaciju'));
     await tester.pumpAndSettle();
     expect(saved!['name'], 'Teniski klub novi naziv');
     expect(saved!['active'], isFalse);

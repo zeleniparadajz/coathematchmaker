@@ -14,6 +14,7 @@ export const updateLeagueSettings = async (payload: Partial<{
   resultEntryDelayMinutes: number;
   matchWinPoints: number;
   tournamentWinPoints: number;
+  inactivityDays: number;
 }>) => {
   const settings = await getLeagueSettings();
   Object.assign(settings, payload);

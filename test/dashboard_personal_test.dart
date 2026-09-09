@@ -142,6 +142,7 @@ void main() {
           );
         }
         expect(find.byType(SportPhoto), findsNothing);
+        expect(find.text('Spreman za sledeći meč?'), findsOneWidget);
         expect(find.text('Igraj danas'), findsNothing);
         final stats = {
           for (final card in tester.widgetList<StatCard>(find.byType(StatCard)))

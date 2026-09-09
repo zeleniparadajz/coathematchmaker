@@ -1,3 +1,4 @@
+import 'package:coathematchmaker/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 import '../models/match.dart';
 import '../models/tournament.dart';
@@ -51,7 +52,7 @@ class _TournamentPhasesState extends State<TournamentPhases> {
     for (final player in widget.tournament.participants) {
       if (player.id == id) return player.fullName;
     }
-    return 'Igrac';
+    return context.tr("Igrač");
   }
 
   Future<void> _run(Future<void> Function() action) async {
@@ -66,9 +67,9 @@ class _TournamentPhasesState extends State<TournamentPhases> {
       widget.onChanged();
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.serverMessage(error.message))),
+        );
         setState(
           () => _future = widget.league.roundRobin(widget.tournament.id),
         );
@@ -82,7 +83,7 @@ class _TournamentPhasesState extends State<TournamentPhases> {
     final approved = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Potvrdi knockout parove'),
+        title: Text(context.tr("Potvrdi knockout parove")),
         content: SizedBox(
           width: 420,
           child: SingleChildScrollView(
@@ -104,12 +105,15 @@ class _TournamentPhasesState extends State<TournamentPhases> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Odustani'),
+            child: Text(context.tr("Odustani")),
           ),
           FilledButton(
             style: _actionStyle,
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Pokreni knockout', textAlign: TextAlign.center),
+            child: Text(
+              context.tr("Pokreni knockout"),
+              textAlign: TextAlign.center,
+            ),
           ),
         ],
       ),
@@ -158,21 +162,27 @@ class _TournamentPhasesState extends State<TournamentPhases> {
               Expanded(
                 child: enabled
                     ? SegmentedButton<bool>(
-                        segments: const [
-                          ButtonSegment(value: false, label: Text('Liga')),
-                          ButtonSegment(value: true, label: Text('Knockout')),
+                        segments: [
+                          ButtonSegment(
+                            value: false,
+                            label: Text(context.tr("Liga")),
+                          ),
+                          ButtonSegment(
+                            value: true,
+                            label: Text(context.tr("Knockout")),
+                          ),
                         ],
                         selected: {_knockout},
                         onSelectionChanged: (value) =>
                             setState(() => _knockout = value.first),
                       )
                     : Text(
-                        'Liga',
+                        context.tr("Liga"),
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
               ),
               IconButton(
-                tooltip: 'Osvjezi rezultate',
+                tooltip: context.tr("Osvježi rezultate"),
                 onPressed: _busy ? null : widget.onChanged,
                 icon: const Icon(Icons.refresh),
               ),
@@ -184,22 +194,22 @@ class _TournamentPhasesState extends State<TournamentPhases> {
               children: [
                 Expanded(
                   child: Text(
-                    'Tabela lige',
+                    context.tr("Tabela lige"),
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
                 IconButton(
-                  tooltip: 'Pravila poretka',
+                  tooltip: context.tr("Pravila poretka"),
                   icon: const Icon(Icons.info_outline),
                   onPressed: () => showDialog<void>(
                     context: context,
                     builder: (context) => AlertDialog(
-                      title: const Text('Pravila poretka'),
-                      content: Text(state.rankingRules),
+                      title: Text(context.tr("Pravila poretka")),
+                      content: Text(context.serverMessage(state.rankingRules)),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(context),
-                          child: const Text('U redu'),
+                          child: Text(context.tr("U redu")),
                         ),
                       ],
                     ),
@@ -233,7 +243,16 @@ class _TournamentPhasesState extends State<TournamentPhases> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Mecevi ${row.played} · Setovi ${row.setsWon}:${row.setsLost} · Gemovi ${row.gamesWon}:${row.gamesLost}',
+                            context.tr(
+                              "Mečevi {p0} · Setovi {p1}:{p2} · Gemovi {p3}:{p4}",
+                              [
+                                row.played,
+                                row.setsWon,
+                                row.setsLost,
+                                row.gamesWon,
+                                row.gamesLost,
+                              ],
+                            ),
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
@@ -241,7 +260,7 @@ class _TournamentPhasesState extends State<TournamentPhases> {
                     ),
                     const SizedBox(width: 8),
                     Tooltip(
-                      message: 'Pobjede : porazi',
+                      message: context.tr("Pobjede : porazi"),
                       child: Text(
                         '${row.wins} : ${row.losses}',
                         style: const TextStyle(fontWeight: FontWeight.w700),
@@ -256,8 +275,12 @@ class _TournamentPhasesState extends State<TournamentPhases> {
               padding: const EdgeInsets.symmetric(vertical: 16),
               child: Text(
                 state.canStart
-                    ? '${widget.tournament.knockoutSize} ucesnika spremno za zavrsnicu.'
-                    : state.blockedReason ?? 'Liga je u toku.',
+                    ? context.tr("Broj učesnika spremnih za završnicu: {p0}.", [
+                        widget.tournament.knockoutSize,
+                      ])
+                    : context.serverMessage(
+                        state.blockedReason ?? 'Liga je u toku.',
+                      ),
               ),
             ),
             if (widget.canManage)
@@ -267,8 +290,8 @@ class _TournamentPhasesState extends State<TournamentPhases> {
                     ? () => _preview(state)
                     : null,
                 icon: const Icon(Icons.account_tree_outlined),
-                label: const Text(
-                  'Pregledaj knockout parove',
+                label: Text(
+                  context.tr("Pregledaj knockout parove"),
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -286,8 +309,8 @@ class _TournamentPhasesState extends State<TournamentPhases> {
                         ),
                       ),
                 icon: const Icon(Icons.refresh),
-                label: const Text(
-                  'Dovrsi formiranje meceva',
+                label: Text(
+                  context.tr("Dovrši formiranje mečeva"),
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -296,13 +319,15 @@ class _TournamentPhasesState extends State<TournamentPhases> {
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.emoji_events_outlined),
                 title: Text(_name(state.winnerId!)),
-                subtitle: const Text('Pobjednik turnira'),
+                subtitle: Text(context.tr("Pobjednik turnira")),
               ),
             if (widget.canManage && !state.finished) ...[
               if (!state.canAdvance)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Text('Cekaju se potvrdjeni rezultati ove runde.'),
+                  child: Text(
+                    context.tr("Čekaju se potvrđeni rezultati ove runde."),
+                  ),
                 ),
               FilledButton.icon(
                 style: _actionStyle,
@@ -317,8 +342,8 @@ class _TournamentPhasesState extends State<TournamentPhases> {
                 icon: const Icon(Icons.arrow_forward),
                 label: Text(
                   state.currentRound == 'F'
-                      ? 'Potvrdi pobjednika'
-                      : 'Formiraj narednu rundu',
+                      ? context.tr("Potvrdi pobjednika")
+                      : context.tr("Formiraj narednu rundu"),
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -336,7 +361,7 @@ class _TournamentPhasesState extends State<TournamentPhases> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${match.round} · ${matchStatusLabel(match.status)}',
+                      '${match.round} · ${context.tr(matchStatusLabel(match.status))}',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                     const SizedBox(height: 4),

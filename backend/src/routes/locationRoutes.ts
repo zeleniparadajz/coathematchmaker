@@ -33,7 +33,7 @@ locationRoutes.post("/", authorize("admin"), validate(locationSchema), asyncHand
 locationRoutes.patch("/:id", authorize("admin"), validate(locationSchema.partial()), asyncHandler(async (req, res) => {
   const id = locationIdSchema.parse(req.params.id);
   const existing = await Location.findById(id);
-  if (!existing) throw new AppError(404, "Lokacija nije pronadjena.");
+  if (!existing) throw new AppError(404, "Lokacija nije pronađena.");
   if (req.body.googlePlaceId && req.body.googlePlaceId !== existing.googlePlaceId) {
     await maps.verify(req.body.googlePlaceId);
   }

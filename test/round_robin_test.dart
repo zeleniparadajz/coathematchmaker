@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:coathematchmaker/l10n/app_strings.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -52,7 +54,7 @@ Map<String, dynamic> stateJson({
     ['other', 'third'],
   ],
   'rankingRules':
-      'Pobjede; medjusobni mecevi; razlika setova; razlika gemova; redosljed prijave.',
+      'Pobjede; međusobni mečevi; razlika setova; razlika gemova; redoslijed prijave.',
   'canStart': !started && ready,
   'started': started,
   'finished': finished,
@@ -61,7 +63,7 @@ Map<String, dynamic> stateJson({
   'winnerId': finished ? 'me' : null,
   'blockedReason': ready
       ? null
-      : 'Svi ligaski mecevi moraju imati potvrdjen rezultat.',
+      : 'Svi ligaški mečevi moraju imati potvrđen rezultat.',
 };
 
 LeagueService service(
@@ -88,9 +90,21 @@ LeagueService service(
   ),
 );
 
-Widget host(Widget child, {double scale = 1}) => RepaintBoundary(
+Widget host(
+  Widget child, {
+  double scale = 1,
+  Locale locale = const Locale('sr'),
+}) => RepaintBoundary(
   key: const Key('capture-knockout'),
   child: MaterialApp(
+    locale: locale,
+    supportedLocales: AppStrings.supportedLocales,
+    localizationsDelegates: const [
+      AppStrings.delegate,
+      GlobalMaterialLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+      GlobalCupertinoLocalizations.delegate,
+    ],
     debugShowCheckedModeBanner: false,
     theme: const bool.fromEnvironment('CAPTURE_KNOCKOUT')
         ? AppTheme.light.copyWith(
@@ -185,55 +199,69 @@ void main() {
     },
   );
 
-  for (final width in [320.0, 390.0, 1024.0]) {
-    testWidgets('league table and knockout preview fit width $width', (
-      tester,
-    ) async {
-      tester.view.physicalSize = Size(width, 1000);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      final posts = <http.Request>[];
-      await tester.pumpWidget(
-        host(
-          phases(
-            service(
-              stateJson(),
-              onRequest: (r) {
-                if (r.method == 'POST') posts.add(r);
-              },
+  for (final locale in AppStrings.supportedLocales) {
+    final tr = AppStrings(locale).text;
+    for (final width in [320.0, 390.0, 1024.0]) {
+      testWidgets(
+        'league table and knockout preview fit width $width, $locale',
+        (tester) async {
+          tester.view.physicalSize = Size(width, 1000);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+          final posts = <http.Request>[];
+          await tester.pumpWidget(
+            host(
+              phases(
+                service(
+                  stateJson(),
+                  onRequest: (r) {
+                    if (r.method == 'POST') posts.add(r);
+                  },
+                ),
+              ),
+              scale: width == 320 ? 1.4 : 1,
+              locale: locale,
             ),
-          ),
-          scale: width == 320 ? 1.4 : 1,
-        ),
+          );
+          await tester.pumpAndSettle();
+          expect(find.text(tr('Tabela lige')), findsOneWidget);
+          expect(tester.takeException(), isNull);
+          if (locale.languageCode != 'en') {
+            await capture('league-${width.toInt()}');
+          }
+          await tester.ensureVisible(
+            find.text(tr('Pregledaj knockout parove')),
+          );
+          await tester.tap(find.text(tr('Pregledaj knockout parove')));
+          await tester.pumpAndSettle();
+          expect(find.text(tr('Potvrdi knockout parove')), findsOneWidget);
+          expect(posts, isEmpty);
+          expect(tester.takeException(), isNull);
+          if (locale.languageCode != 'en') {
+            await capture('preview-${width.toInt()}');
+          }
+          await tester.tap(find.text(tr('Odustani')));
+          await tester.pumpAndSettle();
+          expect(posts, isEmpty);
+          await tester.tap(find.text(tr('Pregledaj knockout parove')));
+          await tester.pumpAndSettle();
+          await tester.tap(find.text(tr('Pokreni knockout')));
+          await tester.pumpAndSettle();
+          expect(posts.length, 1);
+          expect(
+            posts.single.url.path,
+            '/api/tournaments/league/start-knockout',
+          );
+          expect(jsonDecode(posts.single.body)['seeds'], [
+            'me',
+            'other',
+            'third',
+            'fourth',
+          ]);
+        },
       );
-      await tester.pumpAndSettle();
-      expect(find.text('Tabela lige'), findsOneWidget);
-      expect(tester.takeException(), isNull);
-      await capture('league-${width.toInt()}');
-      await tester.ensureVisible(find.text('Pregledaj knockout parove'));
-      await tester.tap(find.text('Pregledaj knockout parove'));
-      await tester.pumpAndSettle();
-      expect(find.text('Potvrdi knockout parove'), findsOneWidget);
-      expect(posts, isEmpty);
-      expect(tester.takeException(), isNull);
-      await capture('preview-${width.toInt()}');
-      await tester.tap(find.text('Odustani'));
-      await tester.pumpAndSettle();
-      expect(posts, isEmpty);
-      await tester.tap(find.text('Pregledaj knockout parove'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Pokreni knockout'));
-      await tester.pumpAndSettle();
-      expect(posts.length, 1);
-      expect(posts.single.url.path, '/api/tournaments/league/start-knockout');
-      expect(jsonDecode(posts.single.body)['seeds'], [
-        'me',
-        'other',
-        'third',
-        'fourth',
-      ]);
-    });
+    }
   }
 
   testWidgets(
@@ -303,13 +331,13 @@ void main() {
       );
       await tester.pumpAndSettle();
       await tester.scrollUntilVisible(
-        find.text('Knockout zavrsnica').hitTestable(),
+        find.text('Knockout završnica').hitTestable(),
         400,
         scrollable: find.byType(Scrollable).first,
       );
-      await tester.tap(find.text('Knockout zavrsnica'));
+      await tester.tap(find.text('Knockout završnica'));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Broj ucesnika u zavrsnici'));
+      await tester.ensureVisible(find.text('Broj učesnika u završnici'));
       await Scrollable.ensureVisible(
         tester.element(find.text('Round-robin + knockout (opciono)')),
         alignment: .1,
@@ -318,10 +346,11 @@ void main() {
       await capture('option');
       expect(find.text('Round-robin + knockout (opciono)'), findsOneWidget);
       await tester.scrollUntilVisible(
-        find.text('Sačuvaj turnir'),
+        find.text('Sačuvaj turnir').hitTestable(),
         400,
         scrollable: find.byType(Scrollable).first,
       );
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Sačuvaj turnir'));
       await tester.pumpAndSettle();
       final patch = requests.firstWhere((r) => r.method == 'PATCH');

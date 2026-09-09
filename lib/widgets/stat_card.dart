@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../l10n/app_strings.dart';
 
 import '../theme/app_theme.dart';
 
@@ -86,7 +87,7 @@ class StatCard extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  label,
+                  context.tr(label),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: AppTheme.ink.withValues(alpha: .58),
                     fontFamily: 'Avenir Next Rounded',

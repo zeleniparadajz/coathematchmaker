@@ -1,3 +1,4 @@
+import 'package:coathematchmaker/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 import '../services/maps_service.dart';
 import '../theme/app_theme.dart';
@@ -32,9 +33,11 @@ class MapLocationCard extends StatelessWidget {
             } catch (_) {
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
+                  SnackBar(
                     content: Text(
-                      'Mapu nije moguce otvoriti. Pokusajte ponovo.',
+                      context.tr(
+                        "Mapu nije moguće otvoriti. Pokušajte ponovo.",
+                      ),
                     ),
                   ),
                 );
@@ -61,8 +64,8 @@ class MapLocationCard extends StatelessWidget {
                         style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
                       const SizedBox(height: 6),
-                      const Text(
-                        'Otvori u Google Maps',
+                      Text(
+                        context.tr("Otvori u Google Maps"),
                         style: TextStyle(color: AppTheme.court, fontSize: 13),
                       ),
                     ],

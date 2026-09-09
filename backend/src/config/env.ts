@@ -46,6 +46,8 @@ export const env = {
   appUpdateMessage:
     process.env.APP_UPDATE_MESSAGE ??
     "Nova verzija aplikacije je obavezna. Ažuriraj COA The Matchmaker.",
+  appUpdateMessageEn: process.env.APP_UPDATE_MESSAGE_EN?.trim() ||
+    "A new version is required. Please update COA The Matchmaker.",
   requireEmailVerification: process.env.REQUIRE_EMAIL_VERIFICATION !== "false",
   resendApiKey: process.env.RESEND_API_KEY,
   googlePlacesApiKey: process.env.GOOGLE_PLACES_API_KEY ?? "",

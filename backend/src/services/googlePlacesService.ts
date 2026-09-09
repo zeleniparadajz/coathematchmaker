@@ -15,12 +15,12 @@ export class GooglePlacesService {
   constructor(private apiKey: string, private request: typeof fetch = fetch) {}
 
   private async call(path: string, fieldMask: string, body?: unknown) {
-    if (!this.apiKey) throw new AppError(503, "Google Maps pretraga nije podesena na serveru.");
+    if (!this.apiKey) throw new AppError(503, "Google Maps pretraga nije podešena na serveru.");
     if (Date.now() - this.windowStart >= 60_000) {
       this.windowStart = Date.now();
       this.requests = 0;
     }
-    if (++this.requests > 30) throw new AppError(429, "Previse Maps zahtjeva. Pokusajte za minut.");
+    if (++this.requests > 30) throw new AppError(429, "Previše zahtjeva za Google Maps. Pokušajte za minut.");
     let response: Response;
     try {
       response = await this.request(`https://places.googleapis.com/v1/${path}`, {
@@ -30,13 +30,13 @@ export class GooglePlacesService {
         signal: AbortSignal.timeout(8000)
       });
     } catch {
-      throw new AppError(502, "Google Maps trenutno nije dostupan. Pokusajte ponovo.");
+      throw new AppError(502, "Google Maps trenutno nije dostupan. Pokušajte ponovo.");
     }
     if (!response.ok) {
-      if (response.status === 404) throw new AppError(400, "Mjesto vise nije dostupno na Google Maps.");
-      if (response.status === 429) throw new AppError(503, "Google Maps kvota je potrosena. Pokusajte kasnije.");
+      if (response.status === 404) throw new AppError(400, "Mjesto više nije dostupno na Google mapama.");
+      if (response.status === 429) throw new AppError(503, "Kvota za Google Maps je potrošena. Pokušajte kasnije.");
       // Never log the key, request headers or upstream body.
-      throw new AppError(502, "Google Maps zahtjev nije uspio. Provjerite Places API (New), kljuc i billing.");
+      throw new AppError(502, "Zahtjev za Google Maps nije uspio. Provjerite Places API (New), ključ i podešavanja naplate.");
     }
     try { return await response.json(); }
     catch { throw new AppError(502, "Google Maps je vratio neispravan odgovor."); }

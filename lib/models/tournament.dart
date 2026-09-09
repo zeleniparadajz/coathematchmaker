@@ -47,9 +47,9 @@ class Tournament {
           'elimination' => 'Eliminacija',
           'qualification' => 'Kvalifikacije',
           'group_knockout' => 'Grupe + knockout',
-          'double_elimination' => 'Double elimination',
-          'compass' => 'Compass draw',
-          'swiss' => 'Swiss system',
+          'double_elimination' => 'Dvostruka eliminacija',
+          'compass' => 'Kompas žrijeb',
+          'swiss' => 'Švajcarski sistem',
           _ => format,
         };
   final DateTime startDate;

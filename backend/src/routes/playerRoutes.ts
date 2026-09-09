@@ -19,6 +19,8 @@ export const playerRoutes = Router();
 playerRoutes.use(authenticate);
 
 playerRoutes.get("/me", getMyProfile);
+// authenticate records server-side activity before returning the current profile.
+playerRoutes.post("/me/activity", getMyProfile);
 playerRoutes.patch("/me", validate(updatePlayerSchema), updateMyProfile);
 playerRoutes.patch("/me/play-status", validate(updateMyPlayStatusSchema), updateMyPlayStatus);
 playerRoutes.post(

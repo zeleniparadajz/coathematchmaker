@@ -24,6 +24,9 @@ export interface PlayerAttrs {
   active: boolean;
   playStatus: PlayerPlayStatus;
   playStatusUpdatedAt?: Date;
+  playStatusSource: "manual" | "inactivity";
+  lastActiveAt?: Date;
+  activityTrackingStartedAt?: Date;
   totalPoints: number;
   wins: number;
   losses: number;
@@ -59,6 +62,9 @@ const playerSchema = new Schema<PlayerAttrs, PlayerModel, PlayerMethods>(
     active: { type: Boolean, default: true },
     playStatus: { type: String, enum: ["available", "unavailable"], default: "available" },
     playStatusUpdatedAt: { type: Date },
+    playStatusSource: { type: String, enum: ["manual", "inactivity"], default: "manual" },
+    lastActiveAt: { type: Date },
+    activityTrackingStartedAt: { type: Date, default: Date.now, select: false },
     totalPoints: { type: Number, default: 0 },
     wins: { type: Number, default: 0 },
     losses: { type: Number, default: 0 },
@@ -74,6 +80,7 @@ const playerSchema = new Schema<PlayerAttrs, PlayerModel, PlayerMethods>(
         delete (ret as Partial<PlayerAttrs>).emailVerificationExpires;
         delete (ret as Partial<PlayerAttrs>).passwordResetToken;
         delete (ret as Partial<PlayerAttrs>).passwordResetExpires;
+        delete (ret as Partial<PlayerAttrs>).activityTrackingStartedAt;
         delete (ret as { __v?: number }).__v;
         return ret;
       }
@@ -95,5 +102,6 @@ playerSchema.methods.comparePassword = function comparePassword(candidatePasswor
 };
 
 playerSchema.index({ totalPoints: -1, wins: -1 });
+playerSchema.index({ active: 1, playStatus: 1, lastActiveAt: 1 });
 
 export const Player = model<PlayerAttrs, PlayerModel>("Player", playerSchema);

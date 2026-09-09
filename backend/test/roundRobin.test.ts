@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { leagueCompletionProblem, roundRobinTable, seededPairs, type LeagueMatch } from "../src/services/roundRobinRules";
+import { leagueCompletionProblem, leagueRankingRules, roundRobinTable, seededPairs, type LeagueMatch } from "../src/services/roundRobinRules";
+
+test("league copy preserves Serbian text and the requested redoslijed spelling", () => {
+  assert.match(leagueRankingRules, /međusobnim mečevima igrača/);
+  assert.match(leagueRankingRules, /redoslijed prijave/);
+  assert.equal(leagueCompletionProblem([], []), "Potrebna su najmanje dva učesnika.");
+});
 
 const match = (a: string, b: string, winner = a, round = "RR"): LeagueMatch => ({
   player1: a, player2: b, winner, round, status: "confirmed",

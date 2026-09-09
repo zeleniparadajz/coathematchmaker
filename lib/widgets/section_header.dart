@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../l10n/app_strings.dart';
 
 class SectionHeader extends StatelessWidget {
   const SectionHeader(this.title, {super.key, this.action});
@@ -14,10 +15,10 @@ class SectionHeader extends StatelessWidget {
         children: [
           Expanded(
             child: Text(
-              title,
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+              context.tr(title),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
             ),
           ),
           ?action,

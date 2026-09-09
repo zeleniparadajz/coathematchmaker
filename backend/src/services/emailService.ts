@@ -65,13 +65,13 @@ export const sendVerificationEmail = async ({ to, name, verificationUrl }: SendV
 export const sendPasswordResetEmail = async ({ to, name, resetUrl }: SendPasswordResetEmailParams): Promise<void> => {
   await sendEmail({
     to,
-    subject: "Resetuj Coa password",
+    subject: "Promjena lozinke za COA The Matchmaker",
     html: `
         <div style="font-family:Arial,sans-serif;line-height:1.5;color:#17211c">
           <h2>Zdravo ${name},</h2>
-          <p>Dobili smo zahtjev za reset lozinke. Link traje 30 minuta.</p>
-          <p><a href="${resetUrl}" style="background:#1f8a5b;color:white;padding:12px 18px;border-radius:8px;text-decoration:none">Resetuj password</a></p>
-          <p>Ako nisi tražio reset, samo ignoriši ovaj email.</p>
+          <p>Dobili smo zahtjev za promjenu lozinke. Link važi 30 minuta.</p>
+          <p><a href="${resetUrl}" style="background:#1f8a5b;color:white;padding:12px 18px;border-radius:8px;text-decoration:none">Promijeni lozinku</a></p>
+          <p>Ako nisi tražio promjenu lozinke, zanemari ovu poruku.</p>
           <p>Ako dugme ne radi, otvori ovaj link:</p>
           <p>${resetUrl}</p>
         </div>

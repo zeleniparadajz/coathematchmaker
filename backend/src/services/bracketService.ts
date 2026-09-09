@@ -50,17 +50,17 @@ export const generateTournamentDraw = async (tournamentId: string) => {
   const tournament = await Tournament.findById(tournamentId);
 
   if (!tournament) {
-    throw new AppError(404, "Tournament not found");
+    throw new AppError(404, "Turnir nije pronađen.");
   }
 
   if (tournament.matches.length > 0) {
-    throw new AppError(400, "Tournament draw already exists");
+    throw new AppError(400, "Žrijeb turnira je već formiran.");
   }
 
   const players = tournament.participants.map((id) => id.toString());
 
   if (players.length < 2) {
-    throw new AppError(400, "At least two players are required to generate a draw");
+    throw new AppError(400, "Za formiranje žrijeba potrebna su najmanje dva igrača.");
   }
 
   const createdMatchIds: Types.ObjectId[] = [];
@@ -262,7 +262,7 @@ export const advanceTournamentRound = async (tournamentId: string) => {
   const tournament = await Tournament.findById(tournamentId);
 
   if (!tournament) {
-    throw new AppError(404, "Tournament not found");
+    throw new AppError(404, "Turnir nije pronađen.");
   }
 
   const matches = await Match.find({ tournament: tournament._id }).sort({ createdAt: 1 });
@@ -282,13 +282,13 @@ export const advanceTournamentRound = async (tournamentId: string) => {
       return { tournament, matchesCreated: [], winner: final.winner };
     }
 
-    throw new AppError(400, "No round is ready to advance");
+    throw new AppError(400, "Nijedna runda nije spremna za nastavak takmičenja.");
   }
 
   const currentMatches = matches.filter((match) => match.round === currentRound);
 
   if (currentMatches.some((match) => match.status !== "confirmed" || !match.winner)) {
-    throw new AppError(400, "All current round matches must be confirmed before advancing");
+    throw new AppError(400, "Prije prelaska u narednu rundu potrebno je potvrditi sve mečeve tekuće runde.");
   }
 
   let winners = currentMatches.map((match) => match.winner!.toString());
@@ -304,7 +304,7 @@ export const advanceTournamentRound = async (tournamentId: string) => {
   }
 
   if (!nextRound) {
-    throw new AppError(400, "Final round cannot be advanced");
+    throw new AppError(400, "Poslije finala nema naredne runde.");
   }
 
   const createdMatchIds: Types.ObjectId[] = [];

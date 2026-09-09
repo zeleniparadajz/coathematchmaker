@@ -13,7 +13,7 @@ export class AppError extends Error {
 export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   if (err instanceof ZodError) {
     return res.status(400).json({
-      message: "Validation error",
+      message: "Provjerite unesene podatke.",
       errors: err.flatten()
     });
   }
@@ -23,13 +23,13 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   }
 
   if (err?.name === "CastError") {
-    return res.status(400).json({ message: "Invalid id format" });
+    return res.status(400).json({ message: "Identifikator nije ispravan." });
   }
 
   if (err?.code === 11000) {
-    return res.status(409).json({ message: "Resource already exists" });
+    return res.status(409).json({ message: "Zapis već postoji." });
   }
 
   console.error(err);
-  return res.status(500).json({ message: "Internal server error" });
+  return res.status(500).json({ message: "Greška na serveru. Pokušajte ponovo." });
 };

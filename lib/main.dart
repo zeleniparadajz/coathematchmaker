@@ -1,5 +1,8 @@
+import 'package:coathematchmaker/l10n/app_strings.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'l10n/app_language.dart';
 
 import 'screens/auth_screen.dart';
 import 'screens/dashboard_screen.dart';
@@ -14,6 +17,7 @@ import 'screens/tournaments_screen.dart';
 import 'services/api_client.dart';
 import 'services/app_config_service.dart';
 import 'services/auth_service.dart';
+import 'services/activity_service.dart';
 import 'services/league_service.dart';
 import 'theme/app_theme.dart';
 import 'widgets/player_avatar.dart';
@@ -26,9 +30,15 @@ void main() {
 }
 
 class CoaMatchmakerApp extends StatefulWidget {
-  const CoaMatchmakerApp({super.key, this.api, this.configService});
+  const CoaMatchmakerApp({
+    super.key,
+    this.api,
+    this.configService,
+    this.languageController,
+  });
   final ApiClient? api;
   final AppConfigService? configService;
+  final AppLanguageController? languageController;
   @override
   State<CoaMatchmakerApp> createState() => _CoaMatchmakerAppState();
 }
@@ -37,8 +47,10 @@ class _CoaMatchmakerAppState extends State<CoaMatchmakerApp>
     with WidgetsBindingObserver {
   late final api = widget.api ?? ApiClient();
   late final auth = AuthService(api);
+  late final activity = AppActivityTracker(auth);
   late final league = LeagueService(api);
   late final appConfig = widget.configService ?? AppConfigService(api);
+  late final language = widget.languageController ?? AppLanguageController();
   bool _starting = true;
   bool _checking = false;
   bool _sessionRestored = false;
@@ -50,9 +62,15 @@ class _CoaMatchmakerAppState extends State<CoaMatchmakerApp>
   void initState() {
     super.initState();
     auth.addListener(_authChanged);
+    activity.start();
     WidgetsBinding.instance.addObserver(this);
-    _checkUpdate();
+    _initialize();
     _startTimer();
+  }
+
+  Future<void> _initialize() async {
+    await language.restore();
+    if (mounted) await _checkUpdate();
   }
 
   void _authChanged() {
@@ -104,57 +122,73 @@ class _CoaMatchmakerAppState extends State<CoaMatchmakerApp>
     _timer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     auth.removeListener(_authChanged);
+    activity.dispose();
     auth.dispose();
+    if (widget.languageController == null) language.dispose();
     if (widget.api == null) api.close();
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-    debugShowCheckedModeBanner: false,
-    title: 'COA The Matchmaker',
-    theme: AppTheme.light,
-    builder: (context, child) => Stack(
-      children: [
-        Offstage(
-          offstage: _config?.updateRequired == true,
-          child: TickerMode(
-            enabled: _config?.updateRequired != true,
-            child: child!,
-          ),
-        ),
-        // A separate navigator keeps the gate above all previously opened routes.
-        if (_config?.updateRequired == true)
-          Positioned.fill(
-            child: HeroControllerScope.none(
-              child: Navigator(
-                key: ValueKey(
-                  'update:${_config!.minSupportedBuild}:${_config!.storeUrl}',
-                ),
-                onGenerateRoute: (_) => MaterialPageRoute<void>(
-                  builder: (_) => ForceUpdateScreen(
-                    config: _config!,
-                    onRetry: _checkUpdate,
+  Widget build(BuildContext context) => AppLanguageScope(
+    controller: language,
+    child: ListenableBuilder(
+      listenable: language,
+      builder: (context, _) => MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'COA The Matchmaker',
+        locale: language.language.locale,
+        supportedLocales: AppStrings.supportedLocales,
+        localizationsDelegates: const [
+          AppStrings.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        theme: AppTheme.light,
+        builder: (context, child) => Stack(
+          children: [
+            Offstage(
+              offstage: _config?.updateRequired == true,
+              child: TickerMode(
+                enabled: _config?.updateRequired != true,
+                child: child!,
+              ),
+            ),
+            // A separate navigator keeps the gate above all previously opened routes.
+            if (_config?.updateRequired == true)
+              Positioned.fill(
+                child: HeroControllerScope.none(
+                  child: Navigator(
+                    key: ValueKey(
+                      'update:${_config!.minSupportedBuild}:${_config!.storeUrl}',
+                    ),
+                    onGenerateRoute: (_) => MaterialPageRoute<void>(
+                      builder: (context) => ForceUpdateScreen(
+                        config: _config!,
+                        onRetry: _checkUpdate,
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ),
-      ],
+          ],
+        ),
+        home: _config?.updateRequired == true && !_sessionRestored
+            ? const Scaffold()
+            : _starting || auth.loading
+            ? const Scaffold(body: Center(child: CircularProgressIndicator()))
+            : auth.isLoggedIn
+            ? MainShell(
+                auth: auth,
+                league: league,
+                api: api,
+                config: _config,
+                onCheckUpdate: _checkUpdate,
+              )
+            : AuthScreen(auth: auth),
+      ),
     ),
-    home: _config?.updateRequired == true && !_sessionRestored
-        ? const Scaffold()
-        : _starting || auth.loading
-        ? const Scaffold(body: Center(child: CircularProgressIndicator()))
-        : auth.isLoggedIn
-        ? MainShell(
-            auth: auth,
-            league: league,
-            api: api,
-            config: _config,
-            onCheckUpdate: _checkUpdate,
-          )
-        : AuthScreen(auth: auth),
   );
 }
 
@@ -250,8 +284,8 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   Future<void> _openMessages() async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => Scaffold(
-          appBar: AppBar(title: const Text('Poruke')),
+        builder: (context) => Scaffold(
+          appBar: AppBar(title: Text(context.tr("Poruke"))),
           body: MessagesScreen(
             league: widget.league,
             auth: widget.auth,
@@ -284,7 +318,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       case 'settings':
         if (!widget.auth.isAdmin) return;
         page = Scaffold(
-          appBar: AppBar(title: const Text('Podešavanja lige')),
+          appBar: AppBar(title: Text(context.tr("Podešavanja lige"))),
           body: SettingsScreen(league: widget.league),
         );
       case 'locations':
@@ -297,7 +331,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         await showModalBottomSheet<void>(
           context: context,
           showDragHandle: true,
-          builder: (_) => VersionSheet(
+          builder: (context) => VersionSheet(
             config: widget.config,
             onCheck: widget.onCheckUpdate,
           ),
@@ -307,14 +341,20 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     if (page != null && mounted) {
       await Navigator.of(
         context,
-      ).push(MaterialPageRoute<void>(builder: (_) => page!));
+      ).push(MaterialPageRoute<void>(builder: (context) => page!));
       if (mounted) _select(_index);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    const titles = ['Početna', 'Igrači', 'Turniri', 'Mečevi', 'Rang-lista'];
+    final titles = [
+      context.tr("Početna"),
+      context.tr("Igrači"),
+      context.tr("Turniri"),
+      context.tr("Mečevi"),
+      context.tr("Rang-lista"),
+    ];
     final pages = [
       DashboardScreen(
         auth: widget.auth,
@@ -382,7 +422,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                     const SizedBox(height: 3),
                     Text(
                       _index == 0
-                          ? 'Tvoja teniska zajednica'
+                          ? context.tr("Tvoja teniska zajednica")
                           : 'COA Matchmaker',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -401,7 +441,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               style: IconButton.styleFrom(
                 backgroundColor: Colors.white.withValues(alpha: .65),
               ),
-              tooltip: 'Poruke',
+              tooltip: context.tr("Poruke"),
               onPressed: _openMessages,
               icon: Badge(
                 isLabelVisible: _unread > 0,
@@ -410,59 +450,59 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               ),
             ),
             PopupMenuButton<String>(
-              tooltip: 'Profil i podešavanja',
+              tooltip: context.tr("Profil i podešavanja"),
               onSelected: _profileAction,
               itemBuilder: (_) => [
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'profile',
                   child: ListTile(
                     leading: Icon(Icons.person_outline),
-                    title: Text('Moj profil'),
+                    title: Text(context.tr("Moj profil")),
                   ),
                 ),
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'status',
                   child: ListTile(
                     leading: Icon(Icons.sports_tennis),
-                    title: Text('Dostupnost za meč'),
+                    title: Text(context.tr("Dostupnost za meč")),
                   ),
                 ),
                 if (widget.auth.isAdmin)
-                  const PopupMenuItem(
+                  PopupMenuItem(
                     value: 'locations',
                     child: ListTile(
                       leading: Icon(Icons.edit_location_alt_outlined),
-                      title: Text('Lokacije'),
+                      title: Text(context.tr("Lokacije")),
                     ),
                   ),
                 if (widget.auth.isAdmin)
-                  const PopupMenuItem(
+                  PopupMenuItem(
                     value: 'settings',
                     child: ListTile(
                       leading: Icon(Icons.settings_outlined),
-                      title: Text('Podešavanja lige'),
+                      title: Text(context.tr("Podešavanja lige")),
                     ),
                   ),
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'version',
                   child: ListTile(
                     leading: Icon(Icons.system_update),
-                    title: Text('Verzija aplikacije'),
+                    title: Text(context.tr("Verzija aplikacije")),
                   ),
                 ),
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'logout',
                   child: ListTile(
                     leading: Icon(Icons.logout),
-                    title: Text('Odjavi se'),
+                    title: Text(context.tr("Odjavi se")),
                   ),
                 ),
                 const PopupMenuDivider(),
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'delete',
                   child: ListTile(
                     leading: Icon(Icons.delete_outline),
-                    title: Text('Obriši nalog'),
+                    title: Text(context.tr("Obriši nalog")),
                   ),
                 ),
               ],
@@ -483,18 +523,20 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                 config.updateAvailable &&
                 _dismissedUpdate != config.latestBuild)
               MaterialBanner(
-                content: const Text('Dostupna je nova verzija aplikacije.'),
+                content: Text(
+                  context.tr("Dostupna je nova verzija aplikacije."),
+                ),
                 leading: const Icon(Icons.system_update),
                 actions: [
                   IconButton(
-                    tooltip: 'Kasnije',
+                    tooltip: context.tr("Kasnije"),
                     onPressed: () =>
                         setState(() => _dismissedUpdate = config.latestBuild),
                     icon: const Icon(Icons.close),
                   ),
                   TextButton(
                     onPressed: () => openAppStore(context, config),
-                    child: const Text('Ažuriraj'),
+                    child: Text(context.tr("Ažuriraj")),
                   ),
                 ],
               ),
@@ -517,20 +559,20 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                     selectedIndex: _index,
                     onDestinationSelected: _select,
                     destinations: [
-                      const NavigationDestination(
+                      NavigationDestination(
                         icon: Icon(Icons.home_outlined),
                         selectedIcon: Icon(Icons.home),
-                        label: 'Početna',
+                        label: context.tr("Početna"),
                       ),
-                      const NavigationDestination(
+                      NavigationDestination(
                         icon: Icon(Icons.people_outline),
                         selectedIcon: Icon(Icons.people),
-                        label: 'Igrači',
+                        label: context.tr("Igrači"),
                       ),
-                      const NavigationDestination(
+                      NavigationDestination(
                         icon: Icon(Icons.emoji_events_outlined),
                         selectedIcon: Icon(Icons.emoji_events),
-                        label: 'Turniri',
+                        label: context.tr("Turniri"),
                       ),
                       NavigationDestination(
                         icon: Badge(
@@ -538,12 +580,12 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                           label: Text('$_pending'),
                           child: const Icon(Icons.sports_tennis),
                         ),
-                        label: 'Mečevi',
+                        label: context.tr("Mečevi"),
                       ),
-                      const NavigationDestination(
+                      NavigationDestination(
                         icon: Icon(Icons.leaderboard_outlined),
                         selectedIcon: Icon(Icons.leaderboard),
-                        label: 'Rang-lista',
+                        label: context.tr("Rang-lista"),
                       ),
                     ],
                   ),

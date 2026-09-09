@@ -1,3 +1,4 @@
+import 'package:coathematchmaker/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 
 import '../models/league_settings.dart';
@@ -21,6 +22,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _delay = TextEditingController();
   final _matchPoints = TextEditingController();
   final _tournamentPoints = TextEditingController();
+  final _inactivityDays = TextEditingController(text: '30');
+  final _form = GlobalKey<FormState>();
+  bool _autoAvailability = false;
   bool _saving = false;
 
   @override
@@ -42,28 +46,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<_SettingsData> _load() async {
     final settings = await widget.league.settings();
     final disputed = await widget.league.disputedMatches();
+    if (!mounted) return _SettingsData(settings, disputed);
     _delay.text = '${settings.resultEntryDelayMinutes}';
     _matchPoints.text = '${settings.matchWinPoints}';
     _tournamentPoints.text = '${settings.tournamentWinPoints}';
+    _autoAvailability = settings.inactivityDays > 0;
+    _inactivityDays.text =
+        '${_autoAvailability ? settings.inactivityDays : 30}';
     return _SettingsData(settings, disputed);
   }
 
   Future<void> _save() async {
+    if (!_form.currentState!.validate()) return;
     setState(() => _saving = true);
     try {
       await widget.league.updateSettings(
         resultEntryDelayMinutes: int.tryParse(_delay.text) ?? 60,
         matchWinPoints: int.tryParse(_matchPoints.text) ?? 10,
         tournamentWinPoints: int.tryParse(_tournamentPoints.text) ?? 50,
+        inactivityDays: _autoAvailability
+            ? int.parse(_inactivityDays.text.trim())
+            : 0,
       );
+      if (!mounted) return;
       setState(() {
         _future = _load();
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.tr('Podešavanja su sačuvana.'))),
+      );
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.serverMessage(error.message))),
+        );
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -80,16 +96,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
             : null,
         sets: action == 'confirm' ? match.sets : null,
       );
+      if (!mounted) return;
       setState(() {
         _future = _load();
       });
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.serverMessage(error.message))),
+        );
       }
     }
+  }
+
+  @override
+  void dispose() {
+    _delay.dispose();
+    _matchPoints.dispose();
+    _tournamentPoints.dispose();
+    _inactivityDays.dispose();
+    super.dispose();
   }
 
   @override
@@ -107,12 +133,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const Icon(Icons.error_outline, size: 42),
                   const SizedBox(height: 12),
                   Text(
-                    'Ne mogu učitati podešavanja.',
+                    context.tr("Podešavanja nije moguće učitati."),
                     style: Theme.of(context).textTheme.titleMedium,
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 6),
-                  Text(snapshot.error.toString(), textAlign: TextAlign.center),
+                  Text(
+                    context.serverMessage(snapshot.error.toString()),
+                    textAlign: TextAlign.center,
+                  ),
                   const SizedBox(height: 14),
                   FilledButton.icon(
                     onPressed: () {
@@ -121,7 +150,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       });
                     },
                     icon: const Icon(Icons.refresh),
-                    label: const Text('Pokušaj opet'),
+                    label: Text(context.tr("Pokušaj opet")),
                   ),
                 ],
               ),
@@ -137,60 +166,106 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Liga podešavanja',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
+                child: Form(
+                  key: _form,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        context.tr("Podešavanja lige"),
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 14),
-                    _numberField(_delay, 'Minute do unosa rezultata'),
-                    const SizedBox(height: 12),
-                    _numberField(_matchPoints, 'Poeni za pobjedu'),
-                    const SizedBox(height: 12),
-                    _numberField(
-                      _tournamentPoints,
-                      'Poeni za osvajanje turnira',
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        onPressed: _saving ? null : _save,
-                        icon: const Icon(Icons.save),
-                        label: const Text('Sačuvaj podešavanja'),
+                      const SizedBox(height: 14),
+                      _numberField(
+                        _delay,
+                        context.tr("Minute do unosa rezultata"),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 12),
+                      _numberField(
+                        _matchPoints,
+                        context.tr("Poeni za pobjedu"),
+                      ),
+                      const SizedBox(height: 12),
+                      _numberField(
+                        _tournamentPoints,
+                        context.tr("Poeni za osvajanje turnira"),
+                      ),
+                      const SizedBox(height: 16),
+                      SwitchListTile(
+                        key: const ValueKey('auto-unavailable'),
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(context.tr('Automatska nedostupnost')),
+                        value: _autoAvailability,
+                        onChanged: _saving
+                            ? null
+                            : (value) =>
+                                  setState(() => _autoAvailability = value),
+                      ),
+                      if (_autoAvailability)
+                        AppTextField(
+                          controller: _inactivityDays,
+                          label: context.tr('Dani bez aktivnosti'),
+                          icon: Icons.event_busy,
+                          keyboardType: TextInputType.number,
+                          validator: (value) {
+                            final days = int.tryParse(value?.trim() ?? '');
+                            return days == null || days < 1 || days > 365
+                                ? context.tr('Unesi cijeli broj od 1 do 365.')
+                                : null;
+                          },
+                        ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: _saving ? null : _save,
+                          icon: const Icon(Icons.save),
+                          label: Text(context.tr("Sačuvaj podešavanja")),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
             const SizedBox(height: 18),
             Text(
-              'Disputed mečevi',
+              context.tr("Disputed mečevi"),
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 10),
             if (snapshot.data!.disputed.isEmpty)
-              const Card(child: ListTile(title: Text('Nema spornih mečeva'))),
+              Card(
+                child: ListTile(title: Text(context.tr("Nema spornih mečeva"))),
+              ),
             ...snapshot.data!.disputed.map(
               (match) => Card(
                 child: ListTile(
-                  title: Text('${match.team1Name} vs ${match.team2Name}'),
+                  title: Text('${match.team1Name} - ${match.team2Name}'),
                   subtitle: Text(
-                    match.scoreText.isEmpty ? 'Bez rezultata' : match.scoreText,
+                    match.scoreText.isEmpty
+                        ? context.tr("Bez rezultata")
+                        : match.scoreText,
                   ),
                   trailing: PopupMenuButton<String>(
                     onSelected: (action) => _resolve(match, action),
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(value: 'confirm', child: Text('Potvrdi')),
-                      PopupMenuItem(value: 'reject', child: Text('Odbij')),
-                      PopupMenuItem(value: 'cancel', child: Text('Poništi')),
+                    itemBuilder: (_) => [
+                      PopupMenuItem(
+                        value: 'confirm',
+                        child: Text(context.tr("Potvrdi")),
+                      ),
+                      PopupMenuItem(
+                        value: 'reject',
+                        child: Text(context.tr("Odbij")),
+                      ),
+                      PopupMenuItem(
+                        value: 'cancel',
+                        child: Text(context.tr("Poništi")),
+                      ),
                     ],
                   ),
                 ),

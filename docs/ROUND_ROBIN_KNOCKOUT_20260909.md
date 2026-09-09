@@ -19,7 +19,7 @@ Tabela koristi samo potvrdjene `RR` meceve, ukljucujuci prijateljske. Poredak:
 2. Broj medjusobnih pobjeda unutar grupe sa istim ukupnim brojem pobjeda.
 3. Ukupna razlika osvojenih i izgubljenih setova u ligi.
 4. Ukupna razlika osvojenih i izgubljenih gemova u ligi.
-5. Redosljed prijave (redosljed u `participants`) ako sve ostalo ostane jednako.
+5. Redoslijed prijave (redoslijed u `participants`) ako sve ostalo ostane jednako.
 
 Ovo su pravila aplikacije, ne tvrdnja o univerzalnim teniskim pravilima.
 Pravila su dostupna preko info ikone pored tabele; nema nasumicnog razrjesavanja.
@@ -41,7 +41,7 @@ rang bodove; takmicarski koriste postojece postavke bodovanja.
 Postojeci `format: round_robin` ostaje isti radi kompatibilnosti. Novi podaci:
 
 - `knockoutSize`: 0 (iskljuceno), 2, 4, 8 ili 16.
-- `knockoutSeeds`: zamrznuti redosljed kvalifikovanih igraca.
+- `knockoutSeeds`: zamrznuti redoslijed kvalifikovanih igraca.
 - `knockoutStartedAt`: pocetak zavrsnice.
 - `knockoutRounds`: nazivi rundi i unaprijed rezervisani ID-jevi meceva.
 

@@ -35,20 +35,25 @@ export const getPlayer = asyncHandler(async (req, res) => {
   const player = await Player.findById(req.params.id).select("-password");
 
   if (!player) {
-    throw new AppError(404, "Player not found");
+    throw new AppError(404, "Igrač nije pronađen.");
   }
 
   res.json({ player });
 });
 
 export const updatePlayer = asyncHandler(async (req, res) => {
-  const player = await Player.findByIdAndUpdate(req.params.id, req.body, {
+  const payload = { ...req.body };
+  if (payload.playStatus !== undefined) {
+    payload.playStatusSource = "manual";
+    payload.playStatusUpdatedAt = new Date();
+  }
+  const player = await Player.findByIdAndUpdate(req.params.id, payload, {
     new: true,
     runValidators: true
   }).select("-password");
 
   if (!player) {
-    throw new AppError(404, "Player not found");
+    throw new AppError(404, "Igrač nije pronađen.");
   }
 
   res.json({ player });
@@ -58,7 +63,7 @@ export const getMyProfile = asyncHandler(async (req, res) => {
   const player = await Player.findById(req.user!.id).select("-password");
 
   if (!player) {
-    throw new AppError(404, "Player not found");
+    throw new AppError(404, "Igrač nije pronađen.");
   }
 
   res.json({ player });
@@ -81,7 +86,7 @@ export const updateMyProfile = asyncHandler(async (req, res) => {
   }).select("-password");
 
   if (!player) {
-    throw new AppError(404, "Player not found");
+    throw new AppError(404, "Igrač nije pronađen.");
   }
 
   res.json({ player });
@@ -92,13 +97,14 @@ export const updateMyPlayStatus = asyncHandler(async (req, res) => {
     req.user!.id,
     {
       playStatus: req.body.playStatus,
+      playStatusSource: "manual",
       playStatusUpdatedAt: new Date()
     },
     { new: true, runValidators: true }
   ).select("-password");
 
   if (!player) {
-    throw new AppError(404, "Player not found");
+    throw new AppError(404, "Igrač nije pronađen.");
   }
 
   res.json({ player });
@@ -113,7 +119,7 @@ export const uploadMyProfileImage = asyncHandler(async (req, res) => {
   ).select("-password");
 
   if (!player) {
-    throw new AppError(404, "Player not found");
+    throw new AppError(404, "Igrač nije pronađen.");
   }
 
   res.json({ profileImage, player });
@@ -128,7 +134,7 @@ export const uploadPlayerProfileImage = asyncHandler(async (req, res) => {
   ).select("-password");
 
   if (!player) {
-    throw new AppError(404, "Player not found");
+    throw new AppError(404, "Igrač nije pronađen.");
   }
 
   res.json({ profileImage, player });

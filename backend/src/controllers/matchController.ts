@@ -7,6 +7,7 @@ import { AppError } from "../middleware/errorHandler";
 import { asyncHandler } from "../middleware/asyncHandler";
 import { applyConfirmedMatchStats } from "../services/rankingService";
 import { getLeagueSettings } from "../services/settingsService";
+import { expireInactivePlayers } from "../services/activityService";
 import { saveUploadedImage } from "../services/uploadService";
 import { locationIdSchema, matchLocationPatch } from "../services/locationService";
 import { ensureManualLeagueMatch, protectHybridMatch } from "../services/roundRobinService";
@@ -69,13 +70,13 @@ const isAdmin = (role?: string) => role === "admin";
 
 const validateObjectId = (id: string, label: string): void => {
   if (!Types.ObjectId.isValid(id)) {
-    throw new AppError(400, `${label} must be a valid id`);
+    throw new AppError(400, `Identifikator za polje ${label} nije ispravan.`);
   }
 };
 
 const validateWinner = (player1: string, player2: string, winner?: string): void => {
   if (winner && winner !== player1 && winner !== player2) {
-    throw new AppError(400, "Winner must be player1/team1 or player2/team2");
+    throw new AppError(400, "Pobjednik mora biti jedan od igrača ili timova u meču.");
   }
 };
 
@@ -89,7 +90,7 @@ const ensurePlayersAndTournament = async (
   const playerIds = [player1Id, player2Id, player1PartnerId, player2PartnerId].filter(Boolean) as string[];
 
   if (new Set(playerIds).size !== playerIds.length) {
-    throw new AppError(400, "Match players must be different");
+    throw new AppError(400, "Igrači u meču moraju biti različiti.");
   }
 
   playerIds.forEach((id, index) => validateObjectId(id, `player${index + 1}`));
@@ -97,7 +98,7 @@ const ensurePlayersAndTournament = async (
   const players = await Promise.all(playerIds.map((id) => Player.findById(id)));
 
   if (players.some((player) => !player)) {
-    throw new AppError(404, "All match players must exist");
+    throw new AppError(404, "Neki od izabranih igrača ne postoje.");
   }
 
   if (!tournamentId) {
@@ -108,13 +109,13 @@ const ensurePlayersAndTournament = async (
   const tournament = await Tournament.findById(tournamentId);
 
   if (!tournament) {
-    throw new AppError(404, "Tournament not found");
+    throw new AppError(404, "Turnir nije pronađen.");
   }
 
   const participantIds = tournament.participants.map((id) => id.toString());
 
   if (!playerIds.every((id) => participantIds.includes(id))) {
-    throw new AppError(400, "All match players must be tournament participants");
+    throw new AppError(400, "Svi igrači u meču moraju biti učesnici turnira.");
   }
 };
 
@@ -126,7 +127,7 @@ const ensureScheduledAtWithinTournament = async (
 
   const tournament = await Tournament.findById(tournamentId);
   if (!tournament) {
-    throw new AppError(404, "Tournament not found");
+    throw new AppError(404, "Turnir nije pronađen.");
   }
 
   const start = new Date(tournament.startDate);
@@ -135,7 +136,7 @@ const ensureScheduledAtWithinTournament = async (
   end.setHours(23, 59, 59, 999);
 
   if (scheduledAt < start || scheduledAt > end) {
-    throw new AppError(400, "Match date must be inside tournament dates");
+    throw new AppError(400, "Termin meča mora biti u okviru trajanja turnira.");
   }
 };
 
@@ -154,7 +155,7 @@ const ensureParticipantOrAdmin = (match: { player1: Types.ObjectId; player2: Typ
   const isParticipant = matchPlayerIds(match).includes(userId);
 
   if (!isParticipant) {
-    throw new AppError(403, "You can only act on your own matches");
+    throw new AppError(403, "Možete upravljati samo svojim mečevima.");
   }
 };
 
@@ -293,11 +294,11 @@ export const getMatch = asyncHandler(async (req, res) => {
   const match = await populateMatch(String(req.params.id));
 
   if (!match) {
-    throw new AppError(404, "Match not found");
+    throw new AppError(404, "Meč nije pronađen.");
   }
 
   if (match.friendly && !isAdmin(req.user!.role) && !matchPlayerIds(match).includes(req.user!.id)) {
-    throw new AppError(404, "Match not found");
+    throw new AppError(404, "Meč nije pronađen.");
   }
 
   res.json({ match });
@@ -311,19 +312,20 @@ export const createChallenge = asyncHandler(async (req, res) => {
   const player2Partner = req.body.opponentPartnerId;
 
   if (req.body.discipline === "doubles" && (!player1Partner || !player2Partner)) {
-    throw new AppError(400, "Doubles matches require four players");
+    throw new AppError(400, "Za dubl meč potrebna su četiri igrača.");
   }
 
   await ensurePlayersAndTournament(player1, player2, player1Partner, player2Partner, req.body.tournamentId);
   await ensureScheduledAtWithinTournament(req.body.tournamentId, req.body.scheduledAt);
   const tournament = req.body.tournamentId ? await Tournament.findById(req.body.tournamentId) : null;
+  await expireInactivePlayers(new Date(), [player2, player2Partner].filter(Boolean));
   const challengedPlayers = await Player.find({
     _id: { $in: [player2, player2Partner].filter(Boolean) },
     playStatus: "unavailable"
   });
 
   if (challengedPlayers.length > 0 && !isAdmin(req.user!.role)) {
-    throw new AppError(400, "This player is not receiving match challenges right now");
+    throw new AppError(400, "Ovaj igrač trenutno ne prima izazove za meč.");
   }
 
   const match = await Match.create({
@@ -349,15 +351,15 @@ export const acceptMatch = asyncHandler(async (req, res) => {
   const match = await Match.findById(req.params.id).select("+statsApplied");
 
   if (!match) {
-    throw new AppError(404, "Match not found");
+    throw new AppError(404, "Meč nije pronađen.");
   }
 
   if (!isAdmin(req.user!.role) && ![match.player2.toString(), match.player2Partner?.toString()].includes(req.user!.id)) {
-    throw new AppError(403, "Only challenged player can accept this match");
+    throw new AppError(403, "Samo izazvani igrač može prihvatiti izazov.");
   }
 
   if (match.status !== "pending") {
-    throw new AppError(400, "Only pending matches can be accepted");
+    throw new AppError(400, "Moguće je prihvatiti samo izazove koji čekaju odgovor.");
   }
 
   match.status = "accepted";
@@ -371,15 +373,15 @@ export const rejectMatch = asyncHandler(async (req, res) => {
   const match = await Match.findById(req.params.id);
 
   if (!match) {
-    throw new AppError(404, "Match not found");
+    throw new AppError(404, "Meč nije pronađen.");
   }
 
   if (!isAdmin(req.user!.role) && ![match.player2.toString(), match.player2Partner?.toString()].includes(req.user!.id)) {
-    throw new AppError(403, "Only challenged player can reject this match");
+    throw new AppError(403, "Samo izazvani igrač može odbiti izazov.");
   }
 
   if (match.status !== "pending") {
-    throw new AppError(400, "Only pending matches can be rejected");
+    throw new AppError(400, "Moguće je odbiti samo izazove koji čekaju odgovor.");
   }
 
   match.status = "rejected";
@@ -393,20 +395,20 @@ export const submitResult = asyncHandler(async (req, res) => {
   const match = await Match.findById(req.params.id).select("+statsApplied");
 
   if (!match) {
-    throw new AppError(404, "Match not found");
+    throw new AppError(404, "Meč nije pronađen.");
   }
 
   ensureParticipantOrAdmin(match, req.user!.id, req.user!.role);
   await protectHybridMatch(match, req.body);
 
   if (match.status !== "accepted") {
-    throw new AppError(400, "Result can only be submitted for accepted matches");
+    throw new AppError(400, "Rezultat je moguće unijeti samo za dogovorene mečeve.");
   }
 
   const delay = await canSubmitResult(match.acceptedAt);
 
   if (!delay.allowed && !isAdmin(req.user!.role)) {
-    throw new AppError(400, `Result entry is available in ${delay.minutesLeft} minute(s)`);
+    throw new AppError(400, `Unos rezultata biće dostupan za ${delay.minutesLeft} min.`);
   }
 
   validateWinner(match.player1.toString(), match.player2.toString(), req.body.winner);
@@ -426,27 +428,27 @@ export const confirmResult = asyncHandler(async (req, res) => {
   const match = await Match.findById(req.params.id).select("+statsApplied");
 
   if (!match) {
-    throw new AppError(404, "Match not found");
+    throw new AppError(404, "Meč nije pronađen.");
   }
 
   ensureParticipantOrAdmin(match, req.user!.id, req.user!.role);
 
   if (match.status !== "waiting_confirmation") {
-    throw new AppError(400, "Only waiting confirmation matches can be confirmed");
+    throw new AppError(400, "Moguće je potvrditi samo rezultate koji čekaju potvrdu.");
   }
 
   if (!match.resultSubmittedBy) {
-    throw new AppError(400, "Result submitter is missing");
+    throw new AppError(400, "Nedostaje podatak o igraču koji je unio rezultat.");
   }
 
   if (!isAdmin(req.user!.role) && match.resultSubmittedBy.toString() === req.user!.id) {
-    throw new AppError(400, "The same player cannot submit and confirm a result");
+    throw new AppError(400, "Isti igrač ne može unijeti i potvrditi rezultat.");
   }
 
   const side = getActorSide(match, req.user!.id);
 
   if (!isAdmin(req.user!.role) && !side) {
-    throw new AppError(403, "Only match participants can confirm result");
+    throw new AppError(403, "Rezultat mogu potvrditi samo učesnici meča.");
   }
 
   match.status = "confirmed";
@@ -462,17 +464,17 @@ export const disputeResult = asyncHandler(async (req, res) => {
   const match = await Match.findById(req.params.id);
 
   if (!match) {
-    throw new AppError(404, "Match not found");
+    throw new AppError(404, "Meč nije pronađen.");
   }
 
   ensureParticipantOrAdmin(match, req.user!.id, req.user!.role);
 
   if (match.status !== "waiting_confirmation") {
-    throw new AppError(400, "Only submitted results can be disputed");
+    throw new AppError(400, "Moguće je osporiti samo rezultate poslate na potvrdu.");
   }
 
   if (!isAdmin(req.user!.role) && match.resultSubmittedBy?.toString() === req.user!.id) {
-    throw new AppError(400, "The result submitter cannot dispute their own submission");
+    throw new AppError(400, "Igrač ne može osporiti rezultat koji je sam unio.");
   }
 
   match.status = "disputed";
@@ -486,11 +488,11 @@ export const adminResolve = asyncHandler(async (req, res) => {
   const match = await Match.findById(req.params.id).select("+statsApplied");
 
   if (!match) {
-    throw new AppError(404, "Match not found");
+    throw new AppError(404, "Meč nije pronađen.");
   }
 
   if (match.statsApplied) {
-    throw new AppError(400, "Ranking stats are already applied for this match");
+    throw new AppError(400, "Statistika ovog meča već je uračunata u rang-listu.");
   }
   await protectHybridMatch(match, { ...req.body,
     status: req.body.action === "confirm" ? "confirmed" : req.body.action === "cancel" ? "cancelled" : "rejected"
@@ -501,7 +503,7 @@ export const adminResolve = asyncHandler(async (req, res) => {
     const sets = req.body.sets ?? match.sets;
 
     if (!winner || !sets?.length) {
-      throw new AppError(400, "Winner and sets are required to confirm a match");
+      throw new AppError(400, "Za potvrdu meča potrebno je unijeti pobjednika i rezultate setova.");
     }
 
     validateWinner(match.player1.toString(), match.player2.toString(), winner);
@@ -536,18 +538,18 @@ export const adminResolve = asyncHandler(async (req, res) => {
 export const createMatch = asyncHandler(async (req, res) => {
   await ensureManualLeagueMatch(req.body.tournament, req.body.round, req.body.discipline);
   if (req.body.discipline === "doubles" && (!req.body.player1Partner || !req.body.player2Partner)) {
-    throw new AppError(400, "Doubles matches require four players");
+    throw new AppError(400, "Za dubl meč potrebna su četiri igrača.");
   }
   await ensurePlayersAndTournament(req.body.player1, req.body.player2, req.body.player1Partner, req.body.player2Partner, req.body.tournament);
   await ensureScheduledAtWithinTournament(req.body.tournament, req.body.scheduledAt);
   validateWinner(req.body.player1, req.body.player2, req.body.winner);
 
   if (req.body.status === "confirmed" && !req.body.winner) {
-    throw new AppError(400, "Confirmed match must have a winner");
+    throw new AppError(400, "Potvrđeni meč mora imati pobjednika.");
   }
 
   if (req.body.status === "rejected" && req.body.winner) {
-    throw new AppError(400, "Rejected match cannot have a winner");
+    throw new AppError(400, "Odbijeni meč ne može imati pobjednika.");
   }
 
   const now = new Date();
@@ -571,7 +573,7 @@ export const updateMatch = asyncHandler(async (req, res) => {
   const match = await Match.findById(req.params.id).select("+statsApplied");
 
   if (!match) {
-    throw new AppError(404, "Match not found");
+    throw new AppError(404, "Meč nije pronađen.");
   }
 
   const nextTournament = req.body.tournament ?? match.tournament?.toString();
@@ -599,23 +601,23 @@ export const updateMatch = asyncHandler(async (req, res) => {
       nextStatus !== match.status;
 
     if (identityChanged) {
-      throw new AppError(400, "Cannot change a match after ranking stats are applied");
+      throw new AppError(400, "Meč nije moguće mijenjati nakon obračuna statistike za rang-listu.");
     }
   }
 
   if (nextDiscipline === "doubles" && (!nextPlayer1Partner || !nextPlayer2Partner)) {
-    throw new AppError(400, "Doubles matches require four players");
+    throw new AppError(400, "Za dubl meč potrebna su četiri igrača.");
   }
   await ensurePlayersAndTournament(nextPlayer1, nextPlayer2, nextPlayer1Partner, nextPlayer2Partner, nextTournament);
   await ensureScheduledAtWithinTournament(nextTournament, nextScheduledAt);
   validateWinner(nextPlayer1, nextPlayer2, nextWinner);
 
   if (nextStatus === "confirmed" && !nextWinner) {
-    throw new AppError(400, "Confirmed match must have a winner");
+    throw new AppError(400, "Potvrđeni meč mora imati pobjednika.");
   }
 
   if (nextStatus === "rejected" && nextWinner) {
-    throw new AppError(400, "Rejected match cannot have a winner");
+    throw new AppError(400, "Odbijeni meč ne može imati pobjednika.");
   }
 
   Object.assign(match, {
@@ -640,13 +642,13 @@ export const uploadMatchImage = asyncHandler(async (req, res) => {
   const match = await Match.findById(req.params.id);
 
   if (!match) {
-    throw new AppError(404, "Match not found");
+    throw new AppError(404, "Meč nije pronađen.");
   }
 
   ensureParticipantOrAdmin(match, req.user!.id, req.user!.role);
 
   if (match.images.length >= 5) {
-    throw new AppError(400, "Match gallery can contain up to 5 images");
+    throw new AppError(400, "Galerija meča može imati najviše 5 slika.");
   }
 
   const image = await saveUploadedImage(req.body as Buffer, req.headers["content-type"], {

@@ -1,3 +1,4 @@
+import 'package:coathematchmaker/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -23,7 +24,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
   Future<void> _edit([AppLocation? location]) async {
     await Navigator.of(context).push(
       MaterialPageRoute<AppLocation>(
-        builder: (_) =>
+        builder: (context) =>
             LocationEditScreen(league: widget.league, location: location),
       ),
     );
@@ -35,12 +36,12 @@ class _LocationsScreenState extends State<LocationsScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('Lokacije'),
+      title: Text(context.tr("Lokacije")),
       actions: [
         IconButton(
           onPressed: _edit,
           icon: const Icon(Icons.add_location_alt_outlined),
-          tooltip: 'Dodaj lokaciju',
+          tooltip: context.tr("Dodaj lokaciju"),
         ),
       ],
     ),
@@ -49,8 +50,8 @@ class _LocationsScreenState extends State<LocationsScreen> {
         Padding(
           padding: const EdgeInsets.all(16),
           child: TextField(
-            decoration: const InputDecoration(
-              labelText: 'Pretrazi lokacije',
+            decoration: InputDecoration(
+              labelText: context.tr("Pretraži lokacije"),
               prefixIcon: Icon(Icons.search),
             ),
             onChanged: (value) =>
@@ -80,8 +81,8 @@ class _LocationsScreenState extends State<LocationsScreen> {
                 return Center(
                   child: Text(
                     _query.isEmpty
-                        ? 'Nema sacuvanih lokacija.'
-                        : 'Nema rezultata.',
+                        ? context.tr("Nema sačuvanih lokacija.")
+                        : context.tr("Nema rezultata."),
                   ),
                 );
               }
@@ -110,7 +111,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
                       subtitle: Text(
                         [
                           if (item.address.isNotEmpty) item.address,
-                          if (!item.active) 'Neaktivna',
+                          if (!item.active) context.tr("Neaktivna"),
                         ].join('\n'),
                       ),
                       trailing: const Icon(Icons.edit_outlined),
@@ -172,7 +173,9 @@ class _LocationEditScreenState extends State<LocationEditScreen> {
       if (mounted) {
         setState(
           () => _error = error.statusCode == 409
-              ? 'Ovo Maps mjesto je vec dodato u lokacije.'
+              ? context.tr(
+                  "Ovo mjesto sa Google mapa već je dodato u lokacije.",
+                )
               : error.message,
         );
       }
@@ -184,7 +187,11 @@ class _LocationEditScreenState extends State<LocationEditScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: Text(widget.location == null ? 'Nova lokacija' : 'Uredi lokaciju'),
+      title: Text(
+        widget.location == null
+            ? context.tr("Nova lokacija")
+            : context.tr("Uredi lokaciju"),
+      ),
     ),
     body: Form(
       key: _form,
@@ -195,12 +202,12 @@ class _LocationEditScreenState extends State<LocationEditScreen> {
             controller: _name,
             maxLength: 160,
             maxLines: null,
-            decoration: const InputDecoration(
-              labelText: 'Naziv u aplikaciji',
+            decoration: InputDecoration(
+              labelText: context.tr("Naziv u aplikaciji"),
               prefixIcon: Icon(Icons.place_outlined),
             ),
             validator: (value) => value == null || value.trim().isEmpty
-                ? 'Unesite naziv lokacije.'
+                ? context.tr("Unesite naziv lokacije.")
                 : null,
           ),
           const SizedBox(height: 16),
@@ -208,8 +215,8 @@ class _LocationEditScreenState extends State<LocationEditScreen> {
             controller: _address,
             maxLength: 300,
             maxLines: null,
-            decoration: const InputDecoration(
-              labelText: 'Adresa / grad',
+            decoration: InputDecoration(
+              labelText: context.tr("Adresa / grad"),
               prefixIcon: Icon(Icons.signpost_outlined),
             ),
           ),
@@ -220,7 +227,7 @@ class _LocationEditScreenState extends State<LocationEditScreen> {
                 : () async {
                     final placeId = await Navigator.of(context).push<String>(
                       MaterialPageRoute(
-                        builder: (_) => GooglePlaceSearchScreen(
+                        builder: (context) => GooglePlaceSearchScreen(
                           league: widget.league,
                           initialQuery: [
                             _name.text,
@@ -236,24 +243,28 @@ class _LocationEditScreenState extends State<LocationEditScreen> {
             icon: const Icon(Icons.travel_explore),
             label: Text(
               _placeId == null
-                  ? 'Pronadji na Google Maps'
-                  : 'Promijeni Maps mjesto',
+                  ? context.tr("Pronađi na Google mapama")
+                  : context.tr("Promijeni povezano mjesto"),
             ),
           ),
           if (_placeId != null)
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.location_on),
-              title: const Text('Maps mjesto povezano'),
+              title: Text(context.tr("Povezano sa Google mapama")),
               onTap: () async {
                 try {
                   await MapsService.openLocation(
-                    _name.text.trim().isEmpty ? 'Lokacija' : _name.text,
+                    _name.text.trim().isEmpty
+                        ? context.tr("Lokacija")
+                        : _name.text,
                     googlePlaceId: _placeId,
                   );
                 } catch (_) {
                   if (mounted) {
-                    setState(() => _error = 'Mapu nije moguce otvoriti.');
+                    setState(
+                      () => _error = context.tr("Mapu nije moguće otvoriti."),
+                    );
                   }
                 }
               },
@@ -262,13 +273,13 @@ class _LocationEditScreenState extends State<LocationEditScreen> {
                     ? null
                     : () => setState(() => _placeId = null),
                 icon: const Icon(Icons.link_off),
-                tooltip: 'Ukloni Maps vezu',
+                tooltip: context.tr("Ukloni vezu sa Google mapama"),
               ),
             ),
           if (widget.location != null)
             SwitchListTile.adaptive(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Aktivna lokacija'),
+              title: Text(context.tr("Aktivna lokacija")),
               value: _active,
               onChanged: _saving
                   ? null
@@ -278,7 +289,7 @@ class _LocationEditScreenState extends State<LocationEditScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Text(
-                _error!,
+                context.serverMessage(_error!),
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ),
@@ -286,7 +297,11 @@ class _LocationEditScreenState extends State<LocationEditScreen> {
           FilledButton.icon(
             onPressed: _saving ? null : _save,
             icon: const Icon(Icons.save_outlined),
-            label: Text(_saving ? 'Cuvanje...' : 'Sacuvaj lokaciju'),
+            label: Text(
+              _saving
+                  ? context.tr("Čuvanje...")
+                  : context.tr("Sačuvaj lokaciju"),
+            ),
           ),
         ],
       ),
@@ -323,7 +338,7 @@ class _GooglePlaceSearchScreenState extends State<GooglePlaceSearchScreen> {
     if (_loading) return;
     final query = _query.text.trim();
     if (query.length < 3) {
-      setState(() => _error = 'Unesite najmanje 3 znaka.');
+      setState(() => _error = context.tr("Unesite najmanje 3 znaka."));
       return;
     }
     FocusScope.of(context).unfocus();
@@ -344,7 +359,7 @@ class _GooglePlaceSearchScreenState extends State<GooglePlaceSearchScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Pronadji mjesto')),
+    appBar: AppBar(title: Text(context.tr("Pronađi mjesto"))),
     body: Column(
       children: [
         Padding(
@@ -355,12 +370,12 @@ class _GooglePlaceSearchScreenState extends State<GooglePlaceSearchScreen> {
             textInputAction: TextInputAction.search,
             onSubmitted: (_) => _search(),
             decoration: InputDecoration(
-              labelText: 'Naziv mjesta i grad',
+              labelText: context.tr("Naziv mjesta i grad"),
               prefixIcon: const Icon(Icons.search),
               suffixIcon: IconButton(
                 onPressed: _loading ? null : _search,
                 icon: const Icon(Icons.arrow_forward),
-                tooltip: 'Pretrazi',
+                tooltip: context.tr("Pretraži"),
               ),
             ),
           ),
@@ -370,7 +385,7 @@ class _GooglePlaceSearchScreenState extends State<GooglePlaceSearchScreen> {
           Padding(
             padding: const EdgeInsets.all(16),
             child: Text(
-              _error!,
+              context.serverMessage(_error!),
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           ),
@@ -395,10 +410,12 @@ class _GooglePlaceSearchScreenState extends State<GooglePlaceSearchScreen> {
           child: ListView(
             children: [
               if (_results?.isEmpty == true)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.all(24),
                   child: Text(
-                    'Nema rezultata. Pokusajte sa gradom ili adresom.',
+                    context.tr(
+                      "Nema rezultata. Pokušajte sa gradom ili adresom.",
+                    ),
                   ),
                 ),
               for (final place in _results ?? <GooglePlaceResult>[]) ...[

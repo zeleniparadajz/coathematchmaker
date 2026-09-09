@@ -1,3 +1,4 @@
+import 'package:coathematchmaker/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -80,7 +81,7 @@ class _TournamentsScreenState extends State<TournamentsScreen> {
             onPressed: () async {
               await Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (_) => TournamentFormScreen(
+                  builder: (context) => TournamentFormScreen(
                     league: widget.league,
                     canManageLocations: widget.auth.isAdmin,
                   ),
@@ -91,7 +92,7 @@ class _TournamentsScreenState extends State<TournamentsScreen> {
               });
             },
             icon: const Icon(Icons.add),
-            label: const Text('Turnir'),
+            label: Text(context.tr("Turnir")),
           ),
           body: RefreshIndicator(
             onRefresh: () async {
@@ -104,9 +105,11 @@ class _TournamentsScreenState extends State<TournamentsScreen> {
               padding: const EdgeInsets.fromLTRB(24, 8, 24, 96),
               children: [
                 if (snapshot.data!.isEmpty)
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.symmetric(vertical: 40),
-                    child: Center(child: Text('Trenutno nema turnira.')),
+                    child: Center(
+                      child: Text(context.tr("Trenutno nema turnira.")),
+                    ),
                   ),
                 ...snapshot.data!.map((tournament) {
                   return _TournamentListCard(
@@ -115,7 +118,7 @@ class _TournamentsScreenState extends State<TournamentsScreen> {
                     onTap: () async {
                       await Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) => TournamentDetailsScreen(
+                          builder: (context) => TournamentDetailsScreen(
                             tournamentId: tournament.id,
                             league: widget.league,
                             api: widget.api,
@@ -233,15 +236,17 @@ class _TournamentListCard extends StatelessWidget {
                         children: [
                           _TournamentMiniPill(
                             icon: Icons.grass,
-                            label: surfaceLabel(tournament.surface),
+                            label: context.tr(surfaceLabel(tournament.surface)),
                           ),
                           _TournamentMiniPill(
                             icon: Icons.groups,
-                            label: '${tournament.participants.length} igrača',
+                            label: context.tr("{p0} igrača", [
+                              tournament.participants.length,
+                            ]),
                           ),
                           _TournamentMiniPill(
                             icon: Icons.account_tree,
-                            label: tournament.formatLabel,
+                            label: context.tr(tournament.formatLabel),
                           ),
                         ],
                       ),
@@ -276,7 +281,7 @@ class _TournamentStatusPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
-        tournamentStatusLabel(status),
+        context.tr(tournamentStatusLabel(status)),
         style: TextStyle(
           color: status == 'active' ? Colors.white : AppTheme.ink,
           fontSize: 12,
@@ -377,9 +382,9 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
       });
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.serverMessage(error.message))),
+        );
       }
     }
   }
@@ -395,9 +400,9 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
       });
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.serverMessage(error.message))),
+        );
       }
     }
   }
@@ -410,9 +415,9 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
       });
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.serverMessage(error.message))),
+        );
       }
     }
   }
@@ -428,9 +433,9 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
       });
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.serverMessage(error.message))),
+        );
       }
     }
   }
@@ -438,7 +443,9 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
   Future<void> _pickTournamentImage(Tournament tournament) async {
     if (tournament.images.length >= 5) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Galerija može imati najviše 5 slika.')),
+        SnackBar(
+          content: Text(context.tr("Galerija može imati najviše 5 slika.")),
+        ),
       );
       return;
     }
@@ -457,9 +464,9 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
       });
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.serverMessage(error.message))),
+        );
       }
     } finally {
       if (mounted) setState(() => _uploadingImage = false);
@@ -474,9 +481,9 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
       });
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.serverMessage(error.message))),
+        );
       }
     }
   }
@@ -484,7 +491,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
   Future<void> _editTournament(Tournament tournament) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => TournamentFormScreen(
+        builder: (context) => TournamentFormScreen(
           league: widget.league,
           tournament: tournament,
           canManageLocations: widget.auth.isAdmin,
@@ -504,7 +511,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
       if (!mounted) return;
       await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => MatchDetailsScreen(
+          builder: (context) => MatchDetailsScreen(
             league: widget.league,
             match: match,
             settings: settings,
@@ -516,9 +523,9 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
       if (mounted) setState(() => _future = _load());
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.serverMessage(error.message))),
+        );
       }
     }
   }
@@ -526,7 +533,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Turnir')),
+      appBar: AppBar(title: Text(context.tr("Turnir"))),
       body: FutureBuilder<_TournamentDetailsData>(
         future: _future,
         builder: (context, snapshot) {
@@ -567,18 +574,20 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
               _TournamentHero(tournament: tournament),
               const SizedBox(height: 12),
               if (tournament.isPrivate) ...[
-                const _FriendlyInfoCard(
-                  title: 'Privatni turnir',
-                  text:
-                      'Vidi ga samo ekipa koja je ubačena. Mečevi su prijateljski i ne ulaze u rangiranje.',
+                _FriendlyInfoCard(
+                  title: context.tr("Privatni turnir"),
+                  text: context.tr(
+                    "Vidljiv je samo učesnicima i administratorima. Mečevi su prijateljski i ne utiču na rang-listu.",
+                  ),
                 ),
                 const SizedBox(height: 12),
               ],
               if (tournament.friendly) ...[
-                const _FriendlyInfoCard(
-                  title: 'Prijateljski turnir',
-                  text:
-                      'Mečevi iz ovog turnira ne ulaze u statistiku i ne dodaju poene.',
+                _FriendlyInfoCard(
+                  title: context.tr("Prijateljski turnir"),
+                  text: context.tr(
+                    "Mečevi iz ovog turnira ne ulaze u statistiku i ne dodaju poene.",
+                  ),
                 ),
                 const SizedBox(height: 12),
               ],
@@ -621,7 +630,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
                   onOpenMatch: _openMatch,
                 ),
               if (canManage && tournament.admins.isNotEmpty) ...[
-                const SectionHeader('Admini turnira'),
+                SectionHeader(context.tr("Administratori turnira")),
                 ...tournament.admins.map(
                   (player) => Card(
                     child: ListTile(
@@ -629,8 +638,8 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
                       title: Text(player.fullName),
                       subtitle: Text(
                         player.id == tournament.owner?.id
-                            ? 'Kreator turnira'
-                            : 'Admin turnira',
+                            ? context.tr("Kreator turnira")
+                            : context.tr("Administrator turnira"),
                       ),
                     ),
                   ),
@@ -640,15 +649,15 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
                   availablePlayers.isNotEmpty &&
                   !(tournament.format == 'round_robin' &&
                       tournament.hasDraw)) ...[
-                const SectionHeader('Dodaj igrača'),
+                SectionHeader(context.tr("Dodaj igrača")),
                 AppSelectField(
-                  label: 'Igrač',
-                  value: 'Izaberi igrača',
+                  label: context.tr("Igrač"),
+                  value: context.tr("Izaberi igrača"),
                   icon: Icons.person_add,
                   onTap: () async {
                     final player = await showAppOptionPicker<Player>(
                       context: context,
-                      title: 'Dodaj igrača',
+                      title: context.tr("Dodaj igrača"),
                       selected: availablePlayers.first,
                       options: availablePlayers,
                       labelBuilder: (player) => player.fullName,
@@ -667,13 +676,13 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
               if (canManage && adminCandidates.isNotEmpty) ...[
                 const SizedBox(height: 10),
                 AppSelectField(
-                  label: 'Dodaj admina turnira',
-                  value: 'Izaberi igrača',
+                  label: context.tr("Dodaj administratora turnira"),
+                  value: context.tr("Izaberi igrača"),
                   icon: Icons.admin_panel_settings,
                   onTap: () async {
                     final player = await showAppOptionPicker<Player>(
                       context: context,
-                      title: 'Dodaj admina',
+                      title: context.tr("Dodaj administratora"),
                       selected: adminCandidates.first,
                       options: adminCandidates,
                       labelBuilder: (player) => player.fullName,
@@ -689,7 +698,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
                   },
                 ),
               ],
-              const SectionHeader('Učesnici'),
+              SectionHeader(context.tr("Učesnici")),
               ...tournament.participants.map(
                 (player) => Card(
                   child: ListTile(
@@ -698,7 +707,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
                     subtitle: Text(player.club ?? player.country),
                     trailing: canManage && !tournament.hasDraw
                         ? IconButton(
-                            tooltip: 'Ukloni',
+                            tooltip: context.tr("Ukloni"),
                             onPressed: () => _removeParticipant(player.id),
                             icon: const Icon(Icons.remove_circle_outline),
                           )
@@ -708,7 +717,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
               ),
               if (tournament.format != 'round_robin' ||
                   tournament.discipline != 'singles') ...[
-                const SectionHeader('Ranking turnira'),
+                SectionHeader(context.tr("Rang-lista turnira")),
                 ...snapshot.data!.rankings.map(
                   (ranking) => Card(
                     child: ListTile(
@@ -718,13 +727,18 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
                       ),
                       title: Text(ranking.player.fullName),
                       subtitle: Text(
-                        '${ranking.wins} pobjeda, ${ranking.losses} poraza',
+                        context.tr("{p0} pobjeda, {p1} poraza", [
+                          ranking.wins,
+                          ranking.losses,
+                        ]),
                       ),
-                      trailing: Text('${ranking.points} pts'),
+                      trailing: Text(
+                        context.tr("{p0} poena", [ranking.points]),
+                      ),
                     ),
                   ),
                 ),
-                const SectionHeader('Mečevi turnira'),
+                SectionHeader(context.tr("Mečevi turnira")),
                 ...snapshot.data!.matches.map(
                   (match) => Card(
                     child: ListTile(
@@ -732,9 +746,9 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
                         Icons.sports_tennis,
                         color: AppTheme.court,
                       ),
-                      title: Text('${match.team1Name} vs ${match.team2Name}'),
+                      title: Text('${match.team1Name} - ${match.team2Name}'),
                       subtitle: Text(
-                        '${match.round} · ${matchStatusLabel(match.status)}',
+                        '${match.round} · ${context.tr(matchStatusLabel(match.status))}',
                       ),
                       trailing: Text(
                         match.scoreText.isEmpty ? '-' : match.scoreText,
@@ -790,7 +804,9 @@ class _TournamentHero extends StatelessWidget {
                 child: const Icon(Icons.emoji_events, color: AppTheme.lime),
               ),
               const Spacer(),
-              _HeroBadge(label: tournamentStatusLabel(tournament.status)),
+              _HeroBadge(
+                label: context.tr(tournamentStatusLabel(tournament.status)),
+              ),
             ],
           ),
           const SizedBox(height: 18),
@@ -811,16 +827,24 @@ class _TournamentHero extends StatelessWidget {
               _HeroMeta(icon: Icons.category, label: tournament.category),
               _HeroMeta(
                 icon: Icons.account_tree,
-                label: tournament.formatLabel,
+                label: context.tr(tournament.formatLabel),
               ),
               _HeroMeta(
                 icon: tournament.isPrivate ? Icons.lock : Icons.public,
-                label: tournament.isPrivate ? 'Privatni' : 'Javni',
+                label: tournament.isPrivate
+                    ? context.tr("Privatni")
+                    : context.tr("Javni"),
               ),
               if (tournament.friendly)
-                const _HeroMeta(icon: Icons.favorite, label: 'Prijateljski'),
+                _HeroMeta(
+                  icon: Icons.favorite,
+                  label: context.tr("Prijateljski"),
+                ),
               if (!tournament.friendly)
-                const _HeroMeta(icon: Icons.leaderboard, label: 'Takmičarski'),
+                _HeroMeta(
+                  icon: Icons.leaderboard,
+                  label: context.tr("Takmičarski"),
+                ),
             ],
           ),
           const SizedBox(height: 14),
@@ -937,7 +961,7 @@ class _TournamentGallery extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Galerija',
+                    context.tr("Galerija"),
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w900,
                     ),
@@ -955,7 +979,7 @@ class _TournamentGallery extends StatelessWidget {
                   color: AppTheme.court.withValues(alpha: .055),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Text('Još nema slika za ovaj turnir.'),
+                child: Text(context.tr("Još nema slika za ovaj turnir.")),
               )
             else
               SizedBox(
@@ -1001,7 +1025,7 @@ class _TournamentGallery extends StatelessWidget {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.add_photo_alternate),
-                  label: const Text('Dodaj sliku turnira'),
+                  label: Text(context.tr("Dodaj sliku turnira")),
                 ),
               ),
             ],
@@ -1041,25 +1065,25 @@ class _TournamentActions extends StatelessWidget {
           FilledButton.icon(
             onPressed: onRegister,
             icon: const Icon(Icons.person_add),
-            label: const Text('Prijavi se na turnir'),
+            label: Text(context.tr("Prijavi se na turnir")),
           ),
         if (registered)
           Chip(
             avatar: const Icon(Icons.check, size: 18),
-            label: const Text('Prijavljen si'),
+            label: Text(context.tr("Prijavljen si")),
             backgroundColor: AppTheme.court.withValues(alpha: .10),
           ),
         if (canManage)
           FilledButton.tonalIcon(
             onPressed: onEdit,
             icon: const Icon(Icons.edit),
-            label: const Text('Uredi turnir'),
+            label: Text(context.tr("Uredi turnir")),
           ),
         if (canManage && canGenerate)
           FilledButton.icon(
             onPressed: onGenerateDraw,
             icon: const Icon(Icons.account_tree),
-            label: const Text('Formiraj žrijeb'),
+            label: Text(context.tr("Formiraj žrijeb")),
           ),
       ],
     );
@@ -1112,15 +1136,19 @@ class _FriendlyModeTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Prijateljski turnir',
+                Text(
+                  context.tr("Prijateljski turnir"),
                   style: TextStyle(fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   locked
-                      ? 'Privatni turnir je uvijek prijateljski i ne ulazi u rang.'
-                      : 'Mečevi ne ulaze u statistiku i ne dodaju poene.',
+                      ? context.tr(
+                          "Privatni turnir je uvijek prijateljski i ne utiče na rang-listu.",
+                        )
+                      : context.tr(
+                          "Mečevi ne ulaze u statistiku i ne dodaju poene.",
+                        ),
                   style: TextStyle(
                     color: AppTheme.ink.withValues(alpha: .58),
                     fontWeight: FontWeight.w600,
@@ -1176,14 +1204,20 @@ class _VisibilityModeTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  private ? 'Privatni turnir' : 'Javni turnir',
+                  private
+                      ? context.tr("Privatni turnir")
+                      : context.tr("Javni turnir"),
                   style: const TextStyle(fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   private
-                      ? 'Vidi ga samo ekipa koju ubaciš ili pozoveš.'
-                      : 'Vidi se u listi turnira. Može biti prijateljski ili takmičarski.',
+                      ? context.tr(
+                          "Vidljiv je samo učesnicima i administratorima.",
+                        )
+                      : context.tr(
+                          "Prikazuje se na listi turnira. Može biti prijateljski ili takmičarski.",
+                        ),
                   style: TextStyle(
                     color: AppTheme.ink.withValues(alpha: .58),
                     fontWeight: FontWeight.w600,
@@ -1375,9 +1409,9 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
       if (mounted) Navigator.of(context).pop();
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.serverMessage(error.message))),
+        );
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -1397,7 +1431,11 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.tournament == null ? 'Novi turnir' : 'Uredi turnir'),
+        title: Text(
+          widget.tournament == null
+              ? context.tr("Novi turnir")
+              : context.tr("Uredi turnir"),
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -1418,15 +1456,19 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
                 const Icon(Icons.emoji_events, color: AppTheme.lime, size: 36),
                 const SizedBox(height: 18),
                 Text(
-                  widget.tournament == null ? 'Kreiraj turnir' : 'Uredi turnir',
+                  widget.tournament == null
+                      ? context.tr("Kreiraj turnir")
+                      : context.tr("Uredi turnir"),
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
                 const SizedBox(height: 6),
-                const Text(
-                  'Izaberi format žrijeba, podlogu i datume. Učesnike dodaješ na detalju turnira.',
+                Text(
+                  context.tr(
+                    "Izaberi format žrijeba, podlogu i datume. Učesnike dodaješ na stranici turnira.",
+                  ),
                   style: TextStyle(color: Colors.white70),
                 ),
               ],
@@ -1438,12 +1480,12 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  _field(_name, 'Naziv turnira', Icons.title),
+                  _field(_name, context.tr("Naziv turnira"), Icons.title),
                   const SizedBox(height: 12),
                   AppSelectField(
-                    label: 'Lokacije',
+                    label: context.tr("Lokacije"),
                     value: _location.text.trim().isEmpty
-                        ? 'Izaberi lokacije'
+                        ? context.tr("Izaberi lokacije")
                         : _location.text.trim(),
                     icon: Icons.place,
                     onTap: () async {
@@ -1468,16 +1510,17 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
                     children: [
                       Expanded(
                         child: AppSelectField(
-                          label: 'Podloga',
-                          value: _surface.text,
+                          label: context.tr("Podloga"),
+                          value: context.tr(surfaceLabel(_surface.text)),
                           icon: Icons.grass,
                           onTap: () async {
                             final value = await showAppOptionPicker<String>(
                               context: context,
-                              title: 'Podloga',
+                              title: context.tr("Podloga"),
                               selected: _surface.text,
                               options: _surfaces,
-                              labelBuilder: (value) => value,
+                              labelBuilder: (value) =>
+                                  context.tr(surfaceLabel(value)),
                             );
                             if (value != null) {
                               setState(() => _surface.text = value);
@@ -1487,24 +1530,31 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: _field(_category, 'Kategorija', Icons.category),
+                        child: _field(
+                          _category,
+                          context.tr("Kategorija"),
+                          Icons.category,
+                        ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 12),
                   AppSelectField(
-                    label: 'Disciplina',
-                    value: _discipline == 'doubles' ? 'Dubl' : 'Singl',
+                    label: context.tr("Disciplina"),
+                    value: _discipline == 'doubles'
+                        ? context.tr("Dubl")
+                        : context.tr("Singl"),
                     icon: Icons.sports_tennis,
                     onTap: () async {
                       if (_structureLocked || _knockoutLocked) return;
                       final value = await showAppOptionPicker<String>(
                         context: context,
-                        title: 'Disciplina',
+                        title: context.tr("Disciplina"),
                         selected: _discipline,
                         options: const ['singles', 'doubles'],
-                        labelBuilder: (value) =>
-                            value == 'doubles' ? 'Dubl' : 'Singl',
+                        labelBuilder: (value) => value == 'doubles'
+                            ? context.tr("Dubl")
+                            : context.tr("Singl"),
                       );
                       if (value != null) {
                         setState(() {
@@ -1542,7 +1592,7 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Format turnira',
+                    context.tr("Format turnira"),
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w900,
                     ),
@@ -1550,29 +1600,32 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
                   const SizedBox(height: 10),
                   _formatCard(
                     value: 'elimination',
-                    title: 'BYE bracket',
-                    subtitle:
-                        'Klasičan eliminacioni žrijeb. Ako broj nije 8/16/32, sistem dodaje BYE prolaze.',
+                    title: context.tr("Eliminacioni žrijeb"),
+                    subtitle: context.tr(
+                      "Klasičan eliminacioni žrijeb sa slobodnim prolazima kada je potrebno.",
+                    ),
                     icon: Icons.account_tree,
                   ),
                   _formatCard(
                     value: 'qualification',
-                    title: 'Kvalifikacije',
-                    subtitle:
-                        'Višak igrača igra Q mečeve, a pobjednici ulaze u glavni 2^n bracket.',
+                    title: context.tr("Kvalifikacije"),
+                    subtitle: context.tr(
+                      "Pobjednici kvalifikacionih mečeva ulaze u glavni žrijeb.",
+                    ),
                     icon: Icons.filter_alt,
                   ),
                   _formatCard(
                     value: 'round_robin',
-                    title: 'Round-robin + knockout (opciono)',
-                    subtitle:
-                        'Svako igra sa svakim. Najbolje za male grupe i ligu.',
+                    title: context.tr("Round-robin + knockout (opciono)"),
+                    subtitle: context.tr(
+                      "Svako igra sa svakim. Najbolje za male grupe i ligu.",
+                    ),
                     icon: Icons.all_inclusive,
                   ),
                   if (_format == 'round_robin') ...[
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Knockout zavrsnica'),
+                      title: Text(context.tr("Knockout završnica")),
                       value: _knockoutSize > 0,
                       onChanged: _knockoutLocked || _discipline != 'singles'
                           ? null
@@ -1580,10 +1633,10 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
                                 setState(() => _knockoutSize = enabled ? 4 : 0),
                     ),
                     if (_discipline != 'singles')
-                      const Text('Knockout zavrsnica: samo singl.'),
+                      Text(context.tr("Knockout završnica: samo singl.")),
                     if (_knockoutSize > 0) ...[
                       const SizedBox(height: 8),
-                      const Text('Broj ucesnika u zavrsnici'),
+                      Text(context.tr("Broj učesnika u završnici")),
                       const SizedBox(height: 8),
                       SizedBox(
                         width: double.infinity,
@@ -1605,30 +1658,34 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
                   ],
                   _formatCard(
                     value: 'group_knockout',
-                    title: 'Grupe + knockout',
-                    subtitle:
-                        'Prvo grupe, zatim najbolji prolaze u eliminacionu fazu.',
+                    title: context.tr("Grupe + knockout"),
+                    subtitle: context.tr(
+                      "Prvo grupe, zatim najbolji prolaze u eliminacionu fazu.",
+                    ),
                     icon: Icons.grid_view,
                   ),
                   _formatCard(
                     value: 'double_elimination',
-                    title: 'Double elimination',
-                    subtitle:
-                        'Igrač ispada tek poslije dva poraza. Više mečeva, manje slučajnosti.',
+                    title: context.tr("Dvostruka eliminacija"),
+                    subtitle: context.tr(
+                      "Igrač ispada tek poslije dva poraza. Više mečeva, manje slučajnosti.",
+                    ),
                     icon: Icons.restart_alt,
                   ),
                   _formatCard(
                     value: 'compass',
-                    title: 'Compass draw',
-                    subtitle:
-                        'Igrači nastavljaju i poslije poraza, dobro za rekreativne turnire.',
+                    title: context.tr("Kompas žrijeb"),
+                    subtitle: context.tr(
+                      "Igrači nastavljaju i poslije poraza, dobro za rekreativne turnire.",
+                    ),
                     icon: Icons.explore,
                   ),
                   _formatCard(
                     value: 'swiss',
-                    title: 'Swiss system',
-                    subtitle:
-                        'Kola se uparuju po skoru. Dobro za mnogo igrača i ograničeno vrijeme.',
+                    title: context.tr("Švajcarski sistem"),
+                    subtitle: context.tr(
+                      "Parovi se određuju prema rezultatima. Dobro za mnogo igrača i ograničeno vrijeme.",
+                    ),
                     icon: Icons.swap_horiz,
                   ),
                 ],
@@ -1642,13 +1699,13 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
               child: Column(
                 children: [
                   AppSelectField(
-                    label: 'Status',
+                    label: context.tr("Status"),
                     value: _statusLabel(_status),
                     icon: Icons.timeline,
                     onTap: () async {
                       final value = await showAppOptionPicker<String>(
                         context: context,
-                        title: 'Status',
+                        title: context.tr("Status"),
                         selected: _status,
                         options: const ['upcoming', 'active', 'finished'],
                         labelBuilder: _statusLabel,
@@ -1658,12 +1715,12 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
                   ),
                   const SizedBox(height: 8),
                   _dateTile(
-                    'Datum početka',
+                    context.tr("Datum početka"),
                     _startDate,
                     (date) => setState(() => _startDate = date),
                   ),
                   _dateTile(
-                    'Datum kraja',
+                    context.tr("Datum završetka"),
                     _endDate,
                     (date) => setState(() => _endDate = date),
                   ),
@@ -1681,7 +1738,7 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.save),
-            label: const Text('Sačuvaj turnir'),
+            label: Text(context.tr("Sačuvaj turnir")),
           ),
         ],
       ),
@@ -1693,12 +1750,7 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
   }
 
   String _statusLabel(String value) {
-    return switch (value) {
-      'upcoming' => 'Upcoming',
-      'active' => 'Active',
-      'finished' => 'Finished',
-      _ => value,
-    };
+    return context.tr(tournamentStatusLabel(value));
   }
 
   Widget _formatCard({

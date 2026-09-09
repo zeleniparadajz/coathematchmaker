@@ -13,6 +13,7 @@ class AppConfig {
     required this.latestBuild,
     required this.storeUrl,
     required this.message,
+    this.messageEn,
   });
 
   final String platform;
@@ -22,6 +23,7 @@ class AppConfig {
   final int latestBuild;
   final String storeUrl;
   final String message;
+  final String? messageEn;
 
   bool get updateRequired => installedBuild < minSupportedBuild;
   bool get updateAvailable => installedBuild < latestBuild;
@@ -65,6 +67,10 @@ class AppConfig {
               .toString(),
       message:
           json['message']?.toString() ?? 'Dostupna je nova verzija aplikacije.',
+      messageEn: switch (json['messageEn']) {
+        String value when value.trim().isNotEmpty => value,
+        _ => null,
+      },
     );
   }
 }

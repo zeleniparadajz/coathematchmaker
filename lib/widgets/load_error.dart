@@ -1,3 +1,4 @@
+import 'package:coathematchmaker/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 
 class LoadError extends StatelessWidget {
@@ -14,19 +15,19 @@ class LoadError extends StatelessWidget {
           const Icon(Icons.cloud_off_outlined, size: 36),
           const SizedBox(height: 12),
           Text(
-            'Podaci nijesu učitani',
+            context.tr("Podaci nisu učitani"),
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 6),
-          const Text(
-            'Provjeri internet vezu i pokušaj ponovo.',
+          Text(
+            context.tr("Provjeri internet vezu i pokušaj ponovo."),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
           OutlinedButton.icon(
             onPressed: onRetry,
             icon: const Icon(Icons.refresh),
-            label: const Text('Pokušaj ponovo'),
+            label: Text(context.tr("Pokušaj ponovo")),
           ),
         ],
       ),

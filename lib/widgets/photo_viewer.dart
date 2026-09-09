@@ -1,3 +1,4 @@
+import 'package:coathematchmaker/l10n/app_strings.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,7 +11,7 @@ void openPhotoViewer(
   if (urls.isEmpty) return;
   Navigator.of(context).push(
     MaterialPageRoute<void>(
-      builder: (_) => PhotoViewer(urls: urls, initialIndex: initialIndex),
+      builder: (context) => PhotoViewer(urls: urls, initialIndex: initialIndex),
     ),
   );
 }
@@ -42,7 +43,7 @@ class _PhotoViewerState extends State<PhotoViewer> {
       backgroundColor: const Color(0xFF151918),
       foregroundColor: Colors.white,
       leading: IconButton(
-        tooltip: 'Zatvori',
+        tooltip: context.tr("Zatvori"),
         icon: const Icon(Icons.close),
         onPressed: () => Navigator.of(context).pop(),
       ),

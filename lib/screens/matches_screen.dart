@@ -1,3 +1,4 @@
+import 'package:coathematchmaker/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -96,9 +97,9 @@ class _MatchesScreenState extends State<MatchesScreen> {
       await _refresh();
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.serverMessage(error.message))),
+        );
       }
     } finally {
       _acting = false;
@@ -114,7 +115,7 @@ class _MatchesScreenState extends State<MatchesScreen> {
         onPressed: () async {
           await Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) => ChallengeFormScreen(
+              builder: (context) => ChallengeFormScreen(
                 league: widget.league,
                 canManageLocations: widget.auth.isAdmin,
                 currentPlayerId: widget.auth.currentPlayer!.id,
@@ -124,7 +125,7 @@ class _MatchesScreenState extends State<MatchesScreen> {
           await _refresh();
         },
         icon: const Icon(Icons.add),
-        label: const Text('Izazov'),
+        label: Text(context.tr("Izazov")),
       ),
       body: FutureBuilder<_MatchesData>(
         future: _future,
@@ -177,7 +178,7 @@ class _MatchesScreenState extends State<MatchesScreen> {
                       onSubmitResult: () async {
                         await Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (_) => SubmitResultScreen(
+                            builder: (context) => SubmitResultScreen(
                               league: widget.league,
                               match: match,
                             ),
@@ -189,7 +190,7 @@ class _MatchesScreenState extends State<MatchesScreen> {
                           ? () async {
                               await Navigator.of(context).push(
                                 MaterialPageRoute(
-                                  builder: (_) => AdminResolveScreen(
+                                  builder: (context) => AdminResolveScreen(
                                     league: widget.league,
                                     match: match,
                                   ),
@@ -201,7 +202,7 @@ class _MatchesScreenState extends State<MatchesScreen> {
                       onOpen: () async {
                         await Navigator.of(context).push(
                           MaterialPageRoute(
-                            builder: (_) => MatchDetailsScreen(
+                            builder: (context) => MatchDetailsScreen(
                               league: widget.league,
                               match: match,
                               settings: data.settings,
@@ -341,14 +342,14 @@ class _MatchCard extends StatelessWidget {
                 children: [
                   _MetaPill(
                     icon: Icons.flag,
-                    label: match.tournament?.name ?? 'Izazov',
+                    label: match.tournament?.name ?? context.tr("Izazov"),
                   ),
                   if (match.round.isNotEmpty && match.round != 'Challenge')
                     _MetaPill(icon: Icons.label, label: match.round),
                   if (match.friendly)
-                    const _MetaPill(
+                    _MetaPill(
                       icon: Icons.favorite,
-                      label: 'Prijateljski',
+                      label: context.tr("Prijateljski"),
                     ),
                   if (match.scheduledAt != null)
                     _MetaPill(
@@ -360,7 +361,7 @@ class _MatchCard extends StatelessWidget {
                   if (match.images.isNotEmpty)
                     _MetaPill(
                       icon: Icons.photo_library_outlined,
-                      label: '${match.images.length}/5 slika',
+                      label: context.tr("{p0}/5 slika", [match.images.length]),
                     ),
                 ],
               ),
@@ -373,36 +374,43 @@ class _MatchCard extends StatelessWidget {
               ],
               if (match.status == 'pending') ...[
                 const SizedBox(height: 10),
-                const _HintLine(
+                _HintLine(
                   icon: Icons.hourglass_top,
-                  text: 'Čeka se odgovor protivnika',
+                  text: context.tr("Čeka se odgovor protivnika"),
                 ),
               ],
               if (match.friendly) ...[
                 const SizedBox(height: 10),
-                const _HintLine(
+                _HintLine(
                   icon: Icons.favorite,
-                  text:
-                      'Prijateljski meč: ne ulazi u statistiku i ne dodaje poene.',
+                  text: context.tr(
+                    "Prijateljski meč: ne ulazi u statistiku i ne dodaje poene.",
+                  ),
                 ),
               ],
               if (match.status == 'waiting_confirmation') ...[
                 const SizedBox(height: 10),
-                const _HintLine(
+                _HintLine(
                   icon: Icons.verified_outlined,
-                  text: 'Rezultat čeka potvrdu druge strane',
+                  text: context.tr("Rezultat čeka potvrdu druge strane"),
                 ),
               ],
               if (match.status == 'rejected' ||
                   match.status == 'cancelled') ...[
                 const SizedBox(height: 10),
-                const _HintLine(icon: Icons.block, text: 'Meč nije aktivan'),
+                _HintLine(
+                  icon: Icons.block,
+                  text: context.tr("Meč nije aktivan"),
+                ),
               ],
               if (match.status == 'accepted' && tooEarly)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(
-                    'Prerano za unos rezultata. Preostalo oko ${_minutesLeft()} min.',
+                    context.tr(
+                      "Prerano za unos rezultata. Preostalo oko {p0} min.",
+                      [_minutesLeft()],
+                    ),
                     style: const TextStyle(color: AppTheme.clay),
                   ),
                 ),
@@ -414,28 +422,28 @@ class _MatchCard extends StatelessWidget {
                   if (match.status == 'pending' && (_isPlayer2 || isAdmin)) ...[
                     FilledButton.tonal(
                       onPressed: onAccept,
-                      child: const Text('Prihvati'),
+                      child: Text(context.tr("Prihvati")),
                     ),
                     OutlinedButton(
                       onPressed: onReject,
-                      child: const Text('Odbij'),
+                      child: Text(context.tr("Odbij")),
                     ),
                   ],
                   if (match.status == 'accepted' && (!tooEarly || isAdmin))
                     FilledButton.icon(
                       onPressed: onSubmitResult,
                       icon: const Icon(Icons.sports_score),
-                      label: const Text('Unesi rezultat'),
+                      label: Text(context.tr("Unesi rezultat")),
                     ),
                   if (match.status == 'waiting_confirmation' &&
                       (!_isSubmitter || isAdmin)) ...[
                     FilledButton(
                       onPressed: onConfirm,
-                      child: const Text('Potvrdi rezultat'),
+                      child: Text(context.tr("Potvrdi rezultat")),
                     ),
                     OutlinedButton(
                       onPressed: onDispute,
-                      child: const Text('Ospori rezultat'),
+                      child: Text(context.tr("Ospori rezultat")),
                     ),
                   ],
                   if (isAdmin &&
@@ -443,7 +451,7 @@ class _MatchCard extends StatelessWidget {
                           match.status == 'waiting_confirmation'))
                     FilledButton.tonal(
                       onPressed: onAdminResolve,
-                      child: const Text('Rješavanje spora'),
+                      child: Text(context.tr("Rješavanje spora")),
                     ),
                 ],
               ),
@@ -497,7 +505,11 @@ class _StatusFilterBar extends StatelessWidget {
           final status = statuses[index];
           return ChoiceChip(
             selected: selected == status,
-            label: Text(status == 'all' ? 'Svi' : matchStatusLabel(status)),
+            label: Text(
+              status == 'all'
+                  ? context.tr("Svi")
+                  : context.tr(matchStatusLabel(status)),
+            ),
             avatar: selected == status
                 ? const Icon(Icons.check, size: 16)
                 : null,
@@ -551,7 +563,7 @@ class _MatchSortBar extends StatelessWidget {
                           : AppTheme.ink.withValues(alpha: .46),
                     ),
                     const SizedBox(width: 10),
-                    Text(entry.value),
+                    Text(context.tr(entry.value)),
                   ],
                 ),
               ),
@@ -570,7 +582,7 @@ class _MatchSortBar extends StatelessWidget {
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
-                  _options[selected] ?? 'Termin',
+                  context.tr(_options[selected] ?? 'Termin'),
                   style: const TextStyle(
                     color: AppTheme.court,
                     fontWeight: FontWeight.w700,
@@ -788,11 +800,11 @@ class _EmptyMatches extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: const Column(
+      child: Column(
         children: [
           Icon(Icons.sports_tennis, size: 42, color: AppTheme.court),
           SizedBox(height: 10),
-          Text('Nema mečeva za ovaj filter.'),
+          Text(context.tr("Nema mečeva za ovaj filter.")),
         ],
       ),
     );
@@ -817,7 +829,9 @@ class _FriendlyMatchInfoCard extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Ovaj meč je prijateljski. Ne ulazi u statistiku i ne dodaje poene.',
+              context.tr(
+                "Ovaj meč je prijateljski. Ne ulazi u statistiku i ne dodaje poene.",
+              ),
               style: TextStyle(
                 color: AppTheme.ink.withValues(alpha: .72),
                 fontWeight: FontWeight.w700,
@@ -857,7 +871,9 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
   Future<void> _pickImage() async {
     if (_match.images.length >= 5) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Galerija može imati najviše 5 slika.')),
+        SnackBar(
+          content: Text(context.tr("Galerija može imati najviše 5 slika.")),
+        ),
       );
       return;
     }
@@ -876,9 +892,9 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
       }
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.serverMessage(error.message))),
+        );
       }
     } finally {
       if (mounted) setState(() => _uploading = false);
@@ -893,7 +909,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
         _match.player2.id == widget.currentPlayerId;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Detalji meča')),
+      appBar: AppBar(title: Text(context.tr("Detalji meča"))),
       floatingActionButton: canUpload
           ? FloatingActionButton.extended(
               heroTag: 'match-detail-upload-image-fab-${_match.id}',
@@ -905,7 +921,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.add_photo_alternate),
-              label: const Text('Slika'),
+              label: Text(context.tr("Slika")),
             )
           : null,
       body: ListView(
@@ -927,7 +943,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                 _StatusBadge(status: _match.status),
                 const SizedBox(height: 14),
                 Text(
-                  '${_match.team1Name} vs ${_match.team2Name}',
+                  '${_match.team1Name} - ${_match.team2Name}',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w900,
@@ -939,8 +955,8 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                   style: const TextStyle(color: Colors.white70),
                 ),
                 if (_match.friendly)
-                  const Text(
-                    'Prijateljski meč - bez poena za rang listu',
+                  Text(
+                    context.tr("Prijateljski meč - bez poena za rang-listu"),
                     style: TextStyle(
                       color: AppTheme.lime,
                       fontWeight: FontWeight.w800,
@@ -948,7 +964,9 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                   ),
                 if (_match.scheduledAt != null)
                   Text(
-                    'Termin: ${_matchDateTimeLabel(_match.scheduledAt!)}',
+                    context.tr("Termin: {p0}", [
+                      _matchDateTimeLabel(_match.scheduledAt!),
+                    ]),
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w700,
@@ -985,7 +1003,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                       const Icon(Icons.scoreboard, color: AppTheme.court),
                       const SizedBox(width: 8),
                       Text(
-                        'Rezultat',
+                        context.tr("Rezultat"),
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(fontWeight: FontWeight.w900),
                       ),
@@ -993,16 +1011,16 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                   ),
                   const SizedBox(height: 14),
                   if (_match.sets.isEmpty)
-                    const Text('Rezultat još nije unesen.')
+                    Text(context.tr("Rezultat još nije unesen."))
                   else
                     _SetScoreBoard(match: _match),
                   const SizedBox(height: 14),
                   if (_match.winner != null)
                     _WinnerHero(player: _match.winner!)
                   else
-                    const _HintLine(
+                    _HintLine(
                       icon: Icons.hourglass_empty,
-                      text: 'Pobjednik još nije postavljen.',
+                      text: context.tr("Pobjednik još nije postavljen."),
                     ),
                 ],
               ),
@@ -1010,17 +1028,17 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            'Galerija (${_match.images.length}/5)',
+            context.tr("Galerija ({p0}/5)", [_match.images.length]),
             style: Theme.of(
               context,
             ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 10),
           if (_match.images.isEmpty)
-            const Card(
+            Card(
               child: Padding(
                 padding: EdgeInsets.all(16),
-                child: Text('Još nema slika za ovaj meč.'),
+                child: Text(context.tr("Još nema slika za ovaj meč.")),
               ),
             )
           else
@@ -1063,7 +1081,13 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
     final month = local.month.toString().padLeft(2, '0');
     final hour = local.hour.toString().padLeft(2, '0');
     final minute = local.minute.toString().padLeft(2, '0');
-    return '$day.$month.${local.year} u $hour:$minute';
+    return context.tr("{p0}.{p1}.{p2} u {p3}:{p4}", [
+      day,
+      month,
+      local.year,
+      hour,
+      minute,
+    ]);
   }
 }
 
@@ -1167,7 +1191,7 @@ class _WinnerHero extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Pobjednik: ${player.fullName}',
+              context.tr("Pobjednik: {p0}", [player.fullName]),
               style: const TextStyle(fontWeight: FontWeight.w900),
             ),
           ),
@@ -1201,7 +1225,7 @@ class _StatusBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
-        matchStatusLabel(status),
+        context.tr(matchStatusLabel(status)),
         style: TextStyle(
           color: Color.lerp(color, Colors.black, .4),
           fontWeight: FontWeight.w700,
@@ -1258,15 +1282,15 @@ class _FriendlyChallengeTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Prijateljski meč',
+                Text(
+                  context.tr("Prijateljski meč"),
                   style: TextStyle(fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   lockedByTournament
-                      ? 'Meč prati tip izabranog turnira.'
-                      : 'Ne ulazi u statistiku i ne dodaje poene.',
+                      ? context.tr("Meč prati tip izabranog turnira.")
+                      : context.tr("Ne ulazi u statistiku i ne dodaje poene."),
                   style: TextStyle(
                     color: AppTheme.ink.withValues(alpha: .58),
                     fontWeight: FontWeight.w600,
@@ -1384,7 +1408,7 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
     if (_discipline == 'doubles' &&
         (_partner == null || _opponentPartner == null)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Za dubl izaberi još dva igrača.')),
+        SnackBar(content: Text(context.tr("Za dubl izaberi još dva igrača."))),
       );
       return;
     }
@@ -1405,7 +1429,10 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Termin mora biti u okviru turnira: ${_dateOnly(_tournament!.startDate)} - ${_dateOnly(_tournament!.endDate)}.',
+              context.tr("Termin mora biti u okviru turnira: {p0} - {p1}.", [
+                _dateOnly(_tournament!.startDate),
+                _dateOnly(_tournament!.endDate),
+              ]),
             ),
           ),
         );
@@ -1431,14 +1458,14 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('Izazov je poslat')));
+        ).showSnackBar(SnackBar(content: Text(context.tr("Izazov je poslat"))));
         Navigator.of(context).pop();
       }
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.serverMessage(error.message))),
+        );
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -1456,7 +1483,7 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
         .toList();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Novi izazov')),
+      appBar: AppBar(title: Text(context.tr("Novi izazov"))),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _failed
@@ -1484,7 +1511,7 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
                       ),
                       const SizedBox(height: 18),
                       Text(
-                        'Izazovi igrača',
+                        context.tr("Izazovi igrača"),
                         style: Theme.of(context).textTheme.headlineSmall
                             ?.copyWith(
                               color: Colors.white,
@@ -1492,8 +1519,10 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
                             ),
                       ),
                       const SizedBox(height: 6),
-                      const Text(
-                        'Pošalji challenge, protivnik prihvata, a rezultat se potvrđuje s obje strane.',
+                      Text(
+                        context.tr(
+                          "Pošalji izazov protivniku. Nakon prihvatanja izazova i odigranog meča, oba igrača potvrđuju rezultat.",
+                        ),
                         style: TextStyle(color: Colors.white70),
                       ),
                     ],
@@ -1507,22 +1536,24 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Protivnik',
+                          context.tr("Protivnik"),
                           style: Theme.of(context).textTheme.titleMedium
                               ?.copyWith(fontWeight: FontWeight.w900),
                         ),
                         const SizedBox(height: 12),
                         AppTextField(
                           controller: _search,
-                          label: 'Pretraži igrača',
+                          label: context.tr("Pretraži igrača"),
                           icon: Icons.search,
                           onChanged: (_) => setState(() {}),
                         ),
                         const SizedBox(height: 10),
                         if (filteredPlayers.isEmpty)
-                          const Padding(
+                          Padding(
                             padding: EdgeInsets.all(12),
-                            child: Text('Nema dostupnih protivnika.'),
+                            child: Text(
+                              context.tr("Nema dostupnih protivnika."),
+                            ),
                           )
                         else
                           ...filteredPlayers
@@ -1562,17 +1593,20 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
                     child: Column(
                       children: [
                         AppSelectField(
-                          label: 'Disciplina',
-                          value: _discipline == 'doubles' ? 'Dubl' : 'Singl',
+                          label: context.tr("Disciplina"),
+                          value: _discipline == 'doubles'
+                              ? context.tr("Dubl")
+                              : context.tr("Singl"),
                           icon: Icons.sports_tennis,
                           onTap: () async {
                             final value = await showAppOptionPicker<String>(
                               context: context,
-                              title: 'Disciplina',
+                              title: context.tr("Disciplina"),
                               selected: _discipline,
                               options: const ['singles', 'doubles'],
-                              labelBuilder: (value) =>
-                                  value == 'doubles' ? 'Dubl' : 'Singl',
+                              labelBuilder: (value) => value == 'doubles'
+                                  ? context.tr("Dubl")
+                                  : context.tr("Singl"),
                             );
                             if (value != null) {
                               setState(() => _discipline = value);
@@ -1582,11 +1616,13 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
                         if (_discipline == 'doubles') ...[
                           const SizedBox(height: 12),
                           AppSelectField(
-                            label: 'Moj partner',
-                            value: _partner?.fullName ?? 'Izaberi partnera',
+                            label: context.tr("Moj partner"),
+                            value:
+                                _partner?.fullName ??
+                                context.tr("Izaberi partnera"),
                             icon: Icons.group_add,
                             onTap: () => _pickExtraPlayer(
-                              title: 'Moj partner',
+                              title: context.tr("Moj partner"),
                               selected: _partner,
                               onSelected: (player) =>
                                   setState(() => _partner = player),
@@ -1594,13 +1630,13 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
                           ),
                           const SizedBox(height: 12),
                           AppSelectField(
-                            label: 'Partner protivnika',
+                            label: context.tr("Partner protivnika"),
                             value:
                                 _opponentPartner?.fullName ??
-                                'Izaberi partnera protivnika',
+                                context.tr("Izaberi partnera protivnika"),
                             icon: Icons.groups,
                             onTap: () => _pickExtraPlayer(
-                              title: 'Partner protivnika',
+                              title: context.tr("Partner protivnika"),
                               selected: _opponentPartner,
                               onSelected: (player) =>
                                   setState(() => _opponentPartner = player),
@@ -1609,18 +1645,18 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
                         ],
                         const SizedBox(height: 12),
                         AppSelectField(
-                          label: 'Turnir (opciono)',
-                          value: _tournament?.name ?? 'Bez turnira',
+                          label: context.tr("Turnir (opciono)"),
+                          value: _tournament?.name ?? context.tr("Bez turnira"),
                           icon: Icons.emoji_events,
                           onTap: () async {
                             final value =
                                 await showAppOptionPicker<Tournament?>(
                                   context: context,
-                                  title: 'Turnir',
+                                  title: context.tr("Turnir"),
                                   selected: _tournament,
                                   options: [null, ..._tournaments],
                                   labelBuilder: (value) =>
-                                      value?.name ?? 'Bez turnira',
+                                      value?.name ?? context.tr("Bez turnira"),
                                 );
                             setState(() {
                               _tournament = value;
@@ -1659,9 +1695,9 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
                         ),
                         const SizedBox(height: 12),
                         AppSelectField(
-                          label: 'Datum i vrijeme',
+                          label: context.tr("Datum i vrijeme"),
                           value: _scheduledAt == null
-                              ? 'Izaberi termin meča'
+                              ? context.tr("Izaberi termin meča")
                               : _dateTimeLabel(_scheduledAt!),
                           icon: Icons.event_available,
                           onTap: _pickScheduledAt,
@@ -1671,7 +1707,13 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
                           Align(
                             alignment: Alignment.centerLeft,
                             child: Text(
-                              'Turnirski meč mora biti između ${_dateOnly(_tournament!.startDate)} i ${_dateOnly(_tournament!.endDate)}.',
+                              context.tr(
+                                "Turnirski meč mora biti između {p0} i {p1}.",
+                                [
+                                  _dateOnly(_tournament!.startDate),
+                                  _dateOnly(_tournament!.endDate),
+                                ],
+                              ),
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
                                     color: AppTheme.ink.withValues(alpha: .58),
@@ -1683,14 +1725,14 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
                         const SizedBox(height: 12),
                         AppTextField(
                           controller: _round,
-                          label: 'Naziv meča',
+                          label: context.tr("Naziv meča"),
                           icon: Icons.flag,
                         ),
                         const SizedBox(height: 12),
                         AppSelectField(
-                          label: 'Lokacija (opciono)',
+                          label: context.tr("Lokacija (opciono)"),
                           value: _location.text.trim().isEmpty
-                              ? 'Izaberi lokaciju'
+                              ? context.tr("Izaberi lokaciju")
                               : _location.text.trim(),
                           icon: Icons.place,
                           onTap: () async {
@@ -1726,7 +1768,7 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
                                     ),
                                   )
                                 : const Icon(Icons.send),
-                            label: const Text('Pošalji izazov'),
+                            label: Text(context.tr("Pošalji izazov")),
                           ),
                         ),
                       ],
@@ -1791,11 +1833,11 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
 
     final picked = await showAppDateTimePicker(
       context: context,
-      title: 'Termin meča',
+      title: context.tr("Termin meča"),
       initialDate: safeInitialDate,
       firstDate: firstDate,
       lastDate: lastDate,
-      actionLabel: 'Sačuvaj termin',
+      actionLabel: context.tr("Sačuvaj termin"),
     );
     if (picked == null) return;
 
@@ -1815,7 +1857,7 @@ class _ChallengeFormScreenState extends State<ChallengeFormScreen> {
     final local = value.toLocal();
     final hour = local.hour.toString().padLeft(2, '0');
     final minute = local.minute.toString().padLeft(2, '0');
-    return '${_dateOnly(local)} u $hour:$minute';
+    return context.tr("{p0} u {p1}:{p2}", [_dateOnly(local), hour, minute]);
   }
 }
 
@@ -1860,9 +1902,9 @@ class _SubmitResultScreenState extends State<SubmitResultScreen> {
       if (mounted) Navigator.of(context).pop();
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.serverMessage(error.message))),
+        );
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -1875,7 +1917,7 @@ class _SubmitResultScreenState extends State<SubmitResultScreen> {
     final p2 = widget.match.player2;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Rezultat meča')),
+      appBar: AppBar(title: Text(context.tr("Rezultat meča"))),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -1905,7 +1947,7 @@ class _SubmitResultScreenState extends State<SubmitResultScreen> {
                 ),
                 const SizedBox(height: 18),
                 Text(
-                  '${widget.match.team1Name} vs ${widget.match.team2Name}',
+                  '${widget.match.team1Name} - ${widget.match.team2Name}',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w900,
@@ -1927,7 +1969,7 @@ class _SubmitResultScreenState extends State<SubmitResultScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Pobjednik',
+                    context.tr("Pobjednik"),
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w900,
                     ),
@@ -1955,7 +1997,7 @@ class _SubmitResultScreenState extends State<SubmitResultScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          'Setovi',
+                          context.tr("Setovi"),
                           style: Theme.of(context).textTheme.titleMedium
                               ?.copyWith(fontWeight: FontWeight.w900),
                         ),
@@ -1981,7 +2023,7 @@ class _SubmitResultScreenState extends State<SubmitResultScreen> {
                     onPressed: () =>
                         setState(() => _sets.add(_EditableSetScore(0, 0))),
                     icon: const Icon(Icons.add),
-                    label: const Text('Dodaj set'),
+                    label: Text(context.tr("Dodaj set")),
                   ),
                 ],
               ),
@@ -1994,13 +2036,15 @@ class _SubmitResultScreenState extends State<SubmitResultScreen> {
               color: AppTheme.clay.withValues(alpha: .10),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Row(
+            child: Row(
               children: [
                 Icon(Icons.info_outline, color: AppTheme.clay),
                 SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Rezultat ide drugom igraču na potvrdu prije računanja poena.',
+                    context.tr(
+                      "Rezultat ide drugom igraču na potvrdu prije računanja poena.",
+                    ),
                   ),
                 ),
               ],
@@ -2016,7 +2060,7 @@ class _SubmitResultScreenState extends State<SubmitResultScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.send),
-            label: const Text('Pošalji na potvrdu'),
+            label: Text(context.tr("Pošalji na potvrdu")),
           ),
         ],
       ),
@@ -2103,13 +2147,13 @@ class _SetScoreEditor extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  'Set ${index + 1}',
+                  context.tr("Set {p0}", [index + 1]),
                   style: const TextStyle(fontWeight: FontWeight.w900),
                 ),
               ),
               if (onRemove != null)
                 IconButton(
-                  tooltip: 'Ukloni set',
+                  tooltip: context.tr("Ukloni set"),
                   onPressed: onRemove,
                   icon: const Icon(Icons.close),
                 ),
@@ -2190,9 +2234,9 @@ class _AdminResolveScreenState extends State<AdminResolveScreen> {
       if (mounted) Navigator.of(context).pop();
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.serverMessage(error.message))),
+        );
       }
     }
   }
@@ -2200,32 +2244,32 @@ class _AdminResolveScreenState extends State<AdminResolveScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Rješavanje spora')),
+      appBar: AppBar(title: Text(context.tr("Rješavanje spora"))),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           Text(
-            '${widget.match.team1Name} vs ${widget.match.team2Name}',
+            '${widget.match.team1Name} - ${widget.match.team2Name}',
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 12),
           AppTextField(
             controller: _note,
-            label: 'Napomena',
+            label: context.tr("Napomena"),
             icon: Icons.note_alt,
           ),
           const SizedBox(height: 16),
           FilledButton(
             onPressed: () => _resolve('confirm'),
-            child: const Text('Potvrdi rezultat'),
+            child: Text(context.tr("Potvrdi rezultat")),
           ),
           OutlinedButton(
             onPressed: () => _resolve('reject'),
-            child: const Text('Odbij rezultat'),
+            child: Text(context.tr("Odbij rezultat")),
           ),
           OutlinedButton(
             onPressed: () => _resolve('cancel'),
-            child: const Text('Poništi meč'),
+            child: Text(context.tr("Poništi meč")),
           ),
         ],
       ),

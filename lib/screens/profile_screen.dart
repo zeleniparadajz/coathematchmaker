@@ -1,3 +1,6 @@
+import 'package:coathematchmaker/l10n/app_strings.dart';
+import '../l10n/app_language.dart';
+import '../widgets/player_activity.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -70,15 +73,15 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
       await widget.auth.deleteAccount();
       if (mounted) {
         Navigator.of(context).popUntil((route) => route.isFirst);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Nalog je obrisan.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr("Nalog je obrisan."))),
+        );
       }
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.serverMessage(error.message))),
+        );
       }
     } finally {
       if (mounted) setState(() => _deleting = false);
@@ -90,7 +93,7 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
     final player = widget.auth.currentPlayer;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Brisanje naloga')),
+      appBar: AppBar(title: Text(context.tr("Brisanje naloga"))),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -112,7 +115,7 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'Trajno obriši nalog',
+                          context.tr("Trajno obriši nalog"),
                           style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(fontWeight: FontWeight.w900),
                         ),
@@ -121,7 +124,9 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'Ova akcija uklanja lične podatke profila, email, profilnu sliku i onemogućava buduću prijavu na nalog.',
+                    context.tr(
+                      "Ova akcija uklanja lične podatke profila, email, profilnu sliku i onemogućava buduću prijavu na nalog.",
+                    ),
                     style: TextStyle(
                       color: AppTheme.ink.withValues(alpha: .68),
                       fontWeight: FontWeight.w600,
@@ -129,7 +134,9 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'Istorija lige, mečevi i turniri mogu ostati prikazani bez tvojih ličnih podataka kako bi rezultati drugih igrača ostali tačni.',
+                    context.tr(
+                      "Istorija lige, mečevi i turniri mogu ostati prikazani bez tvojih ličnih podataka kako bi rezultati drugih igrača ostali tačni.",
+                    ),
                     style: TextStyle(
                       color: AppTheme.ink.withValues(alpha: .58),
                       fontWeight: FontWeight.w600,
@@ -158,14 +165,14 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Za potvrdu upiši DELETE',
+                  Text(
+                    context.tr("Za potvrdu upiši DELETE"),
                     style: TextStyle(fontWeight: FontWeight.w900),
                   ),
                   const SizedBox(height: 10),
                   AppTextField(
                     controller: _confirm,
-                    label: 'Potvrda',
+                    label: context.tr("Potvrda"),
                     hint: 'DELETE',
                     icon: Icons.verified_user_outlined,
                     onChanged: (_) => setState(() {}),
@@ -188,7 +195,7 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.delete_forever),
-                      label: const Text('Obriši nalog'),
+                      label: Text(context.tr("Obriši nalog")),
                     ),
                   ),
                 ],
@@ -210,15 +217,15 @@ class _PlayStatusScreenState extends State<PlayStatusScreen> {
       await widget.league.updateMyPlayStatus(status);
       await widget.auth.refreshMe();
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Status je promijenjen')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr("Status je promijenjen"))),
+        );
       }
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.serverMessage(error.message))),
+        );
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -231,10 +238,15 @@ class _PlayStatusScreenState extends State<PlayStatusScreen> {
     final status = player?.playStatus ?? 'available';
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Status')),
+      appBar: AppBar(title: Text(context.tr("Status"))),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          if (player?.unavailableDueToInactivity == true)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Text(context.tr('Nedostupan zbog neaktivnosti')),
+            ),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(18),
@@ -248,7 +260,7 @@ class _PlayStatusScreenState extends State<PlayStatusScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'Ko smije da te zove na meč?',
+                          context.tr("Ko smije da te zove na meč?"),
                           style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(fontWeight: FontWeight.w800),
                         ),
@@ -257,7 +269,9 @@ class _PlayStatusScreenState extends State<PlayStatusScreen> {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    'Ovo nije status naloga. Nalog ostaje aktivan, a ovdje samo biraš da li želiš da te drugi igrači pozivaju na mečeve.',
+                    context.tr(
+                      "Ovo nije status naloga. Nalog ostaje aktivan, a ovdje samo biraš da li želiš da te drugi igrači pozivaju na mečeve.",
+                    ),
                     style: TextStyle(
                       color: AppTheme.ink.withValues(alpha: .62),
                       fontWeight: FontWeight.w600,
@@ -272,9 +286,10 @@ class _PlayStatusScreenState extends State<PlayStatusScreen> {
             selected: status == 'available',
             saving: _saving,
             icon: Icons.sports_tennis,
-            title: 'Aktivan',
-            subtitle:
-                'Prikazuješ se kao igrač koji je voljan i spreman da primi challenge ili dogovor za termin.',
+            title: context.tr("Aktivan"),
+            subtitle: context.tr(
+              "Dostupan si za izazove i dogovore o terminu meča.",
+            ),
             onTap: () => _setStatus('available'),
           ),
           const SizedBox(height: 10),
@@ -282,9 +297,10 @@ class _PlayStatusScreenState extends State<PlayStatusScreen> {
             selected: status == 'unavailable',
             saving: _saving,
             icon: Icons.do_not_disturb_on_outlined,
-            title: 'Neaktivan',
-            subtitle:
-                'Drugi igrači vide da trenutno ne želiš pozive za meč. Profil i nalog ostaju normalno aktivni.',
+            title: context.tr("Neaktivan"),
+            subtitle: context.tr(
+              "Drugi igrači vide da trenutno ne želiš pozive za meč. Profil i nalog ostaju normalno aktivni.",
+            ),
             onTap: () => _setStatus('unavailable'),
           ),
         ],
@@ -362,6 +378,67 @@ class _PlayStatusOption extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _LanguageSelector extends StatelessWidget {
+  const _LanguageSelector();
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = AppLanguageScope.maybeOf(context);
+    if (controller == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.language),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  context.tr('Jezik aplikacije'),
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: SegmentedButton<AppLanguage>(
+              key: const ValueKey('profile-language'),
+              segments: const [
+                ButtonSegment(value: AppLanguage.mne, label: Text('MNE')),
+                ButtonSegment(value: AppLanguage.eng, label: Text('ENG')),
+              ],
+              selected: {controller.language},
+              onSelectionChanged: controller.saving
+                  ? null
+                  : (selection) async {
+                      try {
+                        await controller.select(selection.single);
+                      } catch (_) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                context.tr(
+                                  'Izbor jezika nije sačuvan. Pokušaj ponovo.',
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+                      }
+                    },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -449,15 +526,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
       await widget.auth.refreshMe();
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Profil je sačuvan')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr("Profil je sačuvan"))),
+        );
       }
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.serverMessage(error.message))),
+        );
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -478,14 +555,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await widget.auth.refreshMe();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profilna slika je promijenjena')),
+          SnackBar(content: Text(context.tr("Profilna slika je promijenjena"))),
         );
       }
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.serverMessage(error.message))),
+        );
       }
     } finally {
       if (mounted) setState(() => _uploading = false);
@@ -501,7 +578,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Profil')),
+      appBar: AppBar(title: Text(context.tr("Profil"))),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -520,7 +597,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         allowPreview: true,
                       ),
                       IconButton.filled(
-                        tooltip: 'Promijeni sliku',
+                        tooltip: context.tr("Promijeni sliku"),
                         onPressed: _uploading ? null : _pickImage,
                         icon: _uploading
                             ? const SizedBox(
@@ -542,11 +619,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   Text(player.email),
-                  if (player.isAdmin) const Text('Administrator'),
+                  if (player.isAdmin) Text(context.tr("Administrator")),
+                  const SizedBox(height: 8),
+                  PlayerActivity(lastActiveAt: player.lastActiveAt),
                 ],
               ),
             ),
           ),
+          const SizedBox(height: 14),
+          const _LanguageSelector(),
           const SizedBox(height: 14),
           Card(
             child: Padding(
@@ -557,39 +638,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Uredi profil',
+                      context.tr("Uredi profil"),
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w900,
                       ),
                     ),
                     const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _field(_firstName, 'Ime', Icons.person),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _field(_lastName, 'Prezime', Icons.badge),
-                        ),
-                      ],
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final fields = [
+                          _field(_firstName, context.tr("Ime"), Icons.person),
+                          _field(_lastName, context.tr("Prezime"), Icons.badge),
+                        ];
+                        if (constraints.maxWidth < 300 ||
+                            MediaQuery.textScalerOf(context).scale(1) > 1.25) {
+                          return Column(
+                            children: [
+                              fields[0],
+                              const SizedBox(height: 12),
+                              fields[1],
+                            ],
+                          );
+                        }
+                        return Row(
+                          children: [
+                            Expanded(child: fields[0]),
+                            const SizedBox(width: 12),
+                            Expanded(child: fields[1]),
+                          ],
+                        );
+                      },
                     ),
                     const SizedBox(height: 12),
                     AppSelectField(
-                      label: 'Datum rođenja',
+                      label: context.tr("Datum rođenja"),
                       value: _birthYear.text,
                       icon: Icons.cake,
                       onTap: _pickBirthDate,
                     ),
                     const SizedBox(height: 12),
                     AppSelectField(
-                      label: 'Država',
+                      label: context.tr("Država"),
                       value: _country,
                       icon: Icons.flag,
                       onTap: () async {
                         final value = await showAppOptionPicker<String>(
                           context: context,
-                          title: 'Država',
+                          title: context.tr("Država"),
                           selected: _country,
                           options: _countries,
                           labelBuilder: (value) => value,
@@ -599,13 +694,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(height: 12),
                     AppSelectField(
-                      label: 'Sport',
+                      label: context.tr("Sport"),
                       value: _sportLabel(_sport),
                       icon: Icons.sports_tennis,
                       onTap: () async {
                         final value = await showAppOptionPicker<String>(
                           context: context,
-                          title: 'Sport',
+                          title: context.tr("Sport"),
                           selected: _sport,
                           options: const ['tennis'],
                           labelBuilder: _sportLabel,
@@ -616,17 +711,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 12),
                     AppTextField(
                       controller: _club,
-                      label: 'Klub',
-                      hint: 'Individualni igrač / klub',
+                      label: context.tr("Klub"),
+                      hint: context.tr("Individualni igrač / klub"),
                       icon: Icons.shield,
                     ),
                     const SizedBox(height: 12),
                     AppTextField(
                       controller: _city,
-                      label: 'Grad',
+                      label: context.tr("Grad"),
                       icon: Icons.location_city,
                       validator: (value) => (value?.length ?? 0) > 100
-                          ? 'Najviše 100 znakova.'
+                          ? context.tr("Najviše 100 znakova.")
                           : null,
                     ),
                     const SizedBox(height: 18),
@@ -643,7 +738,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ),
                               )
                             : const Icon(Icons.save),
-                        label: const Text('Sačuvaj izmjene'),
+                        label: Text(context.tr("Sačuvaj izmjene")),
                       ),
                     ),
                   ],
@@ -662,7 +757,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      '${player.totalPoints} pts  |  ${player.wins}-${player.losses}  |  ${player.matchesPlayed} mečeva',
+                      context.tr("{p0} poena  |  {p1}-{p2}  |  {p3} mečeva", [
+                        player.totalPoints,
+                        player.wins,
+                        player.losses,
+                        player.matchesPlayed,
+                      ]),
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w700,
@@ -692,8 +792,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       keyboardType: keyboardType,
       validator:
           validator ??
-          (value) =>
-              value == null || value.trim().isEmpty ? 'Obavezno polje' : null,
+          (value) => value == null || value.trim().isEmpty
+              ? context.tr("Obavezno polje")
+              : null,
     );
   }
 
@@ -720,7 +821,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   String _sportLabel(String value) {
     return switch (value) {
-      'tennis' => 'Tenis',
+      'tennis' => context.tr("Tenis"),
       _ => value,
     };
   }

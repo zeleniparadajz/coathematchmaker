@@ -10,6 +10,7 @@ export interface AppVersionSettings {
   appStoreUrl: string;
   playStoreUrl: string;
   appUpdateMessage: string;
+  appUpdateMessageEn?: string;
 }
 
 export const appVersionPolicy = (platformValue: unknown, currentBuild: number, settings: AppVersionSettings) => {
@@ -30,6 +31,7 @@ export const appVersionPolicy = (platformValue: unknown, currentBuild: number, s
     // Legacy clients read playStoreUrl on both platforms.
     playStoreUrl: storeUrl,
     appStoreUrl: platform === "ios" ? storeUrl : "",
-    message: settings.appUpdateMessage
+    message: settings.appUpdateMessage,
+    messageEn: settings.appUpdateMessageEn ?? "A new version is required. Please update COA The Matchmaker."
   };
 };

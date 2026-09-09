@@ -1,3 +1,5 @@
+import 'package:coathematchmaker/l10n/app_strings.dart';
+import '../widgets/player_activity.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -97,7 +99,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
 
   void _open(Player player) => Navigator.of(context).push(
     MaterialPageRoute<void>(
-      builder: (_) => PlayerProfileScreen(
+      builder: (context) => PlayerProfileScreen(
         playerId: player.id,
         league: widget.league,
         api: widget.api,
@@ -138,18 +140,18 @@ class _PlayersScreenState extends State<PlayersScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Filteri igrača',
+                  context.tr("Filteri igrača"),
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 20),
                 DropdownButtonFormField<String>(
                   initialValue: city ?? '',
                   isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Grad'),
+                  decoration: InputDecoration(labelText: context.tr("Grad")),
                   items: [
-                    const DropdownMenuItem(
+                    DropdownMenuItem(
                       value: '',
-                      child: Text('Svi gradovi'),
+                      child: Text(context.tr("Svi gradovi")),
                     ),
                     ...cities.map(
                       (v) => DropdownMenuItem(value: v, child: Text(v)),
@@ -161,11 +163,11 @@ class _PlayersScreenState extends State<PlayersScreen> {
                 DropdownButtonFormField<String>(
                   initialValue: club ?? '',
                   isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Klub'),
+                  decoration: InputDecoration(labelText: context.tr("Klub")),
                   items: [
-                    const DropdownMenuItem(
+                    DropdownMenuItem(
                       value: '',
-                      child: Text('Svi klubovi'),
+                      child: Text(context.tr("Svi klubovi")),
                     ),
                     ...clubs.map(
                       (v) => DropdownMenuItem(value: v, child: Text(v)),
@@ -176,7 +178,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
                 const SizedBox(height: 20),
                 FilledButton(
                   onPressed: () => Navigator.pop(context, true),
-                  child: const Text('Prikaži igrače'),
+                  child: Text(context.tr("Prikaži igrače")),
                 ),
                 TextButton(
                   onPressed: () {
@@ -184,7 +186,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
                     club = null;
                     Navigator.pop(context, true);
                   },
-                  child: const Text('Ukloni filtere'),
+                  child: Text(context.tr("Ukloni filtere")),
                 ),
               ],
             ),
@@ -229,12 +231,12 @@ class _PlayersScreenState extends State<PlayersScreen> {
                     controller: _search,
                     onChanged: (v) => setState(() => _query = v),
                     decoration: InputDecoration(
-                      hintText: 'Pronađi igrača',
+                      hintText: context.tr("Pronađi igrača"),
                       prefixIcon: const Icon(Icons.search),
                       suffixIcon: _query.isEmpty
                           ? null
                           : IconButton(
-                              tooltip: 'Obriši pretragu',
+                              tooltip: context.tr("Obriši pretragu"),
                               onPressed: () {
                                 _search.clear();
                                 setState(() => _query = '');
@@ -246,7 +248,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
                 ),
                 const SizedBox(width: 4),
                 IconButton(
-                  tooltip: 'Filteri',
+                  tooltip: context.tr("Filteri"),
                   onPressed: () => _filters(all),
                   icon: Badge(
                     isLabelVisible: _city != null || _club != null,
@@ -254,7 +256,9 @@ class _PlayersScreenState extends State<PlayersScreen> {
                   ),
                 ),
                 IconButton(
-                  tooltip: _compact ? 'Prikaz fotografija' : 'Sažeta lista',
+                  tooltip: _compact
+                      ? context.tr("Prikaz fotografija")
+                      : context.tr("Sažeta lista"),
                   onPressed: () => _setCompact(!_compact),
                   icon: Icon(
                     _compact ? Icons.grid_view : Icons.view_list_outlined,
@@ -272,12 +276,12 @@ class _PlayersScreenState extends State<PlayersScreen> {
               runSpacing: 4,
               children: [
                 FilterChip(
-                  label: const Text('Dostupni za meč'),
+                  label: Text(context.tr("Dostupni za meč")),
                   selected: _available,
                   onSelected: (v) => setState(() => _available = v),
                 ),
                 Text(
-                  '${players.length} igrača',
+                  context.tr("{p0} igrača", [players.length]),
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
@@ -295,8 +299,10 @@ class _PlayersScreenState extends State<PlayersScreen> {
                         const SizedBox(height: 64),
                         const Icon(Icons.person_search_outlined, size: 40),
                         const SizedBox(height: 16),
-                        const Center(
-                          child: Text('Nema igrača za izabrane filtere.'),
+                        Center(
+                          child: Text(
+                            context.tr("Nema igrača za izabrane filtere."),
+                          ),
                         ),
                         Center(
                           child: TextButton(
@@ -309,7 +315,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
                                 _query = '';
                               });
                             },
-                            child: const Text('Prikaži sve igrače'),
+                            child: Text(context.tr("Prikaži sve igrače")),
                           ),
                         ),
                       ],
@@ -329,11 +335,17 @@ class _PlayersScreenState extends State<PlayersScreen> {
                           ),
                           leading: PlayerAvatar(player: p, api: widget.api),
                           title: Text(p.fullName),
-                          subtitle: Text(
-                            [p.city, p.club]
-                                .whereType<String>()
-                                .where((v) => v.isNotEmpty)
-                                .join(' · '),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                [p.city, p.club]
+                                    .whereType<String>()
+                                    .where((v) => v.isNotEmpty)
+                                    .join(' · '),
+                              ),
+                              PlayerActivity(lastActiveAt: p.lastActiveAt),
+                            ],
                           ),
                           trailing: Icon(
                             Icons.circle,
@@ -364,6 +376,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
                       mainAxisSpacing: 16,
                       mainAxisExtent:
                           width * 1.12 +
+                          64 +
                           100 * (MediaQuery.textScalerOf(context).scale(1) - 1),
                     ),
                     itemCount: players.length,
@@ -409,9 +422,15 @@ class _PlayerCard extends StatelessWidget {
           else ...[
             const SportPhoto(),
             const ColoredBox(color: Color(0x881C5968)),
-            Align(
-              alignment: const Alignment(0, -.28),
-              child: PlayerAvatar(player: player, api: api, radius: 54),
+            Positioned(
+              top: 14,
+              right: 14,
+              child: PlayerAvatar(
+                key: ValueKey('player-card-avatar:${player.id}'),
+                player: player,
+                api: api,
+                radius: 30,
+              ),
             ),
           ],
           const PhotoShade(),
@@ -448,7 +467,9 @@ class _PlayerCard extends StatelessWidget {
                       ),
                     ),
                     child: Text(
-                      available ? 'Dostupan za meč' : 'Nedostupan',
+                      available
+                          ? context.tr("Dostupan za meč")
+                          : context.tr("Nedostupan"),
                       maxLines: 2,
                       style: const TextStyle(
                         color: Colors.white,
@@ -461,7 +482,7 @@ class _PlayerCard extends StatelessWidget {
                 const Spacer(),
                 if (url.isNotEmpty)
                   IconButton(
-                    tooltip: 'Prikaži cijelu fotografiju',
+                    tooltip: context.tr("Prikaži cijelu fotografiju"),
                     onPressed: () => openPhotoViewer(context, [url]),
                     style: IconButton.styleFrom(
                       backgroundColor: Colors.white.withValues(alpha: .88),
@@ -505,6 +526,11 @@ class _PlayerCard extends StatelessWidget {
                     fontSize: 13,
                   ),
                 ),
+                const SizedBox(height: 8),
+                PlayerActivity(
+                  lastActiveAt: player.lastActiveAt,
+                  color: Colors.white,
+                ),
                 const SizedBox(height: 18),
                 Row(
                   children: [
@@ -516,7 +542,10 @@ class _PlayerCard extends StatelessWidget {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '${player.wins} pobjeda · ${player.totalPoints} poena',
+                        context.tr("{p0} pobjeda · {p1} poena", [
+                          player.wins,
+                          player.totalPoints,
+                        ]),
                         maxLines: 2,
                         style: const TextStyle(
                           color: Colors.white,
@@ -532,10 +561,10 @@ class _PlayerCard extends StatelessWidget {
                         foregroundColor: AppTheme.ink,
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text('Profil'),
+                          Text(context.tr("Profil")),
                           SizedBox(width: 8),
                           Icon(Icons.arrow_forward, size: 17),
                         ],
@@ -612,9 +641,9 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
       });
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.serverMessage(error.message))),
+        );
       }
     } finally {
       if (mounted) setState(() => _uploading = false);
@@ -624,7 +653,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Profil igrača')),
+      appBar: AppBar(title: Text(context.tr("Profil igrača"))),
       body: FutureBuilder<_PlayerProfileData>(
         future: _future,
         builder: (context, snapshot) {
@@ -656,7 +685,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                     ),
                     if (canEdit)
                       IconButton.filled(
-                        tooltip: 'Promijeni sliku',
+                        tooltip: context.tr("Promijeni sliku"),
                         onPressed: _uploading ? null : _pickImage,
                         icon: _uploading
                             ? const SizedBox(
@@ -682,16 +711,29 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                 ),
               ),
               Text(
-                '${player.country}  |  ${player.club ?? 'Bez kluba'}',
+                '${player.country}  |  ${player.club ?? context.tr("Bez kluba")}',
                 textAlign: TextAlign.center,
               ),
+              const SizedBox(height: 10),
+              Center(child: PlayerActivity(lastActiveAt: player.lastActiveAt)),
+              if (!player.isAvailableForMatch) ...[
+                const SizedBox(height: 8),
+                Text(
+                  context.tr(
+                    player.unavailableDueToInactivity
+                        ? 'Nedostupan zbog neaktivnosti'
+                        : 'Nedostupan za meč',
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
               if (!canEdit) ...[
                 const SizedBox(height: 14),
                 if (player.isAvailableForMatch)
                   FilledButton.icon(
                     onPressed: () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
-                        builder: (_) => ChallengeFormScreen(
+                        builder: (context) => ChallengeFormScreen(
                           league: widget.league,
                           canManageLocations: widget.auth.isAdmin,
                           currentPlayerId: widget.auth.currentPlayer!.id,
@@ -700,7 +742,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                       ),
                     ),
                     icon: const Icon(Icons.sports_tennis),
-                    label: const Text('Izazovi na meč'),
+                    label: Text(context.tr("Izazovi na meč")),
                   ),
                 const SizedBox(height: 8),
                 FilledButton.icon(
@@ -711,7 +753,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                     if (!context.mounted) return;
                     await Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => ChatScreen(
+                        builder: (context) => ChatScreen(
                           league: widget.league,
                           api: widget.api,
                           auth: widget.auth,
@@ -721,7 +763,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                     );
                   },
                   icon: const Icon(Icons.chat_bubble_outline),
-                  label: const Text('Pošalji poruku'),
+                  label: Text(context.tr("Pošalji poruku")),
                 ),
               ],
               const SizedBox(height: 18),
@@ -740,13 +782,13 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                 ),
                 children: [
                   StatCard(
-                    label: 'Poeni',
+                    label: context.tr("Poeni"),
                     value: '${player.totalPoints}',
                     icon: Icons.leaderboard,
                     onTap: () => _showPointsBreakdown(profileData),
                   ),
                   StatCard(
-                    label: 'Pobjede',
+                    label: context.tr("Pobjede"),
                     value: '${player.wins}',
                     icon: Icons.check_circle,
                     color: AppTheme.court,
@@ -754,7 +796,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                         _showStatBreakdown(profileData, _StatKind.wins),
                   ),
                   StatCard(
-                    label: 'Porazi',
+                    label: context.tr("Porazi"),
                     value: '${player.losses}',
                     icon: Icons.cancel,
                     color: AppTheme.clay,
@@ -762,14 +804,14 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                         _showStatBreakdown(profileData, _StatKind.losses),
                   ),
                   StatCard(
-                    label: 'Mečevi',
+                    label: context.tr("Mečevi"),
                     value: '${player.matchesPlayed}',
                     icon: Icons.sports_tennis,
                     onTap: () =>
                         _showStatBreakdown(profileData, _StatKind.matches),
                   ),
                   StatCard(
-                    label: 'Titule',
+                    label: context.tr("Titule"),
                     value: '${player.tournamentsWon}',
                     icon: Icons.emoji_events,
                     color: AppTheme.clay,
@@ -777,7 +819,7 @@ class _PlayerProfileScreenState extends State<PlayerProfileScreen> {
                         _showStatBreakdown(profileData, _StatKind.titles),
                   ),
                   StatCard(
-                    label: 'Godište',
+                    label: context.tr("Godište"),
                     value: '${player.birthYear}',
                     icon: Icons.cake,
                   ),
@@ -950,7 +992,7 @@ class _PointsBreakdownSheet extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Kako su izračunati poeni',
+                          context.tr("Kako su izračunati poeni"),
                           style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(fontWeight: FontWeight.w900),
                         ),
@@ -971,17 +1013,22 @@ class _PointsBreakdownSheet extends StatelessWidget {
               _pointsRow(
                 context,
                 icon: Icons.check_circle,
-                title: 'Pobjede',
-                detail: '${wins.length} x ${settings.matchWinPoints} pts',
+                title: context.tr("Pobjede"),
+                detail: context.tr("{p0} x {p1} poena", [
+                  wins.length,
+                  settings.matchWinPoints,
+                ]),
                 points: matchPoints,
                 color: AppTheme.court,
               ),
               _pointsRow(
                 context,
                 icon: Icons.emoji_events,
-                title: 'Titule',
-                detail:
-                    '${titles.length} x ${settings.tournamentWinPoints} pts',
+                title: context.tr("Titule"),
+                detail: context.tr("{p0} x {p1} poena", [
+                  titles.length,
+                  settings.tournamentWinPoints,
+                ]),
                 points: titlePoints,
                 color: AppTheme.clay,
               ),
@@ -989,9 +1036,10 @@ class _PointsBreakdownSheet extends StatelessWidget {
                 _pointsRow(
                   context,
                   icon: Icons.tune,
-                  title: 'Korekcija',
-                  detail:
-                      'Razlika nastala iz ranijih pravila ili admin izmjene',
+                  title: context.tr("Korekcija"),
+                  detail: context.tr(
+                    "Razlika zbog ranijih pravila ili izmjene administratora",
+                  ),
                   points: adjustment,
                   color: Colors.blueGrey,
                 ),
@@ -1009,13 +1057,13 @@ class _PointsBreakdownSheet extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    const Text(
-                      'Ukupno',
+                    Text(
+                      context.tr("Ukupno"),
                       style: TextStyle(fontWeight: FontWeight.w900),
                     ),
                     const Spacer(),
                     Text(
-                      '${player.totalPoints} pts',
+                      context.tr("{p0} poena", [player.totalPoints]),
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w900,
                         color: AppTheme.ink,
@@ -1026,7 +1074,9 @@ class _PointsBreakdownSheet extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               Text(
-                'Ranking računa samo potvrđene takmičarske mečeve. Prijateljski mečevi ne ulaze u statistiku i ne dodaju poene.',
+                context.tr(
+                  "Rang-lista obuhvata samo potvrđene takmičarske mečeve. Prijateljski mečevi ne ulaze u statistiku i ne donose poene.",
+                ),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: AppTheme.ink.withValues(alpha: .58),
                   fontWeight: FontWeight.w600,
@@ -1107,7 +1157,7 @@ class _StatBreakdownSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final config = _config();
+    final config = _config(context);
     final items = _items();
 
     return Container(
@@ -1178,16 +1228,16 @@ class _StatBreakdownSheet extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 16),
-              _noteCard(config.note),
+              _noteCard(context.tr(config.note)),
               const SizedBox(height: 12),
               Flexible(
                 child: ListView(
                   shrinkWrap: true,
                   children: [
                     if (items.isEmpty)
-                      _emptyCard(config.emptyText)
+                      _emptyCard(context.tr(config.emptyText))
                     else
-                      ...items.map(_itemCard),
+                      ...items.map((item) => _itemCard(context, item)),
                   ],
                 ),
               ),
@@ -1198,39 +1248,45 @@ class _StatBreakdownSheet extends StatelessWidget {
     );
   }
 
-  _StatConfig _config() {
+  _StatConfig _config(BuildContext context) {
     return switch (kind) {
-      _StatKind.wins => const _StatConfig(
-        title: 'Pobjede',
-        subtitle: 'Samo takmičarski confirmed mečevi',
-        note: 'Prijateljski mečevi ne ulaze u pobjede, statistiku ni poene.',
-        emptyText: 'Nema takmičarskih pobjeda.',
+      _StatKind.wins => _StatConfig(
+        title: context.tr("Pobjede"),
+        subtitle: context.tr("Samo potvrđeni takmičarski mečevi"),
+        note: context.tr(
+          "Prijateljski mečevi ne ulaze u pobjede, statistiku ni poene.",
+        ),
+        emptyText: context.tr("Nema takmičarskih pobjeda."),
         icon: Icons.check_circle,
         color: AppTheme.court,
       ),
-      _StatKind.losses => const _StatConfig(
-        title: 'Porazi',
-        subtitle: 'Samo takmičarski confirmed mečevi',
-        note: 'Prijateljski mečevi ne ulaze u poraze, statistiku ni poene.',
-        emptyText: 'Nema takmičarskih poraza.',
+      _StatKind.losses => _StatConfig(
+        title: context.tr("Porazi"),
+        subtitle: context.tr("Samo potvrđeni takmičarski mečevi"),
+        note: context.tr(
+          "Prijateljski mečevi ne ulaze u poraze, statistiku ni poene.",
+        ),
+        emptyText: context.tr("Nema takmičarskih poraza."),
         icon: Icons.cancel,
         color: AppTheme.clay,
       ),
-      _StatKind.matches => const _StatConfig(
-        title: 'Mečevi',
-        subtitle: 'Samo takmičarski confirmed mečevi',
-        note:
-            'Ovdje ulaze samo potvrđeni takmičarski mečevi. Prijateljski mečevi se ne računaju u statistiku.',
-        emptyText: 'Nema potvrđenih mečeva.',
+      _StatKind.matches => _StatConfig(
+        title: context.tr("Mečevi"),
+        subtitle: context.tr("Samo potvrđeni takmičarski mečevi"),
+        note: context.tr(
+          "Ovdje ulaze samo potvrđeni takmičarski mečevi. Prijateljski mečevi se ne računaju u statistiku.",
+        ),
+        emptyText: context.tr("Nema potvrđenih mečeva."),
         icon: Icons.sports_tennis,
         color: AppTheme.court,
       ),
-      _StatKind.titles => const _StatConfig(
-        title: 'Titule',
-        subtitle: 'Samo takmičarski osvojeni turniri',
-        note:
-            'Prijateljski turniri ne ulaze u zvanične titule i ne daju poene.',
-        emptyText: 'Nema takmičarskih titula.',
+      _StatKind.titles => _StatConfig(
+        title: context.tr("Titule"),
+        subtitle: context.tr("Samo takmičarski osvojeni turniri"),
+        note: context.tr(
+          "Prijateljski turniri ne ulaze u zvanične titule i ne daju poene.",
+        ),
+        emptyText: context.tr("Nema takmičarskih titula."),
         icon: Icons.emoji_events,
         color: AppTheme.clay,
       ),
@@ -1275,23 +1331,25 @@ class _StatBreakdownSheet extends StatelessWidget {
     );
   }
 
-  Widget _itemCard(Object item) {
+  Widget _itemCard(BuildContext context, Object item) {
     if (item is Tournament) {
       return _baseCard(
         icon: Icons.emoji_events,
         title: item.name,
         subtitle: '${item.locationLabel} | ${_dateLabel(item.endDate)}',
-        trailing: 'titula',
+        trailing: context.tr('titula'),
       );
     }
 
     final match = item as TennisMatch;
-    final result = match.scoreText.isEmpty ? 'bez rezultata' : match.scoreText;
+    final result = match.scoreText.isEmpty
+        ? context.tr('bez rezultata')
+        : match.scoreText;
     return _baseCard(
       icon: Icons.sports_tennis,
-      title: '${match.team1Name} vs ${match.team2Name}',
+      title: '${match.team1Name} - ${match.team2Name}',
       subtitle: '${match.tournament?.name ?? match.round} | $result',
-      trailing: 'confirmed',
+      trailing: context.tr('potvrđen'),
     );
   }
 

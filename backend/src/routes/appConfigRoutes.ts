@@ -8,7 +8,7 @@ appConfigRoutes.get("/", (req, res) => {
   const currentBuild = Number(req.query.build ?? 0);
   if (!Number.isSafeInteger(currentBuild) || currentBuild < 0 ||
       (req.query.build !== undefined && (typeof req.query.build !== "string" || !/^\d+$/.test(req.query.build)))) {
-    res.status(400).json({ message: "build must be a non-negative integer" });
+    res.status(400).json({ message: "Broj izdanja mora biti cijeli broj veći ili jednak nuli." });
     return;
   }
   res.setHeader("Cache-Control", "no-store");

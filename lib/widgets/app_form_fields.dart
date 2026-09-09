@@ -1,3 +1,4 @@
+import 'package:coathematchmaker/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
@@ -33,9 +34,21 @@ class AppTextField extends StatelessWidget {
       obscureText: obscureText,
       keyboardType: keyboardType,
       validator: validator,
+      errorBuilder: (context, error) => Text(
+        context.serverMessage(error),
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.error,
+          fontSize: 12,
+        ),
+      ),
       onChanged: onChanged,
       maxLines: maxLines,
-      decoration: appInputDecoration(label, icon ?? Icons.edit, hint: hint),
+      decoration: appInputDecoration(
+        context,
+        label,
+        icon ?? Icons.edit,
+        hint: hint,
+      ),
     );
   }
 }
@@ -63,7 +76,7 @@ class AppSelectField extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: InputDecorator(
-          decoration: appInputDecoration(label, icon),
+          decoration: appInputDecoration(context, label, icon),
           child: Row(
             children: [
               Expanded(
@@ -88,13 +101,14 @@ class AppSelectField extends StatelessWidget {
 }
 
 InputDecoration appInputDecoration(
+  BuildContext context,
   String label,
   IconData icon, {
   String? hint,
 }) {
   return InputDecoration(
-    labelText: label,
-    hintText: hint,
+    labelText: context.tr(label),
+    hintText: hint == null ? null : context.tr(hint),
     prefixIcon: Icon(icon, size: 22),
     filled: true,
     fillColor: AppTheme.court.withValues(alpha: .035),
@@ -154,7 +168,7 @@ Future<DateTime?> showAppBirthDatePicker({
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => _BirthDatePickerSheet(
+    builder: (context) => _BirthDatePickerSheet(
       initialDate: initialDate,
       firstYear: now.year - 90,
       lastYear: now.year - minimumAge,
@@ -174,7 +188,7 @@ Future<DateTime?> showAppDateTimePicker({
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => _DateTimePickerSheet(
+    builder: (context) => _DateTimePickerSheet(
       initialDate: initialDate,
       firstDate: firstDate,
       lastDate: lastDate,
@@ -229,7 +243,7 @@ class _OptionPickerSheet<T> extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      title,
+                      context.tr(title),
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w900,
                       ),
@@ -352,7 +366,7 @@ class _BirthDatePickerSheetState extends State<_BirthDatePickerSheet> {
               ),
               const SizedBox(height: 18),
               Text(
-                'Datum rođenja',
+                context.tr("Datum rođenja"),
                 style: Theme.of(
                   context,
                 ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
@@ -362,7 +376,7 @@ class _BirthDatePickerSheetState extends State<_BirthDatePickerSheet> {
                 children: [
                   Expanded(
                     child: _pickerDropdown<int>(
-                      label: 'Dan',
+                      label: context.tr("Dan"),
                       value: _day,
                       values: List.generate(_daysInMonth, (index) => index + 1),
                       labelFor: (value) => value.toString().padLeft(2, '0'),
@@ -373,17 +387,17 @@ class _BirthDatePickerSheetState extends State<_BirthDatePickerSheet> {
                   Expanded(
                     flex: 2,
                     child: _pickerDropdown<int>(
-                      label: 'Mjesec',
+                      label: context.tr("Mjesec"),
                       value: _month,
                       values: List.generate(12, (index) => index + 1),
-                      labelFor: (value) => _months[value - 1],
+                      labelFor: (value) => context.tr(_months[value - 1]),
                       onChanged: (value) => setState(() => _month = value),
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: _pickerDropdown<int>(
-                      label: 'Godina',
+                      label: context.tr("Godina"),
                       value: _year,
                       values: [
                         for (
@@ -406,7 +420,7 @@ class _BirthDatePickerSheetState extends State<_BirthDatePickerSheet> {
                 child: FilledButton(
                   onPressed: () =>
                       Navigator.of(context).pop(DateTime(_year, _month, _day)),
-                  child: const Text('Sačuvaj datum'),
+                  child: Text(context.tr("Sačuvaj datum")),
                 ),
               ),
             ],
@@ -426,7 +440,7 @@ class _BirthDatePickerSheetState extends State<_BirthDatePickerSheet> {
     return DropdownButtonFormField<T>(
       initialValue: value,
       isExpanded: true,
-      decoration: appInputDecoration(label, Icons.expand_more),
+      decoration: appInputDecoration(context, label, Icons.expand_more),
       items: values
           .map(
             (item) => DropdownMenuItem<T>(
@@ -557,7 +571,7 @@ class _DateTimePickerSheetState extends State<_DateTimePickerSheet> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          widget.title,
+                          context.tr(widget.title),
                           style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(fontWeight: FontWeight.w900),
                         ),
@@ -579,7 +593,7 @@ class _DateTimePickerSheetState extends State<_DateTimePickerSheet> {
                 children: [
                   Expanded(
                     child: _pickerDropdown<int>(
-                      label: 'Dan',
+                      label: context.tr("Dan"),
                       value: _day,
                       values: _daysForMonth,
                       labelFor: (value) => value.toString().padLeft(2, '0'),
@@ -590,17 +604,17 @@ class _DateTimePickerSheetState extends State<_DateTimePickerSheet> {
                   Expanded(
                     flex: 2,
                     child: _pickerDropdown<int>(
-                      label: 'Mjesec',
+                      label: context.tr("Mjesec"),
                       value: _month,
                       values: _monthsForYear,
-                      labelFor: (value) => _months[value - 1],
+                      labelFor: (value) => context.tr(_months[value - 1]),
                       onChanged: (value) => setState(() => _month = value),
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: _pickerDropdown<int>(
-                      label: 'Godina',
+                      label: context.tr("Godina"),
                       value: _year,
                       values: _years,
                       labelFor: (value) => value.toString(),
@@ -614,7 +628,7 @@ class _DateTimePickerSheetState extends State<_DateTimePickerSheet> {
                 children: [
                   Expanded(
                     child: _pickerDropdown<int>(
-                      label: 'Sat',
+                      label: context.tr("Sat"),
                       value: _hour,
                       values: List.generate(24, (index) => index),
                       labelFor: (value) => value.toString().padLeft(2, '0'),
@@ -624,7 +638,7 @@ class _DateTimePickerSheetState extends State<_DateTimePickerSheet> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: _pickerDropdown<int>(
-                      label: 'Minut',
+                      label: context.tr("Minut"),
                       value: _minute,
                       values: List.generate(60, (index) => index),
                       labelFor: (value) => value.toString().padLeft(2, '0'),
@@ -640,7 +654,7 @@ class _DateTimePickerSheetState extends State<_DateTimePickerSheet> {
                 child: FilledButton.icon(
                   onPressed: () => Navigator.of(context).pop(_selected),
                   icon: const Icon(Icons.check),
-                  label: Text(widget.actionLabel),
+                  label: Text(context.tr(widget.actionLabel)),
                 ),
               ),
             ],
@@ -659,7 +673,13 @@ class _DateTimePickerSheetState extends State<_DateTimePickerSheet> {
     final month = selected.month.toString().padLeft(2, '0');
     final hour = selected.hour.toString().padLeft(2, '0');
     final minute = selected.minute.toString().padLeft(2, '0');
-    return '$day.$month.${selected.year} u $hour:$minute';
+    return context.tr("{p0}.{p1}.{p2} u {p3}:{p4}", [
+      day,
+      month,
+      selected.year,
+      hour,
+      minute,
+    ]);
   }
 
   void _normalizeParts() {
@@ -697,7 +717,7 @@ class _DateTimePickerSheetState extends State<_DateTimePickerSheet> {
     return DropdownButtonFormField<T>(
       initialValue: value,
       isExpanded: true,
-      decoration: appInputDecoration(label, Icons.expand_more),
+      decoration: appInputDecoration(context, label, Icons.expand_more),
       items: values
           .map(
             (item) => DropdownMenuItem<T>(

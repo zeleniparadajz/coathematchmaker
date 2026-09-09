@@ -370,11 +370,13 @@ class LeagueService {
     required int resultEntryDelayMinutes,
     required int matchWinPoints,
     required int tournamentWinPoints,
+    int? inactivityDays,
   }) async {
     final data = await api.patchJson('/api/settings', {
       'resultEntryDelayMinutes': resultEntryDelayMinutes,
       'matchWinPoints': matchWinPoints,
       'tournamentWinPoints': tournamentWinPoints,
+      'inactivityDays': ?inactivityDays,
     });
     return LeagueSettings.fromJson(data['settings']);
   }

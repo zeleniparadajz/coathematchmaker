@@ -113,6 +113,48 @@ void main() {
   });
 
   test(
+    'English update copy survives offline cache without changing MNE copy',
+    () async {
+      var online = true;
+      final api = ApiClient(
+        client: MockClient((_) async {
+          if (!online) throw http.ClientException('offline');
+          return http.Response(
+            jsonEncode({
+              ...policy(8, 8, ''),
+              'message': 'Nova MNE poruka.',
+              'messageEn': 'New English message.',
+            }),
+            200,
+          );
+        }),
+      );
+      addTearDown(api.close);
+      final service = AppConfigService(
+        api,
+        platform: 'ios',
+        packageInfo: () async => info(7),
+      );
+      final fresh = await service.load();
+      online = false;
+      final cached = await service.load();
+      for (final config in [fresh, cached]) {
+        expect(config.message, 'Nova MNE poruka.');
+        expect(config.messageEn, 'New English message.');
+        expect(config.updateRequired, true);
+      }
+      expect(service.lastCheckUsedCache, true);
+      final legacy = AppConfig.fromJson(
+        policy(8, 8, ''),
+        platform: 'ios',
+        installedBuild: 7,
+        installedVersion: '1.0.2',
+      );
+      expect(legacy.messageEn, isNull);
+    },
+  );
+
+  test(
     'Latest alone is optional; minimum gates access; links stay platform-specific',
     () {
       AppConfig config(int build, String url) => AppConfig.fromJson(

@@ -18,7 +18,7 @@ const parseMultipartFile = (body: Buffer, contentType: string | undefined, field
   const boundary = contentType?.match(/boundary=(?:"([^"]+)"|([^;]+))/)?.[1] ?? contentType?.match(/boundary=(?:"([^"]+)"|([^;]+))/)?.[2];
 
   if (!boundary) {
-    throw new AppError(400, "Multipart boundary is missing");
+    throw new AppError(400, "Zahtjev za slanje slike nije ispravan.");
   }
 
   const delimiter = Buffer.from(`--${boundary}`);
@@ -50,7 +50,7 @@ const parseMultipartFile = (body: Buffer, contentType: string | undefined, field
     start = body.indexOf(delimiter, dataStart);
   }
 
-  throw new AppError(400, `${fieldName} file is required`);
+  throw new AppError(400, `Nedostaje slika u polju ${fieldName}.`);
 };
 
 const extensionFromContent = (file: MultipartFile): string | undefined => {
@@ -91,13 +91,13 @@ export const saveUploadedImage = async (
   const extension = extensionFromContent(file);
 
   if (!extension) {
-    throw new AppError(400, "Only jpg, png and webp images are allowed");
+    throw new AppError(400, "Dozvoljene su samo slike u formatima JPG, PNG i WebP.");
   }
 
   const maxSizeMb = options.maxSizeMb ?? 5;
 
   if (file.buffer.length > maxSizeMb * 1024 * 1024) {
-    throw new AppError(400, `Image must be smaller than ${maxSizeMb}MB`);
+    throw new AppError(400, `Veličina slike mora biti manja od ${maxSizeMb} MB.`);
   }
 
   const uploadDir = path.resolve(process.cwd(), "uploads", options.folder);

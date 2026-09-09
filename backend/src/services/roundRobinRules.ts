@@ -8,7 +8,7 @@ export interface LeagueMatch {
 }
 
 export const leagueRankingRules =
-  "Pobjede; pobjede u medjusobnim mecevima igraca sa istim brojem pobjeda; razlika setova; razlika gemova; redosljed prijave.";
+  "Pobjede; pobjede u međusobnim mečevima igrača sa istim brojem pobjeda; razlika setova; razlika gemova; redoslijed prijave.";
 
 export function roundRobinTable(participants: string[], matches: LeagueMatch[]) {
   const rows = participants.map((playerId, index) => ({
@@ -48,10 +48,10 @@ export function roundRobinTable(participants: string[], matches: LeagueMatch[]) 
 }
 
 export function leagueCompletionProblem(participants: string[], matches: LeagueMatch[]): string | null {
-  if (participants.length < 2) return "Potrebna su najmanje dva ucesnika.";
+  if (participants.length < 2) return "Potrebna su najmanje dva učesnika.";
   const expected = participants.length * (participants.length - 1) / 2;
   const league = matches.filter((m) => m.round === "RR");
-  if (league.length !== expected) return "Liga mora imati po jedan mec svakog para ucesnika.";
+  if (league.length !== expected) return "Liga mora imati po jedan meč svakog para učesnika.";
   const pairs = new Set<string>();
   for (const match of league) {
     const a = String(match.player1), b = String(match.player2);
@@ -61,7 +61,7 @@ export function leagueCompletionProblem(participants: string[], matches: LeagueM
     }
     pairs.add(pair);
     if (match.status !== "confirmed" || !match.winner || ![a, b].includes(String(match.winner)) || !match.sets.length) {
-      return "Svi ligaski mecevi moraju imati potvrdjen rezultat.";
+      return "Svi ligaški mečevi moraju imati potvrđen rezultat.";
     }
   }
   return null;

@@ -33,3 +33,13 @@ test("old clients retain the legacy fallback and response field", () => {
   assert.equal(appVersionPolicy("IOS", 6, settings).playStoreUrl, settings.appStoreUrl);
   assert.equal(appVersionPolicy(undefined, 0, settings).updateRequired, false);
 });
+
+test("English update copy is separate from MNE and does not change build policy", () => {
+  const original = appVersionPolicy("ios", 5, settings);
+  const translated = appVersionPolicy("ios", 5, { ...settings, appUpdateMessageEn: "Please update COA." });
+  assert.equal(translated.message, settings.appUpdateMessage);
+  assert.equal(translated.messageEn, "Please update COA.");
+  assert.equal(original.messageEn, "A new version is required. Please update COA The Matchmaker.");
+  assert.equal(translated.updateRequired, original.updateRequired);
+  assert.equal(translated.minSupportedBuild, original.minSupportedBuild);
+});

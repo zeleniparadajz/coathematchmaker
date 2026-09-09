@@ -17,8 +17,8 @@ test("venue input rejects invalid IDs, duplicates, empty names and untrusted fie
 test("resolution preserves chosen order and permits inactive venues only for an existing reference", async () => {
   const find = async () => [first, second];
   assert.deepEqual((await resolveLocations([second._id, first._id], [second._id], find)).map((v) => v.name), ["Klub B", "Klub A"]);
-  await assert.rejects(resolveLocations([second._id], [], find), /vise nije dostupna/);
-  await assert.rejects(resolveLocations(["123456789012345678901236"], [], find), /vise nije dostupna/);
+  await assert.rejects(resolveLocations([second._id], [], find), /više nije dostupna/);
+  await assert.rejects(resolveLocations(["123456789012345678901236"], [], find), /više nije dostupna/);
 });
 
 test("new tournaments use shared venues; legacy edits remain backwards compatible", async () => {
@@ -48,7 +48,7 @@ test("Google search is server-side, restricted fields, no cache and friendly err
   assert.equal((await service.search("Klub Budva"))[0].id, "place-a");
   await service.search("Klub Budva");
   assert.equal(calls, 2);
-  await assert.rejects(new GooglePlacesService("").search("Budva"), /nije podesena/);
+  await assert.rejects(new GooglePlacesService("").search("Budva"), /nije podešena/);
   await assert.rejects(new GooglePlacesService("private-key", async () => new Response("secret upstream error", { status: 403 })).search("Budva"),
     (error: Error) => !error.message.includes("private-key") && !error.message.includes("secret upstream"));
   await assert.rejects(new GooglePlacesService("key", async () => { throw Error("network failure"); }).search("Budva"), /trenutno nije dostupan/);
@@ -63,6 +63,6 @@ test("Google verifies a place ID and limits calls across all users of the instan
     return Response.json({ id: "place-a" });
   });
   for (let i = 0; i < 30; i++) await service.verify("place-a");
-  await assert.rejects(service.verify("place-a"), /Previse Maps zahtjeva/);
+  await assert.rejects(service.verify("place-a"), /Previše zahtjeva za Google Maps/);
   assert.equal(calls, 30);
 });

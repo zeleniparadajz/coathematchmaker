@@ -11,7 +11,7 @@ type TournamentDoc = TournamentAttrs & { _id: Types.ObjectId };
 
 export function validateKnockoutSettings(tournament: Pick<TournamentAttrs, "format" | "discipline" | "knockoutSize">) {
   if (tournament.knockoutSize && (tournament.format !== "round_robin" || tournament.discipline !== "singles")) {
-    throw new AppError(400, "Knockout zavrsnica je dostupna za round-robin singl turnire.");
+    throw new AppError(400, "Knockout završnica je dostupna za round-robin singl turnire.");
   }
 }
 
@@ -23,12 +23,12 @@ export async function roundRobinState(tournament: TournamentDoc) {
     ? tournament.knockoutSeeds.map(String)
     : standings.slice(0, tournament.knockoutSize || 0).map((row) => row.playerId);
   const knownMatches = new Set(tournament.knockoutRounds.flatMap((r) => r.matchIds.map(String)));
-  const problem = tournament.status === "finished" ? "Turnir je zavrsen." :
-    tournament.winner && !tournament.knockoutStartedAt ? "Turnir vec ima odredjenog pobjednika." :
-    !tournament.knockoutSize ? "Knockout zavrsnica nije ukljucena." :
-    ids.length < tournament.knockoutSize ? "Nema dovoljno ucesnika za izabranu zavrsnicu." :
-    matches.some((m) => m.round === "RR" && (m.discipline !== "singles" || m.player1Partner || m.player2Partner)) ? "Zavrsnica zahtijeva singl ligaske meceve." :
-    matches.some((m) => m.round !== "RR" && !knownMatches.has(String(m._id))) ? "Turnir vec ima meceve van ligaske faze." :
+  const problem = tournament.status === "finished" ? "Turnir je završen." :
+    tournament.winner && !tournament.knockoutStartedAt ? "Turnir već ima određenog pobjednika." :
+    !tournament.knockoutSize ? "Knockout završnica nije uključena." :
+    ids.length < tournament.knockoutSize ? "Nema dovoljno učesnika za izabranu završnicu." :
+    matches.some((m) => m.round === "RR" && (m.discipline !== "singles" || m.player1Partner || m.player2Partner)) ? "Završnica zahtijeva singl ligaške mečeve." :
+    matches.some((m) => m.round !== "RR" && !knownMatches.has(String(m._id))) ? "Turnir već ima mečeve van ligaške faze." :
     leagueCompletionProblem(ids, matches);
   const current = tournament.knockoutRounds.at(-1);
   const currentMatches = current ? current.matchIds.map((id) => matches.find((m) => String(m._id) === String(id))) : [];
@@ -53,7 +53,7 @@ async function materializeRounds(tournament: TournamentDoc) {
   let pairs = seededPairs(tournament.knockoutSeeds.map(String));
   for (const plan of tournament.knockoutRounds) {
     for (const [i, id] of plan.matchIds.entries()) {
-      if (!pairs[i]) throw new AppError(409, "Knockout parovi nijesu spremni.");
+      if (!pairs[i]) throw new AppError(409, "Knockout parovi nisu spremni.");
       try {
         await Match.updateOne({ _id: id }, { $setOnInsert: {
           tournament: tournament._id, player1: pairs[i][0], player2: pairs[i][1],
@@ -75,11 +75,11 @@ async function materializeRounds(tournament: TournamentDoc) {
 
 export async function startRoundRobinKnockout(id: string, approvedSeeds: string[]) {
   let tournament = await Tournament.findById(id);
-  if (!tournament) throw new AppError(404, "Tournament not found");
+  if (!tournament) throw new AppError(404, "Turnir nije pronađen.");
   validateKnockoutSettings(tournament);
   const state = await roundRobinState(tournament);
   if (approvedSeeds.join(",") !== state.seeds.join(",")) {
-    throw new AppError(409, "Tabela ili broj ucesnika su promijenjeni. Ponovo pregledajte parove.");
+    throw new AppError(409, "Tabela ili broj učesnika su promijenjeni. Ponovo pregledajte parove.");
   }
   if (!tournament.knockoutStartedAt) {
     if (!state.canStart) throw new AppError(400, state.blockedReason!);
@@ -91,7 +91,7 @@ export async function startRoundRobinKnockout(id: string, approvedSeeds: string[
     }, { $set: { knockoutSeeds: approvedSeeds, knockoutStartedAt: new Date(), knockoutRounds: [plan], status: "active" } }, { new: true });
     tournament = updated ?? await Tournament.findById(id);
     if (!tournament?.knockoutStartedAt || tournament.knockoutSeeds.map(String).join(",") !== approvedSeeds.join(",")) {
-      throw new AppError(409, "Turnir je izmijenjen. Osvjezite pregled.");
+      throw new AppError(409, "Turnir je izmijenjen. Osvježite pregled.");
     }
   }
   await materializeRounds(tournament);
@@ -100,13 +100,13 @@ export async function startRoundRobinKnockout(id: string, approvedSeeds: string[
 
 export async function advanceRoundRobinKnockout(id: string, expectedRound: string) {
   const tournament = await Tournament.findById(id);
-  if (!tournament?.knockoutStartedAt) throw new AppError(400, "Knockout zavrsnica nije pokrenuta.");
+  if (!tournament?.knockoutStartedAt) throw new AppError(400, "Knockout završnica nije pokrenuta.");
   const current = tournament.knockoutRounds.at(-1)!;
-  if (current.round !== expectedRound) throw new AppError(409, "Runda je vec promijenjena. Osvjezite pregled.");
+  if (current.round !== expectedRound) throw new AppError(409, "Runda je već promijenjena. Osvježite pregled.");
   await materializeRounds(tournament);
   const matches = await Match.find({ _id: { $in: current.matchIds } });
   if (matches.length !== current.matchIds.length || matches.some((m) => m.status !== "confirmed" || !m.winner)) {
-    throw new AppError(400, "Svi mecevi ove runde moraju imati potvrdjen rezultat.");
+    throw new AppError(400, "Svi mečevi ove runde moraju imati potvrđen rezultat.");
   }
   if (current.round === "F") {
     const winner = matches[0].winner!;
@@ -130,7 +130,7 @@ export async function ensureManualLeagueMatch(tournamentId: string | undefined, 
   if (!tournamentId) return;
   const tournament = await Tournament.findById(tournamentId);
   if (tournament?.knockoutSize && (tournament.knockoutStartedAt || round !== "RR" || discipline !== "singles")) {
-    throw new AppError(400, "Knockout meceve formira zavrsnica. Rucni unos je moguc samo za ligasku fazu prije zavrsnice.");
+    throw new AppError(400, "Knockout mečeve formira završnica. Ručni unos je moguć samo za ligašku fazu prije završnice.");
   }
 }
 
@@ -140,14 +140,14 @@ export async function protectHybridMatch(match: MatchAttrs, body: Record<string,
   if (!tournament?.knockoutSize) return;
   for (const key of ["player1", "player2", "player1Partner", "player2Partner", "tournament", "round", "discipline", "friendly"] as const) {
     if (body[key] !== undefined && String(body[key]) !== String(match[key])) {
-      throw new AppError(400, "Ucesnici i faza ligaskog/knockout meca su zakljucani.");
+      throw new AppError(400, "Učesnici i faza ligaškog/knockout meča su zaključani.");
     }
   }
   if (match.status === "confirmed") {
     if ((body.winner !== undefined && String(body.winner) !== String(match.winner)) ||
       (body.status !== undefined && body.status !== match.status) ||
       (body.sets !== undefined && JSON.stringify(body.sets) !== JSON.stringify(match.sets.map((s) => ({ player1Games: s.player1Games, player2Games: s.player2Games }))))) {
-      throw new AppError(400, "Potvrdjeni rezultati lige i zavrsnice su zakljucani.");
+      throw new AppError(400, "Potvrđeni rezultati lige i završnice su zaključani.");
     }
   }
 }

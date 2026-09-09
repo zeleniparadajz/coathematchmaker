@@ -14,7 +14,7 @@ export const applyConfirmedMatchStats = async (match: MatchAttrs & { _id: Types.
   const player1Id = match.player1.toString();
   const player2Id = match.player2.toString();
   if (winnerId !== player1Id && winnerId !== player2Id) {
-    throw new AppError(400, "Winner must be player1/team1 or player2/team2");
+    throw new AppError(400, "Pobjednik mora biti jedan od igrača ili timova u meču.");
   }
 
   if (match.friendly) {
@@ -51,11 +51,11 @@ export const awardTournamentWin = async (tournamentId: string, winnerId: string)
   const tournament = await Tournament.findById(tournamentId);
 
   if (!tournament) {
-    throw new AppError(404, "Tournament not found");
+    throw new AppError(404, "Turnir nije pronađen.");
   }
 
   if (!tournament.participants.some((participantId) => participantId.toString() === winnerId)) {
-    throw new AppError(400, "Winner must be a participant in the tournament");
+    throw new AppError(400, "Pobjednik mora biti učesnik turnira.");
   }
 
   const alreadyHadWinner = Boolean(tournament.winner);
@@ -84,7 +84,7 @@ export const getTournamentRanking = async (tournamentId: string) => {
   const tournament = await Tournament.findById(tournamentId).populate("participants", "-password");
 
   if (!tournament) {
-    throw new AppError(404, "Tournament not found");
+    throw new AppError(404, "Turnir nije pronađen.");
   }
 
   const matches = await Match.find({

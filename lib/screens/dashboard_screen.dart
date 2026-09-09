@@ -1,3 +1,4 @@
+import 'package:coathematchmaker/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/player.dart';
@@ -97,7 +98,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           .length;
       void openMyProfile() => Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) => PlayerProfileScreen(
+          builder: (context) => PlayerProfileScreen(
             playerId: current.id,
             league: widget.league,
             api: widget.api,
@@ -134,7 +135,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
           children: [
             Text(
-              'Zdravo, ${current.firstName}',
+              context.tr("Zdravo, {p0}", [current.firstName]),
               style: const TextStyle(
                 fontSize: 27,
                 height: 1.2,
@@ -142,8 +143,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
             const SizedBox(height: 6),
-            const Text(
-              'Spreman za sljedeći meč?',
+            Text(
+              context.tr("Spreman za sledeći meč?"),
               style: TextStyle(color: AppTheme.muted),
             ),
             const SizedBox(height: 20),
@@ -156,8 +157,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             const SizedBox(height: 20),
             _SectionTitle(
-              title: 'Liga danas',
-              action: 'Moj profil',
+              title: context.tr("Liga danas"),
+              action: context.tr("Moj profil"),
               onTap: openMyProfile,
             ),
             const SizedBox(height: 10),
@@ -170,29 +171,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   crossAxisSpacing: 10,
                   mainAxisSpacing: 10,
                   mainAxisExtent:
-                      142 +
+                      150 +
                       70 * (MediaQuery.textScalerOf(context).scale(1) - 1),
                 ),
                 children: [
                   StatCard(
-                    label: 'Igrača',
+                    label: context.tr("Igrača"),
                     value: '${data.players.length}',
                     icon: Icons.groups,
                   ),
                   StatCard(
-                    label: 'Moji turniri',
+                    label: context.tr("Moji turniri"),
                     value: '$myTournaments',
                     icon: Icons.emoji_events,
                     color: AppTheme.gold,
                   ),
                   StatCard(
-                    label: 'Moji mečevi',
+                    label: context.tr("Moji mečevi"),
                     value: '${current.matchesPlayed}',
                     icon: Icons.sports_tennis,
                     color: AppTheme.blue,
                   ),
                   StatCard(
-                    label: 'Titule',
+                    label: context.tr("Titule"),
                     value: '${current.tournamentsWon}',
                     icon: Icons.workspace_premium,
                     color: AppTheme.clay,
@@ -208,8 +209,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Expanded(
                   child: Text(
                     activeTournaments > 0
-                        ? '$activeTournaments aktivnih turnira se trenutno igra'
-                        : 'Nema aktivnih turnira trenutno',
+                        ? context.tr("Turniri u toku: {p0}", [
+                            activeTournaments,
+                          ])
+                        : context.tr("Trenutno nema aktivnih turnira."),
                     style: const TextStyle(color: AppTheme.muted, fontSize: 13),
                   ),
                 ),
@@ -219,7 +222,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             FilledButton.icon(
               onPressed: () => widget.onNavigate?.call(1),
               icon: const Icon(Icons.person_search_outlined, size: 19),
-              label: const Text('Pronađi protivnika'),
+              label: Text(context.tr("Pronađi protivnika")),
             ),
             if (waiting > 0) ...[
               const SizedBox(height: 22),
@@ -232,7 +235,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     color: AppTheme.courtDark,
                   ),
                   title: Text(
-                    '$waiting zahtjeva čeka odgovor',
+                    context.tr("Zahtjevi koji čekaju odgovor: {p0}", [waiting]),
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                   trailing: const Icon(Icons.arrow_forward, size: 20),
@@ -242,8 +245,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
             const SizedBox(height: 24),
             _SectionTitle(
-              title: 'Sljedeći meč',
-              action: 'Moji mečevi',
+              title: context.tr("Sledeći meč"),
+              action: context.tr("Moji mečevi"),
               onTap: () => widget.onNavigate?.call(3),
             ),
             const SizedBox(height: 10),
@@ -254,7 +257,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: Padding(
                   padding: const EdgeInsets.all(20),
                   child: upcoming.isEmpty
-                      ? const Row(
+                      ? Row(
                           children: [
                             Icon(
                               Icons.event_available_outlined,
@@ -264,7 +267,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             SizedBox(width: 16),
                             Expanded(
                               child: Text(
-                                'Još nema dogovorenog termina.',
+                                context.tr("Još nema dogovorenog termina."),
                                 style: TextStyle(color: AppTheme.muted),
                               ),
                             ),
@@ -293,7 +296,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                             const SizedBox(height: 16),
                             Text(
-                              '${upcoming.first.team1Name}\nprotiv ${upcoming.first.team2Name}',
+                              context.tr("{p0}\nprotiv {p1}", [
+                                upcoming.first.team1Name,
+                                upcoming.first.team2Name,
+                              ]),
                               style: Theme.of(context).textTheme.titleMedium,
                             ),
                             if (upcoming.first.location?.isNotEmpty ==
@@ -311,15 +317,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             const SizedBox(height: 24),
             _SectionTitle(
-              title: 'Vrh rang-liste',
-              action: 'Svi igrači',
+              title: context.tr("Vrh rang-liste"),
+              action: context.tr("Svi igrači"),
               onTap: () => widget.onNavigate?.call(4),
             ),
             const SizedBox(height: 10),
             if (data.rankings.isEmpty)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.all(20),
-                child: Text('Još nema igrača na rang-listi.'),
+                child: Text(context.tr("Još nema igrača na rang-listi.")),
               ),
             ...data.rankings.take(5).toList().asMap().entries.map((entry) {
               final p = entry.value;
@@ -355,7 +361,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                     subtitle: Text(
-                      '${p.wins} pobjeda',
+                      context.tr("{p0} pobjeda", [p.wins]),
                       style: const TextStyle(fontSize: 12),
                     ),
                     trailing: Text(
@@ -368,7 +374,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
-                        builder: (_) => PlayerProfileScreen(
+                        builder: (context) => PlayerProfileScreen(
                           playerId: p.id,
                           league: widget.league,
                           api: widget.api,
@@ -497,7 +503,7 @@ class _PersonalOverview extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(24),
                               ),
                               child: Text(
-                                '$position. na rang-listi',
+                                context.tr("{p0}. na rang-listi", [position]),
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 12,
@@ -510,7 +516,7 @@ class _PersonalOverview extends StatelessWidget {
                   const SizedBox(width: 8),
                   if (url.isNotEmpty)
                     IconButton(
-                      tooltip: 'Prikaži moju fotografiju',
+                      tooltip: context.tr("Prikaži moju fotografiju"),
                       onPressed: () => openPhotoViewer(context, [url]),
                       style: IconButton.styleFrom(
                         backgroundColor: Colors.white.withValues(alpha: .9),
@@ -547,11 +553,17 @@ class _PersonalOverview extends StatelessWidget {
                   Row(
                     children: [
                       _HeroNumber(
-                        label: 'Poeni',
+                        label: context.tr("Poeni"),
                         value: '${player.totalPoints}',
                       ),
-                      _HeroNumber(label: 'Pobjede', value: '${player.wins}'),
-                      _HeroNumber(label: 'Porazi', value: '${player.losses}'),
+                      _HeroNumber(
+                        label: context.tr("Pobjede"),
+                        value: '${player.wins}',
+                      ),
+                      _HeroNumber(
+                        label: context.tr("Porazi"),
+                        value: '${player.losses}',
+                      ),
                     ],
                   ),
                 ],

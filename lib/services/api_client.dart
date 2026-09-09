@@ -158,7 +158,7 @@ class ApiClient {
 
     if (response.statusCode >= HttpStatus.badRequest) {
       throw ApiException(
-        decoded['message']?.toString() ?? 'API request failed',
+        decoded['message']?.toString() ?? 'Zahtjev nije uspio. Pokušaj ponovo.',
         response.statusCode,
       );
     }

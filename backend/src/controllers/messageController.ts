@@ -16,7 +16,7 @@ export const sendMessageSchema = z.object({
 
 const ensureObjectId = (id: string, label: string): void => {
   if (!Types.ObjectId.isValid(id)) {
-    throw new AppError(400, `${label} must be a valid id`);
+    throw new AppError(400, `Identifikator za polje ${label} nije ispravan.`);
   }
 };
 
@@ -28,7 +28,7 @@ const ensureConversationAccess = async (conversationId: string, userId: string) 
   });
 
   if (!conversation) {
-    throw new AppError(404, "Conversation not found");
+    throw new AppError(404, "Razgovor nije pronađen.");
   }
 
   return conversation;
@@ -73,12 +73,12 @@ export const startConversation = asyncHandler(async (req, res) => {
   ensureObjectId(participantId, "participant");
 
   if (participantId === req.user!.id) {
-    throw new AppError(400, "You cannot start a conversation with yourself");
+    throw new AppError(400, "Ne možete započeti razgovor sa sobom.");
   }
 
   const participant = await Player.findById(participantId);
   if (!participant || !participant.active) {
-    throw new AppError(404, "Player not found");
+    throw new AppError(404, "Igrač nije pronađen.");
   }
 
   const participants = [req.user!.id, participantId].sort();

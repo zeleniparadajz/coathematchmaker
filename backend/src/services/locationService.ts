@@ -29,7 +29,7 @@ export async function resolveLocations(
   return ids.map((id) => {
     const venue = venues.find((item) => item._id.toString() === id);
     if (!venue || (!venue.active && !existingIds.includes(id))) {
-      throw new AppError(400, "Izabrana lokacija vise nije dostupna. Osvjezite listu.");
+      throw new AppError(400, "Izabrana lokacija više nije dostupna. Osvježite listu.");
     }
     return venue;
   });

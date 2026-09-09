@@ -1,3 +1,4 @@
+import 'package:coathematchmaker/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 import '../models/player.dart';
 import '../services/api_client.dart';
@@ -52,7 +53,7 @@ class _RankingsScreenState extends State<RankingsScreen> {
 
   void _open(Player player) => Navigator.of(context).push(
     MaterialPageRoute<void>(
-      builder: (_) => PlayerProfileScreen(
+      builder: (context) => PlayerProfileScreen(
         playerId: player.id,
         league: widget.league,
         api: widget.api,
@@ -120,7 +121,7 @@ class _RankingsScreenState extends State<RankingsScreen> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              'Moja pozicija: ${myIndex + 1}.',
+                              context.tr("Moja pozicija: {p0}.", [myIndex + 1]),
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w700,
@@ -128,7 +129,9 @@ class _RankingsScreenState extends State<RankingsScreen> {
                             ),
                           ),
                           Text(
-                            '${players[myIndex].totalPoints} poena',
+                            context.tr("{p0} poena", [
+                              players[myIndex].totalPoints,
+                            ]),
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 13,
@@ -138,18 +141,18 @@ class _RankingsScreenState extends State<RankingsScreen> {
                       ),
                     ),
                   const SizedBox(height: 20),
-                  const Row(
+                  Row(
                     children: [
                       SizedBox(width: 38, child: Text('#')),
-                      Expanded(child: Text('Igrač')),
-                      Text('Poeni'),
+                      Expanded(child: Text(context.tr("Igrač"))),
+                      Text(context.tr("Poeni")),
                     ],
                   ),
                   const SizedBox(height: 8),
                   if (players.isEmpty)
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.all(20),
-                      child: Text('Rang-lista je trenutno prazna.'),
+                      child: Text(context.tr("Rang-lista je trenutno prazna.")),
                     ),
                 ],
               );
@@ -211,7 +214,10 @@ class _RankingsScreenState extends State<RankingsScreen> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                '${player.wins} pobjeda · ${player.matchesPlayed} mečeva',
+                                context.tr("{p0} pobjeda · {p1} mečeva", [
+                                  player.wins,
+                                  player.matchesPlayed,
+                                ]),
                                 style: Theme.of(context).textTheme.bodySmall,
                               ),
                             ],
@@ -303,7 +309,7 @@ class _PodiumPlayer extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             Text(
-              '$position. mjesto',
+              context.tr("{p0}. mjesto", [position]),
               style: const TextStyle(fontSize: 11, color: AppTheme.muted),
             ),
           ],

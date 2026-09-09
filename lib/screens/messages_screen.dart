@@ -1,3 +1,4 @@
+import 'package:coathematchmaker/l10n/app_strings.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -99,9 +100,9 @@ class _MessagesScreenState extends State<MessagesScreen>
     } on ApiException catch (error) {
       if (mounted) setState(() => _failed = true);
       if (!silent && mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.serverMessage(error.message))),
+        );
       }
     } finally {
       _refreshing = false;
@@ -118,7 +119,7 @@ class _MessagesScreenState extends State<MessagesScreen>
     if (options.isEmpty) return;
     final player = await showAppOptionPicker<Player>(
       context: context,
-      title: 'Nova poruka',
+      title: context.tr("Nova poruka"),
       selected: options.first,
       options: options,
       labelBuilder: (player) => player.fullName,
@@ -130,7 +131,7 @@ class _MessagesScreenState extends State<MessagesScreen>
     if (!mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => ChatScreen(
+        builder: (context) => ChatScreen(
           league: widget.league,
           api: widget.api,
           auth: widget.auth,
@@ -150,7 +151,7 @@ class _MessagesScreenState extends State<MessagesScreen>
         heroTag: 'messages-new-conversation-fab',
         onPressed: _newConversation,
         icon: const Icon(Icons.edit),
-        label: const Text('Poruka'),
+        label: Text(context.tr("Poruka")),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -162,7 +163,9 @@ class _MessagesScreenState extends State<MessagesScreen>
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
                 children: [
                   Text(
-                    'Dogovori meč, termin ili trening direktno sa igračima.',
+                    context.tr(
+                      "Dogovori meč, termin ili trening direktno sa igračima.",
+                    ),
                     style: TextStyle(
                       color: AppTheme.ink.withValues(alpha: .58),
                       fontWeight: FontWeight.w600,
@@ -183,7 +186,7 @@ class _MessagesScreenState extends State<MessagesScreen>
                         onTap: () async {
                           await Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) => ChatScreen(
+                              builder: (context) => ChatScreen(
                                 league: widget.league,
                                 api: widget.api,
                                 auth: widget.auth,
@@ -238,11 +241,11 @@ class _ConversationCard extends StatelessWidget {
             ? const CircleAvatar(child: Icon(Icons.person))
             : PlayerAvatar(player: other!, api: api, radius: 26),
         title: Text(
-          other?.fullName ?? 'Igrač',
+          other?.fullName ?? context.tr("Igrač"),
           style: const TextStyle(fontWeight: FontWeight.w900),
         ),
         subtitle: Text(
-          conversation.lastMessage ?? 'Još nema poruka.',
+          conversation.lastMessage ?? context.tr("Još nema poruka."),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
@@ -357,9 +360,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       }
     } on ApiException catch (error) {
       if (!silent && mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.serverMessage(error.message))),
+        );
       }
     } finally {
       _refreshing = false;
@@ -377,9 +380,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
       await _refresh(silent: true);
     } on ApiException catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(error.message)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.serverMessage(error.message))),
+        );
       }
     } finally {
       if (mounted) setState(() => _sending = false);
@@ -408,7 +411,7 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
             if (other != null)
               PlayerAvatar(player: other, api: widget.api, radius: 18),
             if (other != null) const SizedBox(width: 8),
-            Expanded(child: Text(other?.fullName ?? 'Poruke')),
+            Expanded(child: Text(other?.fullName ?? context.tr("Poruke"))),
           ],
         ),
       ),
@@ -473,8 +476,8 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       controller: _message,
                       minLines: 1,
                       maxLines: 4,
-                      decoration: const InputDecoration(
-                        hintText: 'Napiši poruku...',
+                      decoration: InputDecoration(
+                        hintText: context.tr("Napiši poruku..."),
                         prefixIcon: Icon(Icons.chat_bubble_outline),
                       ),
                     ),
@@ -511,16 +514,16 @@ class _EmptyInbox extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: const Column(
+      child: Column(
         children: [
           Icon(Icons.mark_chat_unread_outlined, size: 42),
           SizedBox(height: 10),
           Text(
-            'Nema razgovora još.',
+            context.tr("Još nema razgovora."),
             style: TextStyle(fontWeight: FontWeight.w900),
           ),
           SizedBox(height: 4),
-          Text('Klikni na Poruka i izaberi igrača.'),
+          Text(context.tr("Započni razgovor sa igračem.")),
         ],
       ),
     );

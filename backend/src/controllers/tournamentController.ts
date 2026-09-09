@@ -77,7 +77,7 @@ const ensureTournamentManager = (
   role?: string
 ) => {
   if (!isTournamentManager(tournament, userId, role)) {
-    throw new AppError(403, "Only tournament admins can perform this action");
+    throw new AppError(403, "Ovu radnju mogu izvršiti samo administratori turnira.");
   }
 };
 
@@ -154,11 +154,11 @@ export const getTournament = asyncHandler(async (req, res) => {
     .populate("winner", "-password");
 
   if (!tournament) {
-    throw new AppError(404, "Tournament not found");
+    throw new AppError(404, "Turnir nije pronađen.");
   }
 
   if (!canViewTournament(tournament, req.user!.id, req.user!.role)) {
-    throw new AppError(404, "Tournament not found");
+    throw new AppError(404, "Turnir nije pronađen.");
   }
 
   res.json({ tournament });
@@ -166,12 +166,12 @@ export const getTournament = asyncHandler(async (req, res) => {
 
 export const createTournament = asyncHandler(async (req, res) => {
   if (req.body.endDate < req.body.startDate) {
-    throw new AppError(400, "End date must be after start date");
+    throw new AppError(400, "Datum završetka mora biti poslije datuma početka.");
   }
 
   const body = normalizeTournamentBody(req.body);
   validateKnockoutSettings({ format: body.format ?? "elimination", discipline: body.discipline ?? "singles", knockoutSize: body.knockoutSize ?? 0 });
-  if (body.knockoutSize && body.status === "finished") throw new AppError(400, "Zavrsnica se zavrsava potvrdom finala.");
+  if (body.knockoutSize && body.status === "finished") throw new AppError(400, "Završnica se završava potvrdom rezultata finala.");
   const tournament = await Tournament.create({
     ...body,
     ...await tournamentLocationPatch(body),
@@ -188,13 +188,13 @@ export const createTournament = asyncHandler(async (req, res) => {
 
 export const updateTournament = asyncHandler(async (req, res) => {
   if (req.body.endDate && req.body.startDate && req.body.endDate < req.body.startDate) {
-    throw new AppError(400, "End date must be after start date");
+    throw new AppError(400, "Datum završetka mora biti poslije datuma početka.");
   }
 
   const existing = await Tournament.findById(req.params.id);
 
   if (!existing) {
-    throw new AppError(404, "Tournament not found");
+    throw new AppError(404, "Turnir nije pronađen.");
   }
 
   ensureTournamentManager(existing, req.user!.id, req.user!.role);
@@ -204,18 +204,18 @@ export const updateTournament = asyncHandler(async (req, res) => {
   validateKnockoutSettings({ knockoutSize, format: body.format ?? existing.format, discipline: body.discipline ?? existing.discipline });
   if (existing.format === "round_robin" && await Match.exists({ tournament: existing._id })) {
     if ((body.format && body.format !== existing.format) || (body.discipline && body.discipline !== existing.discipline)) {
-      throw new AppError(400, "Format i disciplina se ne mijenjaju nakon pocetka lige. Zavrsnicu ukljucite posebno.");
+      throw new AppError(400, "Format i disciplina se ne mijenjaju nakon početka lige. Završnicu uključite posebno.");
     }
     if (knockoutSize && body.friendly !== undefined && body.friendly !== existing.friendly) {
-      throw new AppError(400, "Bodovanje se ne mijenja nakon pocetka lige sa zavrsnicom.");
+      throw new AppError(400, "Bodovanje se ne mijenja nakon početka lige sa završnicom.");
     }
   }
   if ((existing.knockoutStartedAt || existing.status === "finished") && knockoutSize !== existing.knockoutSize) {
-    throw new AppError(400, "Zavrsnica je vec pokrenuta ili je turnir zavrsen.");
+    throw new AppError(400, "Završnica je već pokrenuta ili je turnir završen.");
   }
   if (knockoutSize && (body.winner || (body.status === "finished" && existing.status !== "finished") ||
     (existing.knockoutStartedAt && body.status && body.status !== existing.status))) {
-    throw new AppError(400, "Status i pobjednik zavrsnice odredjuju se potvrdjenim finalom.");
+    throw new AppError(400, "Status i pobjednik završnice određuju se potvrdom rezultata finala.");
   }
   const tournament = await Tournament.findOneAndUpdate({ _id: req.params.id,
     knockoutStartedAt: existing.knockoutStartedAt ?? { $exists: false },
@@ -232,7 +232,7 @@ export const updateTournament = asyncHandler(async (req, res) => {
     .populate("admins", "-password");
 
   if (!tournament) {
-    throw new AppError(409, "Turnir je izmijenjen. Osvjezite pregled.");
+    throw new AppError(409, "Turnir je izmijenjen. Osvježite pregled.");
   }
 
   res.json({ tournament });
@@ -243,25 +243,25 @@ export const registerForTournament = asyncHandler(async (req, res) => {
   const player = await Player.findById(playerId);
 
   if (!player?.active) {
-    throw new AppError(403, "Only active players can register for tournaments");
+    throw new AppError(403, "Samo aktivni igrači mogu se prijaviti na turnir.");
   }
 
   const tournament = await Tournament.findById(req.params.id);
 
   if (!tournament) {
-    throw new AppError(404, "Tournament not found");
+    throw new AppError(404, "Turnir nije pronađen.");
   }
 
   if (tournament.visibility === "private") {
-    throw new AppError(403, "Private tournaments are invite-only");
+    throw new AppError(403, "Za učešće na privatnom turniru potreban je poziv.");
   }
 
   if (tournament.status !== "upcoming") {
-    throw new AppError(400, "Registration is allowed only for upcoming tournaments");
+    throw new AppError(400, "Prijava je moguća samo za turnire u najavi.");
   }
 
   if (tournament.format === "round_robin" && await Match.exists({ tournament: tournament._id })) {
-    throw new AppError(400, "Ucesnici lige se ne mijenjaju nakon formiranja meceva.");
+    throw new AppError(400, "Učesnici lige se ne mijenjaju nakon formiranja mečeva.");
   }
 
   if (!tournament.participants.some((participantId) => participantId.toString() === playerId)) {
@@ -278,19 +278,19 @@ export const addParticipant = asyncHandler(async (req, res) => {
   const player = await Player.findById(playerId);
 
   if (!player) {
-    throw new AppError(404, "Player not found");
+    throw new AppError(404, "Igrač nije pronađen.");
   }
 
   const tournament = await Tournament.findById(req.params.id);
 
   if (!tournament) {
-    throw new AppError(404, "Tournament not found");
+    throw new AppError(404, "Turnir nije pronađen.");
   }
 
   ensureTournamentManager(tournament, req.user!.id, req.user!.role);
 
   if (tournament.format === "round_robin" && await Match.exists({ tournament: tournament._id })) {
-    throw new AppError(400, "Ucesnici lige se ne mijenjaju nakon formiranja meceva.");
+    throw new AppError(400, "Učesnici lige se ne mijenjaju nakon formiranja mečeva.");
   }
 
   if (!tournament.participants.some((participantId) => participantId.toString() === playerId)) {
@@ -308,13 +308,13 @@ export const removeParticipant = asyncHandler(async (req, res) => {
   const tournament = await Tournament.findById(req.params.id);
 
   if (!tournament) {
-    throw new AppError(404, "Tournament not found");
+    throw new AppError(404, "Turnir nije pronađen.");
   }
 
   ensureTournamentManager(tournament, req.user!.id, req.user!.role);
 
   if (tournament.matches.length > 0 || await Match.exists({ tournament: tournament._id })) {
-    throw new AppError(400, "Cannot remove participants after draw is generated");
+    throw new AppError(400, "Učesnike nije moguće ukloniti nakon formiranja žrijeba.");
   }
 
   tournament.participants = tournament.participants.filter((participantId) => participantId.toString() !== req.params.playerId);
@@ -331,20 +331,20 @@ export const addTournamentAdmin = asyncHandler(async (req, res) => {
   const player = await Player.findById(playerId);
 
   if (!player) {
-    throw new AppError(404, "Player not found");
+    throw new AppError(404, "Igrač nije pronađen.");
   }
 
   const tournament = await Tournament.findById(req.params.id);
 
   if (!tournament) {
-    throw new AppError(404, "Tournament not found");
+    throw new AppError(404, "Turnir nije pronađen.");
   }
 
   ensureTournamentManager(tournament, req.user!.id, req.user!.role);
 
   if (!tournament.participants.some((participantId) => participantId.toString() === playerId)) {
     if (tournament.format === "round_robin" && await Match.exists({ tournament: tournament._id })) {
-      throw new AppError(400, "Nakon pocetka lige admin se bira medju postojecim ucesnicima.");
+      throw new AppError(400, "Nakon početka lige administrator se bira među postojećim učesnicima.");
     }
     tournament.participants.push(player._id);
   }
@@ -364,7 +364,7 @@ export const createTournamentMatch = asyncHandler(async (req, res) => {
   const tournament = await Tournament.findById(req.params.id);
 
   if (!tournament) {
-    throw new AppError(404, "Tournament not found");
+    throw new AppError(404, "Turnir nije pronađen.");
   }
 
   ensureTournamentManager(tournament, req.user!.id, req.user!.role);
@@ -378,17 +378,17 @@ export const createTournamentMatch = asyncHandler(async (req, res) => {
   ].filter(Boolean) as string[];
 
   if (new Set(playerIds).size !== playerIds.length) {
-    throw new AppError(400, "Match players must be different");
+    throw new AppError(400, "Igrači u meču moraju biti različiti.");
   }
 
   if (req.body.discipline === "doubles" && (!req.body.player1Partner || !req.body.player2Partner)) {
-    throw new AppError(400, "Doubles matches require four players");
+    throw new AppError(400, "Za dubl meč potrebna su četiri igrača.");
   }
 
   const participantIds = tournament.participants.map((id) => id.toString());
 
   if (!playerIds.every((id) => participantIds.includes(id))) {
-    throw new AppError(400, "All match players must be tournament participants");
+    throw new AppError(400, "Svi igrači u meču moraju biti učesnici turnira.");
   }
 
   if (req.body.scheduledAt) {
@@ -398,7 +398,7 @@ export const createTournamentMatch = asyncHandler(async (req, res) => {
     end.setHours(23, 59, 59, 999);
 
     if (req.body.scheduledAt < start || req.body.scheduledAt > end) {
-      throw new AppError(400, "Match date must be inside tournament dates");
+      throw new AppError(400, "Termin meča mora biti u okviru trajanja turnira.");
     }
   }
 
@@ -433,7 +433,7 @@ export const generateDraw = asyncHandler(async (req, res) => {
   const existing = await Tournament.findById(req.params.id);
 
   if (!existing) {
-    throw new AppError(404, "Tournament not found");
+    throw new AppError(404, "Turnir nije pronađen.");
   }
 
   ensureTournamentManager(existing, req.user!.id, req.user!.role);
@@ -457,7 +457,7 @@ export const advanceRound = asyncHandler(async (req, res) => {
   const existing = await Tournament.findById(req.params.id);
 
   if (!existing) {
-    throw new AppError(404, "Tournament not found");
+    throw new AppError(404, "Turnir nije pronađen.");
   }
 
   ensureTournamentManager(existing, req.user!.id, req.user!.role);
@@ -488,12 +488,12 @@ export const finishTournament = asyncHandler(async (req, res) => {
   const existing = await Tournament.findById(req.params.id);
 
   if (!existing) {
-    throw new AppError(404, "Tournament not found");
+    throw new AppError(404, "Turnir nije pronađen.");
   }
 
   ensureTournamentManager(existing, req.user!.id, req.user!.role);
 
-  if (existing.knockoutSize) throw new AppError(400, "Pobjednik zavrsnice odredjuje se potvrdjenim finalom.");
+  if (existing.knockoutSize) throw new AppError(400, "Pobjednik završnice određuje se potvrdom rezultata finala.");
 
   await awardTournamentWin(String(req.params.id), req.body.winnerId);
 
@@ -506,14 +506,14 @@ export const finishTournament = asyncHandler(async (req, res) => {
 
 export const getRoundRobin = asyncHandler(async (req, res) => {
   const tournament = await Tournament.findById(req.params.id);
-  if (!tournament || !canViewTournament(tournament, req.user!.id, req.user!.role)) throw new AppError(404, "Tournament not found");
+  if (!tournament || !canViewTournament(tournament, req.user!.id, req.user!.role)) throw new AppError(404, "Turnir nije pronađen.");
   if (tournament.format !== "round_robin") throw new AppError(400, "Turnir nije round-robin.");
   res.json({ roundRobin: await roundRobinState(tournament) });
 });
 
 export const startKnockout = asyncHandler(async (req, res) => {
   const tournament = await Tournament.findById(req.params.id);
-  if (!tournament) throw new AppError(404, "Tournament not found");
+  if (!tournament) throw new AppError(404, "Turnir nije pronađen.");
   ensureTournamentManager(tournament, req.user!.id, req.user!.role);
   res.json({ roundRobin: await startRoundRobinKnockout(String(tournament._id), req.body.seeds) });
 });
@@ -522,17 +522,17 @@ export const uploadTournamentImage = asyncHandler(async (req, res) => {
   const tournament = await Tournament.findById(req.params.id);
 
   if (!tournament) {
-    throw new AppError(404, "Tournament not found");
+    throw new AppError(404, "Turnir nije pronađen.");
   }
 
   const isParticipant = tournament.participants.some((participantId) => participantId.toString() === req.user!.id);
 
   if (req.user!.role !== "admin" && !isParticipant) {
-    throw new AppError(403, "Only tournament participants or admins can add tournament images");
+    throw new AppError(403, "Slike turnira mogu dodavati samo učesnici i administratori.");
   }
 
   if (tournament.images.length >= 5) {
-    throw new AppError(400, "Tournament gallery can contain up to 5 images");
+    throw new AppError(400, "Galerija turnira može imati najviše 5 slika.");
   }
 
   const image = await saveUploadedImage(req.body as Buffer, req.headers["content-type"], {

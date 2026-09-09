@@ -1,3 +1,4 @@
+import 'package:coathematchmaker/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 import '../models/app_location.dart';
 import '../screens/locations_screen.dart';
@@ -23,7 +24,7 @@ Future<LocationSelection?> showLocationPicker({
   bool optional = false,
 }) => Navigator.of(context).push<LocationSelection>(
   MaterialPageRoute(
-    builder: (_) => LocationPickerScreen(
+    builder: (context) => LocationPickerScreen(
       league: league,
       selected: selected,
       legacy: legacy,
@@ -77,16 +78,21 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: Text(widget.multiple ? 'Lokacije turnira' : 'Lokacija'),
+      title: Text(
+        widget.multiple
+            ? context.tr("Lokacije turnira")
+            : context.tr("Lokacija"),
+      ),
       actions: [
         if (widget.canManage)
           IconButton(
-            tooltip: 'Dodaj lokaciju',
+            tooltip: context.tr("Dodaj lokaciju"),
             icon: const Icon(Icons.add_location_alt_outlined),
             onPressed: () async {
               final item = await Navigator.of(context).push<AppLocation>(
                 MaterialPageRoute(
-                  builder: (_) => LocationEditScreen(league: widget.league),
+                  builder: (context) =>
+                      LocationEditScreen(league: widget.league),
                 ),
               );
               if (mounted && item != null) {
@@ -102,8 +108,8 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
         Padding(
           padding: const EdgeInsets.all(16),
           child: TextField(
-            decoration: const InputDecoration(
-              labelText: 'Pretrazi lokacije',
+            decoration: InputDecoration(
+              labelText: context.tr("Pretraži lokacije"),
               prefixIcon: Icon(Icons.search),
             ),
             onChanged: (value) =>
@@ -136,16 +142,16 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                     CheckboxListTile(
                       value: _keepLegacy,
                       title: Text(widget.legacy),
-                      subtitle: const Text('Raniji unos'),
+                      subtitle: Text(context.tr("Raniji unos")),
                       onChanged: (value) => setState(() {
                         _keepLegacy = value == true;
                         if (_keepLegacy) _selected.clear();
                       }),
                     ),
                   if (items.isEmpty)
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.all(24),
-                      child: Text('Nema lokacija za ovaj izbor.'),
+                      child: Text(context.tr("Nema lokacija za ovaj izbor.")),
                     ),
                   for (final item in items)
                     CheckboxListTile(
@@ -154,7 +160,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                       subtitle: Text(
                         [
                           if (item.address.isNotEmpty) item.address,
-                          if (!item.active) 'Neaktivna lokacija',
+                          if (!item.active) context.tr("Neaktivna lokacija"),
                         ].join('\n'),
                       ),
                       onChanged:
@@ -187,8 +193,10 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                       ),
                 label: Text(
                   widget.multiple
-                      ? 'Potvrdi izbor (${_selected.length + (_keepLegacy ? 1 : 0)})'
-                      : 'Potvrdi izbor',
+                      ? context.tr("Potvrdi izbor ({p0})", [
+                          _selected.length + (_keepLegacy ? 1 : 0),
+                        ])
+                      : context.tr("Potvrdi izbor"),
                 ),
               ),
             ),

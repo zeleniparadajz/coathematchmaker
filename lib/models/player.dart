@@ -18,6 +18,8 @@ class Player {
     this.club,
     this.city,
     this.profileImage,
+    this.lastActiveAt,
+    this.playStatusSource = 'manual',
   });
 
   final String id;
@@ -33,6 +35,10 @@ class Player {
   final String? profileImage;
   final bool active;
   final String playStatus;
+  final DateTime? lastActiveAt;
+  final String playStatusSource;
+  bool get unavailableDueToInactivity =>
+      playStatus == 'unavailable' && playStatusSource == 'inactivity';
   final int totalPoints;
   final int wins;
   final int losses;
@@ -78,6 +84,8 @@ class Player {
       profileImage: json['profileImage'],
       active: json['active'] ?? false,
       playStatus: json['playStatus'] ?? 'available',
+      lastActiveAt: DateTime.tryParse(json['lastActiveAt']?.toString() ?? ''),
+      playStatusSource: json['playStatusSource'] ?? 'manual',
       totalPoints: json['totalPoints'] ?? 0,
       wins: json['wins'] ?? 0,
       losses: json['losses'] ?? 0,
