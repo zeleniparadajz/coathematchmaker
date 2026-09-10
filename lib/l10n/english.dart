@@ -1,5 +1,12 @@
 // MNE source text is the stable key. Keep user-entered data out of this catalog.
 const englishMessages = <String, String>{
+  'Sačuvane lokacije': 'Saved locations',
+  'Sačuvane lokacije nisu dostupne.': 'Saved locations are unavailable.',
+  'Dodaj ručno': 'Add manually',
+  'Ukloni lokaciju': 'Remove location',
+  'Nema rezultata na Google mapama.': 'No results on Google Maps.',
+  'Možete izabrati najviše 20 lokacija.': 'You can select up to 20 locations.',
+  'Izabrano lokacija: {p0}': 'Locations selected: {p0}',
   'Upravljanje rezultatom': 'Manage result',
   'Ispravka rezultata': 'Correct result',
   'Uredi setove': 'Edit sets',

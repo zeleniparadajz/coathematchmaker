@@ -1,11 +1,13 @@
 import 'package:coathematchmaker/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../models/app_location.dart';
 import '../services/api_client.dart';
 import '../services/league_service.dart';
 import '../services/maps_service.dart';
+import '../services/place_search_controller.dart';
+import '../widgets/google_maps_attribution.dart';
+import '../widgets/location_picker.dart';
 import '../widgets/load_error.dart';
 
 class LocationsScreen extends StatefulWidget {
@@ -22,12 +24,20 @@ class _LocationsScreenState extends State<LocationsScreen> {
   String _query = '';
 
   Future<void> _edit([AppLocation? location]) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<AppLocation>(
-        builder: (context) =>
-            LocationEditScreen(league: widget.league, location: location),
-      ),
-    );
+    if (location == null) {
+      await showLocationPicker(
+        context: context,
+        league: widget.league,
+        canManage: true,
+      );
+    } else {
+      await Navigator.of(context).push(
+        MaterialPageRoute<AppLocation>(
+          builder: (context) =>
+              LocationEditScreen(league: widget.league, location: location),
+        ),
+      );
+    }
     if (mounted) {
       setState(() => _future = widget.league.locations(includeInactive: true));
     }
@@ -108,11 +118,13 @@ class _LocationsScreenState extends State<LocationsScreen> {
                             : Icons.location_off_outlined,
                       ),
                       title: Text(item.name),
-                      subtitle: Text(
-                        [
-                          if (item.address.isNotEmpty) item.address,
-                          if (!item.active) context.tr("Neaktivna"),
-                        ].join('\n'),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (item.address.isNotEmpty) Text(item.address),
+                          if (!item.active) Text(context.tr("Neaktivna")),
+                          GoogleVenueAttributions(locations: [item]),
+                        ],
                       ),
                       trailing: const Icon(Icons.edit_outlined),
                       onTap: () => _edit(item),
@@ -129,18 +141,26 @@ class _LocationsScreenState extends State<LocationsScreen> {
 }
 
 class LocationEditScreen extends StatefulWidget {
-  const LocationEditScreen({super.key, required this.league, this.location});
+  const LocationEditScreen({
+    super.key,
+    required this.league,
+    this.location,
+    this.initialName = '',
+  });
   final LeagueService league;
   final AppLocation? location;
+  final String initialName;
   @override
   State<LocationEditScreen> createState() => _LocationEditScreenState();
 }
 
 class _LocationEditScreenState extends State<LocationEditScreen> {
   final _form = GlobalKey<FormState>();
-  late final _name = TextEditingController(text: widget.location?.name ?? '');
+  late final _name = TextEditingController(
+    text: widget.location?.customName ?? widget.initialName,
+  );
   late final _address = TextEditingController(
-    text: widget.location?.address ?? '',
+    text: widget.location?.customAddress ?? '',
   );
   late String? _placeId = widget.location?.googlePlaceId;
   late bool _active = widget.location?.active ?? true;
@@ -206,7 +226,9 @@ class _LocationEditScreenState extends State<LocationEditScreen> {
               labelText: context.tr("Naziv u aplikaciji"),
               prefixIcon: Icon(Icons.place_outlined),
             ),
-            validator: (value) => value == null || value.trim().isEmpty
+            validator: (value) =>
+                (value == null || value.trim().isEmpty) &&
+                    !(widget.location?.googleOnly == true && _placeId != null)
                 ? context.tr("Unesite naziv lokacije.")
                 : null,
           ),
@@ -324,42 +346,62 @@ class GooglePlaceSearchScreen extends StatefulWidget {
 
 class _GooglePlaceSearchScreenState extends State<GooglePlaceSearchScreen> {
   late final _query = TextEditingController(text: widget.initialQuery);
-  List<GooglePlaceResult>? _results;
-  bool _loading = false;
-  String? _error;
+  late final _search = PlaceSearchController(widget.league)
+    ..addListener(_changed);
+  bool _choosing = false;
+  String? _choiceError;
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _update(_query.text);
+    });
+  }
+
+  void _update(String value) {
+    _search.language = Localizations.localeOf(context).languageCode == 'en'
+        ? 'en'
+        : 'sr';
+    _search.update(value);
+  }
+
+  Future<void> _choose(GooglePlaceResult place) async {
+    if (_choosing) return;
+    final token = _search.sessionToken;
+    _search.newSession();
+    setState(() {
+      _choosing = true;
+      _choiceError = null;
+    });
+    try {
+      await widget.league.placeDetails(
+        place.id,
+        token,
+        language: _search.language,
+      );
+      if (mounted) Navigator.of(context).pop(place.id);
+    } on ApiException catch (error) {
+      if (mounted) setState(() => _choiceError = error.message);
+    } finally {
+      if (mounted) setState(() => _choosing = false);
+    }
+  }
 
   @override
   void dispose() {
     _query.dispose();
+    _search.dispose();
     super.dispose();
-  }
-
-  Future<void> _search() async {
-    if (_loading) return;
-    final query = _query.text.trim();
-    if (query.length < 3) {
-      setState(() => _error = context.tr("Unesite najmanje 3 znaka."));
-      return;
-    }
-    FocusScope.of(context).unfocus();
-    setState(() {
-      _loading = true;
-      _error = null;
-      _results = null;
-    });
-    try {
-      final results = await widget.league.searchPlaces(query);
-      if (mounted) setState(() => _results = results);
-    } on ApiException catch (error) {
-      if (mounted) setState(() => _error = error.message);
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
   }
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(context.tr("Pronađi mjesto"))),
+    appBar: AppBar(title: Text(context.tr('Pronađi mjesto'))),
     body: Column(
       children: [
         Padding(
@@ -368,84 +410,67 @@ class _GooglePlaceSearchScreenState extends State<GooglePlaceSearchScreen> {
             controller: _query,
             maxLength: 200,
             textInputAction: TextInputAction.search,
-            onSubmitted: (_) => _search(),
+            onChanged: _update,
+            onSubmitted: (value) => _search.update(value, immediate: true),
             decoration: InputDecoration(
-              labelText: context.tr("Naziv mjesta i grad"),
+              labelText: context.tr('Naziv mjesta i grad'),
+              counterText: '',
               prefixIcon: const Icon(Icons.search),
               suffixIcon: IconButton(
-                onPressed: _loading ? null : _search,
-                icon: const Icon(Icons.arrow_forward),
-                tooltip: context.tr("Pretraži"),
+                tooltip: context.tr('Obriši pretragu'),
+                icon: const Icon(Icons.close),
+                onPressed: () {
+                  _query.clear();
+                  _update('');
+                },
               ),
             ),
           ),
         ),
-        if (_loading) const LinearProgressIndicator(),
-        if (_error != null)
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text(
-              context.serverMessage(_error!),
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-          ),
-        const Divider(height: 1),
-        if (_results != null)
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: Text(
-                'Google Maps',
-                maxLines: 1,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                  color: Color(0xFF5E5E5E),
-                ),
-              ),
-            ),
-          ),
+        SizedBox(
+          height: 2,
+          child: _search.loading || _choosing
+              ? const LinearProgressIndicator()
+              : null,
+        ),
         Expanded(
           child: ListView(
             children: [
-              if (_results?.isEmpty == true)
-                Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Text(
-                    context.tr(
-                      "Nema rezultata. Pokušajte sa gradom ili adresom.",
-                    ),
+              if (_search.searched)
+                const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: GoogleMapsAttribution(),
+                ),
+              if (_search.error != null || _choiceError != null)
+                ListTile(
+                  title: Text(
+                    context.serverMessage(_choiceError ?? _search.error!),
+                  ),
+                  trailing: IconButton(
+                    tooltip: context.tr('Pokušaj ponovo'),
+                    icon: const Icon(Icons.refresh),
+                    onPressed: () {
+                      setState(() => _choiceError = null);
+                      _search.update(_query.text, immediate: true);
+                    },
                   ),
                 ),
-              for (final place in _results ?? <GooglePlaceResult>[]) ...[
+              if (_search.searched &&
+                  _search.error == null &&
+                  _search.results.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(context.tr('Nema rezultata na Google mapama.')),
+                ),
+              for (final place in _search.results)
                 ListTile(
                   leading: const Icon(Icons.place_outlined),
                   title: Text(place.name),
                   subtitle: Text(place.address),
-                  trailing: const Icon(Icons.add_location_alt_outlined),
-                  onTap: () => Navigator.of(context).pop(place.id),
+                  trailing: const Icon(Icons.check_circle_outline),
+                  enabled: !_choosing,
+                  onTap: () => _choose(place),
                 ),
-                for (final attribution in place.attributions)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: TextButton(
-                      onPressed: () async {
-                        final uri = Uri.tryParse(
-                          attribution['providerUri'] ?? '',
-                        );
-                        if (uri != null && uri.scheme == 'https') {
-                          await launchUrl(
-                            uri,
-                            mode: LaunchMode.externalApplication,
-                          );
-                        }
-                      },
-                      child: Text(attribution['provider'] ?? ''),
-                    ),
-                  ),
-                const Divider(height: 1),
-              ],
             ],
           ),
         ),

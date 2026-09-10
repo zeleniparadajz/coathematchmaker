@@ -15,6 +15,46 @@ class LeagueService {
 
   final ApiClient api;
 
+  // Resolve Google-only references for the current response, never persistent storage.
+  Future<void> _resolveLocationDetails(Map<String, dynamic> data) async {
+    final venues = <String, List<Map<String, dynamic>>>{};
+    void visit(dynamic value) {
+      if (value is Map<String, dynamic>) {
+        if (value['googleOnly'] == true &&
+            value['_id'] is String &&
+            value['googleDetails'] == null) {
+          venues.putIfAbsent(value['_id'], () => []).add(value);
+        }
+        for (final child in value.values) {
+          visit(child);
+        }
+      } else if (value is List) {
+        for (final child in value) {
+          visit(child);
+        }
+      }
+    }
+
+    visit(data);
+    final ids = venues.keys.toList();
+    for (var offset = 0; offset < ids.length; offset += 20) {
+      try {
+        final batch = ids.skip(offset).take(20).toList();
+        final resolved = await api.postJson('/api/locations/resolve', {
+          'ids': batch,
+        });
+        for (final entry
+            in (resolved['places'] as Map<String, dynamic>? ?? {}).entries) {
+          for (final venue in venues[entry.key] ?? <Map<String, dynamic>>[]) {
+            venue['googleDetails'] = entry.value;
+          }
+        }
+      } on ApiException {
+        /* Keep custom labels and Maps links available offline. */
+      }
+    }
+  }
+
   Future<DeletionPreview> deletionPreview(
     String id, {
     required bool tournament,
@@ -45,6 +85,7 @@ class LeagueService {
     final data = await api.getJson('/api/locations', {
       'all': '$includeInactive',
     });
+    await _resolveLocationDetails(data);
     return (data['locations'] as List)
         .map((item) => AppLocation.fromJson(item))
         .toList();
@@ -55,6 +96,47 @@ class LeagueService {
     return (data['places'] as List)
         .map((item) => GooglePlaceResult.fromJson(item))
         .toList();
+  }
+
+  Future<List<GooglePlaceResult>> autocompletePlaces(
+    String query,
+    String sessionToken, {
+    String language = 'sr',
+  }) async {
+    final data = await api.postJson('/api/locations/autocomplete', {
+      'query': query,
+      'sessionToken': sessionToken,
+      'language': language,
+    });
+    return (data['places'] as List)
+        .map((item) => GooglePlaceResult.fromJson(item))
+        .toList();
+  }
+
+  Future<GooglePlaceResult> placeDetails(
+    String placeId,
+    String sessionToken, {
+    String language = 'sr',
+  }) async {
+    final data = await api.postJson('/api/locations/details', {
+      'placeId': placeId,
+      'sessionToken': sessionToken,
+      'language': language,
+    });
+    return GooglePlaceResult.fromJson(data['place']);
+  }
+
+  Future<AppLocation> selectGoogleLocation(
+    String placeId,
+    String sessionToken, {
+    String language = 'sr',
+  }) async {
+    final data = await api.postJson('/api/locations/google', {
+      'placeId': placeId,
+      'sessionToken': sessionToken,
+      'language': language,
+    });
+    return AppLocation.fromJson(data['location']);
   }
 
   Future<AppLocation> saveLocation({
@@ -73,6 +155,7 @@ class LeagueService {
     final data = id == null
         ? await api.postJson('/api/locations', body)
         : await api.patchJson('/api/locations/$id', body);
+    await _resolveLocationDetails(data);
     return AppLocation.fromJson(data['location']);
   }
 
@@ -125,6 +208,7 @@ class LeagueService {
 
   Future<List<Tournament>> tournaments() async {
     final data = await api.getJson('/api/tournaments');
+    await _resolveLocationDetails(data);
     return (data['tournaments'] as List)
         .map((item) => Tournament.fromJson(item))
         .toList();
@@ -132,6 +216,7 @@ class LeagueService {
 
   Future<Tournament> tournament(String id) async {
     final data = await api.getJson('/api/tournaments/$id');
+    await _resolveLocationDetails(data);
     return Tournament.fromJson(data['tournament']);
   }
 
@@ -169,6 +254,7 @@ class LeagueService {
       'friendly': friendly,
       'status': status,
     });
+    await _resolveLocationDetails(data);
     return Tournament.fromJson(data['tournament']);
   }
 
@@ -203,6 +289,7 @@ class LeagueService {
       'visibility': visibility,
       'friendly': friendly,
     });
+    await _resolveLocationDetails(data);
     return Tournament.fromJson(data['tournament']);
   }
 
@@ -236,6 +323,7 @@ class LeagueService {
 
   Future<RoundRobinState> roundRobin(String id) async {
     final data = await api.getJson('/api/tournaments/$id/round-robin');
+    await _resolveLocationDetails(data);
     return RoundRobinState.fromJson(data['roundRobin']);
   }
 
@@ -259,6 +347,7 @@ class LeagueService {
       '/api/matches',
       tournamentId == null ? null : {'tournament': tournamentId},
     );
+    await _resolveLocationDetails(data);
     return (data['matches'] as List)
         .map((item) => TennisMatch.fromJson(item))
         .toList();
@@ -266,6 +355,7 @@ class LeagueService {
 
   Future<List<TennisMatch>> myMatches() async {
     final data = await api.getJson('/api/matches/my');
+    await _resolveLocationDetails(data);
     return (data['matches'] as List)
         .map((item) => TennisMatch.fromJson(item))
         .toList();
@@ -273,6 +363,7 @@ class LeagueService {
 
   Future<List<TennisMatch>> pendingMatches() async {
     final data = await api.getJson('/api/matches/pending');
+    await _resolveLocationDetails(data);
     return (data['matches'] as List)
         .map((item) => TennisMatch.fromJson(item))
         .toList();
@@ -280,6 +371,7 @@ class LeagueService {
 
   Future<List<TennisMatch>> disputedMatches() async {
     final data = await api.getJson('/api/matches/disputed');
+    await _resolveLocationDetails(data);
     return (data['matches'] as List)
         .map((item) => TennisMatch.fromJson(item))
         .toList();
@@ -388,6 +480,7 @@ class LeagueService {
       'note': ?note,
       'legacyWinPoints': ?legacyWinPoints,
     });
+    await _resolveLocationDetails(data);
     return TennisMatch.fromJson(data['match']);
   }
 
@@ -445,6 +538,7 @@ class LeagueService {
 
   Future<TennisMatch> uploadMatchImage(String matchId, XFile file) async {
     final data = await api.uploadImage('/api/matches/$matchId/images', file);
+    await _resolveLocationDetails(data);
     return TennisMatch.fromJson(data['match']);
   }
 
@@ -456,6 +550,7 @@ class LeagueService {
       '/api/tournaments/$tournamentId/images',
       file,
     );
+    await _resolveLocationDetails(data);
     return Tournament.fromJson(data['tournament']);
   }
 }

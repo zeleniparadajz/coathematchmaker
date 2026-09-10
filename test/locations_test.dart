@@ -42,7 +42,8 @@ ApiClient locationApi({
   baseUrl: 'https://test.example',
   client: MockClient((request) async {
     onRequest?.call(request);
-    if (request.url.path == '/api/locations/search') {
+    if (request.url.path == '/api/locations/search' ||
+        request.url.path == '/api/locations/autocomplete') {
       return http.Response(
         jsonEncode(
           searchError == null
@@ -59,6 +60,17 @@ ApiClient locationApi({
         ),
         searchError ?? 200,
         headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    }
+    if (request.url.path == '/api/locations/details') {
+      return http.Response(
+        jsonEncode({
+          'place': {
+            'id': 'place-a',
+            'displayName': {'text': 'Google naziv'},
+          },
+        }),
+        200,
       );
     }
     if (request.method == 'POST' || request.method == 'PATCH') {
@@ -90,6 +102,11 @@ Widget host(
     ],
     theme: const bool.fromEnvironment('CAPTURE_LOCATIONS')
         ? AppTheme.light.copyWith(
+            chipTheme: AppTheme.light.chipTheme.copyWith(
+              labelStyle: AppTheme.light.chipTheme.labelStyle?.copyWith(
+                fontFamily: 'Roboto',
+              ),
+            ),
             textTheme: AppTheme.light.textTheme.apply(fontFamily: 'Roboto'),
             primaryTextTheme: AppTheme.light.primaryTextTheme.apply(
               fontFamily: 'Roboto',
@@ -231,6 +248,10 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.text(venues.first['name']!));
         await tester.pumpAndSettle();
+        await tester.ensureVisible(
+          find.byKey(ValueKey('saved-location-${venues.last['_id']}')),
+        );
+        await tester.pumpAndSettle();
         await tester.tap(find.text(venues.last['name']!));
         await tester.pumpAndSettle();
         expect(find.text('Potvrdi izbor (2)'), findsOneWidget);
@@ -238,7 +259,14 @@ void main() {
         await capture('picker-${size.width.toInt()}');
         await tester.enterText(find.byType(TextField), 'Budva');
         await tester.pumpAndSettle();
-        expect(find.text(venues.last['name']!), findsNothing);
+        expect(
+          find.byKey(ValueKey('saved-location-${venues.last['_id']}')),
+          findsNothing,
+        );
+        expect(
+          find.byKey(ValueKey('selected-location-${venues.last['_id']}')),
+          findsOneWidget,
+        );
         await tester.tap(find.text('Potvrdi izbor (2)'));
         await tester.pumpAndSettle();
         expect(
@@ -260,7 +288,7 @@ void main() {
         Map<String, dynamic>? saved;
         final api = locationApi(
           onRequest: (request) {
-            if (request.url.path.endsWith('/search')) searches++;
+            if (request.url.path.endsWith('/autocomplete')) searches++;
             if (request.method == 'POST' &&
                 request.url.path == '/api/locations') {
               saved = jsonDecode(request.body);
@@ -276,9 +304,6 @@ void main() {
         );
         await tester.enterText(find.byType(TextFormField).last, 'Moja adresa');
         await tester.tap(find.text(tr('Pronađi na Google mapama')));
-        await tester.pumpAndSettle();
-        expect(searches, 0);
-        await tester.tap(find.byTooltip(tr('Pretraži')));
         await tester.pumpAndSettle();
         expect(searches, 1);
         expect(find.text('Google Maps'), findsOneWidget);
@@ -314,7 +339,6 @@ void main() {
             locale: locale,
           ),
         );
-        await tester.tap(find.byTooltip(tr('Pretraži')));
         await tester.pumpAndSettle();
         expect(
           find.text(tr('Google Maps pretraga nije podešena na serveru.')),

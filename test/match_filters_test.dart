@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -387,6 +388,96 @@ void main() {
   );
 
   for (final language in ['sr', 'en']) {
+    for (final (size, scale) in [
+      (const Size(390, 844), 1.0),
+      (const Size(320, 568), 1.5),
+      (const Size(320, 568), 2.0),
+    ]) {
+      testWidgets('Score and winner use separate rows $language $size $scale', (
+        tester,
+      ) async {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final winner = playerJson(
+          'other',
+          'Pavle Aleksandar',
+          lastName: 'Šćekić Petrović Nikolić',
+        );
+        const fullName = 'Pavle Aleksandar Šćekić Petrović Nikolić';
+        await mount(
+          tester,
+          language: language,
+          scale: scale,
+          admin: true,
+          data: [
+            {
+              ...rows.last,
+              'player1': demoPlayers[0],
+              'player2': winner,
+              'player1Partner': null,
+              'player2Partner': null,
+              'discipline': 'singles',
+              'friendly': false,
+              'winner': winner,
+            },
+          ],
+        );
+        final winnerName = find.text(fullName).last;
+        await tester.ensureVisible(winnerName);
+        await tester.pumpAndSettle();
+        final score = tester.getRect(find.text('1-6, 2-6'));
+        final total = tester.getRect(find.text('0-2'));
+        final name = tester.getRect(winnerName);
+        expect(name.top, greaterThan(score.bottom));
+        expect(name.top, greaterThan(total.bottom));
+        expect(total.left, greaterThanOrEqualTo(score.right));
+        final text = tester.widget<Text>(winnerName);
+        expect(text.maxLines, isNull);
+        expect(text.softWrap, isTrue);
+        expect(text.overflow, isNot(TextOverflow.ellipsis));
+        final paragraph = tester.renderObject<RenderParagraph>(winnerName);
+        expect(paragraph.didExceedMaxLines, isFalse);
+        expect(name.left, greaterThanOrEqualTo(0));
+        expect(name.right, lessThanOrEqualTo(size.width));
+        final trophy = tester.getRect(find.byIcon(Icons.emoji_events).last);
+        expect(trophy.right, lessThan(name.left));
+        expect(trophy.center.dy, closeTo(name.center.dy, 1));
+        expect(
+          find.text(
+            AppStrings(Locale(language)).text('Upravljanje rezultatom'),
+          ),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+        if (const bool.fromEnvironment('CAPTURE_FILTERS')) {
+          await expectLater(
+            find.byKey(const ValueKey('filters-capture')),
+            matchesGoldenFile(
+              '../.local-backups/score-winner-layout-20260910/$language-${size.width.toInt()}-$scale.png',
+            ),
+          );
+        }
+      });
+    }
+
+    testWidgets('Inconsistent card score has no winner trophy ($language)', (
+      tester,
+    ) async {
+      await mount(
+        tester,
+        language: language,
+        admin: true,
+        data: [
+          {...rows.last, 'winner': rows.last['player1']},
+        ],
+      );
+      expect(find.text('1-6, 2-6'), findsOneWidget);
+      expect(find.byIcon(Icons.emoji_events), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
     for (final (size, scale) in [
       (const Size(390, 844), 1.0),
       (const Size(320, 568), 1.5),

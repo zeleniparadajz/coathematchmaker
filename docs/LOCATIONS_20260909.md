@@ -1,5 +1,9 @@
 # Lokacije i Google Maps
 
+> Novi tok automatske pretrage i direktnog izbora vise lokacija opisan je u
+> [LOCATIONS_AUTOCOMPLETE_20260910.md](LOCATIONS_AUTOCOMPLETE_20260910.md).
+> Opis pretrage na dugme ispod odnosi se na prethodni ekran.
+
 ## Sta je dodato
 
 - Profil i podesavanja -> Lokacije (samo glavni admin).

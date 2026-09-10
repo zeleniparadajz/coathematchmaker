@@ -2,6 +2,8 @@ import 'package:coathematchmaker/l10n/app_strings.dart';
 import 'package:flutter/material.dart';
 import '../services/maps_service.dart';
 import '../theme/app_theme.dart';
+import '../models/app_location.dart';
+import 'google_maps_attribution.dart';
 
 class MapLocationCard extends StatelessWidget {
   const MapLocationCard({
@@ -9,10 +11,12 @@ class MapLocationCard extends StatelessWidget {
     required this.location,
     this.googlePlaceId,
     this.compact = false,
+    this.venue,
   });
   final String location;
   final String? googlePlaceId;
   final bool compact;
+  final AppLocation? venue;
 
   @override
   Widget build(BuildContext context) {
@@ -68,6 +72,8 @@ class MapLocationCard extends StatelessWidget {
                         context.tr("Otvori u Google Maps"),
                         style: TextStyle(color: AppTheme.court, fontSize: 13),
                       ),
+                      if (venue != null)
+                        GoogleVenueAttributions(locations: [venue!]),
                     ],
                   ),
                 ),

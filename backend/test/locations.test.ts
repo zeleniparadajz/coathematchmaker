@@ -61,8 +61,59 @@ test("Google verifies a place ID and limits calls across all users of the instan
     assert.equal(url, "https://places.googleapis.com/v1/places/place-a");
     assert.equal((init?.headers as Record<string, string>)["X-Goog-FieldMask"], "id");
     return Response.json({ id: "place-a" });
-  });
+  }, 30);
   for (let i = 0; i < 30; i++) await service.verify("place-a");
   await assert.rejects(service.verify("place-a"), /Previše zahtjeva za Google Maps/);
   assert.equal(calls, 30);
+});
+
+test("autocomplete sends a session and regional bias, returns only place predictions", async () => {
+  const service = new GooglePlacesService("server-key", async (url, init) => {
+    assert.equal(url, "https://places.googleapis.com/v1/places:autocomplete");
+    const body = JSON.parse(init!.body as string);
+    assert.equal(body.input, "Teniski");
+    assert.equal(body.sessionToken, "session_token_123456");
+    assert.equal(body.languageCode, "en");
+    assert.equal(body.regionCode, "ME");
+    assert.ok(body.locationBias.rectangle);
+    assert.equal(body.locationRestriction, undefined);
+    return Response.json({ suggestions: [
+      { placePrediction: { placeId: "club-a", structuredFormat: { mainText: { text: "Club A" }, secondaryText: { text: "Budva" } } } },
+      { queryPrediction: { text: { text: "ignored query" } } }
+    ] });
+  });
+  assert.deepEqual(await service.autocomplete("Teniski", "session_token_123456", "en"), [
+    { id: "club-a", displayName: { text: "Club A" }, formattedAddress: "Budva" }
+  ]);
+});
+
+test("details terminates the session, requests only display fields and retains attributions", async () => {
+  const service = new GooglePlacesService("key", async (value, init) => {
+    const url = new URL(String(value));
+    assert.equal(url.pathname, "/v1/places/club-a");
+    assert.equal(url.searchParams.get("sessionToken"), "session_token_123456");
+    assert.equal((init!.headers as Record<string, string>)["X-Goog-FieldMask"], "id,displayName,formattedAddress,attributions");
+    return Response.json({ id: "club-a", displayName: { text: "Club A" }, formattedAddress: "Budva", attributions: [{ provider: "Provider" }], secret: "not-forwarded" });
+  });
+  const result = await service.details("club-a", "session_token_123456");
+  assert.deepEqual(result.attributions, [{ provider: "Provider" }]);
+  assert.equal("secret" in result, false);
+  await assert.rejects(new GooglePlacesService("key", async () => Response.json({ id: "wrong" })).details("club-a"), /neispravan/);
+});
+
+test("simultaneous detail reads share only the in-flight request, never a completed cache", async () => {
+  let calls = 0;
+  let complete!: (response: Response) => void;
+  const service = new GooglePlacesService("key", async () => {
+    calls++;
+    if (calls === 1) return new Promise<Response>(resolve => { complete = resolve; });
+    return Response.json({ id: "club-a", displayName: { text: "Changed name" } });
+  });
+  const first = service.details("club-a");
+  const second = service.details("club-a");
+  assert.equal(calls, 1);
+  complete(Response.json({ id: "club-a", displayName: { text: "Original name" } }));
+  assert.deepEqual(await first, await second);
+  assert.equal((await service.details("club-a")).displayName!.text, "Changed name");
+  assert.equal(calls, 2);
 });

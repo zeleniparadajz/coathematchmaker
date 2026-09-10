@@ -14,6 +14,7 @@ import '../services/league_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_form_fields.dart';
 import '../widgets/map_location_card.dart';
+import '../widgets/google_maps_attribution.dart';
 import '../widgets/location_picker.dart';
 import '../models/app_location.dart';
 import '../widgets/load_error.dart';
@@ -496,6 +497,8 @@ class _MatchCard extends StatelessWidget {
                     ),
                   if ((match.location ?? '').isNotEmpty)
                     _MetaPill(icon: Icons.place, label: match.location!),
+                  if (match.venue != null)
+                    GoogleVenueAttributions(locations: [match.venue!]),
                   if (match.images.isNotEmpty)
                     _MetaPill(
                       icon: Icons.photo_library_outlined,
@@ -913,32 +916,44 @@ class _ScoreSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppTheme.court.withValues(alpha: .075),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppTheme.court.withValues(alpha: .10)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.scoreboard, color: AppTheme.court, size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              match.scoreText,
-              style: const TextStyle(fontWeight: FontWeight.w900),
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppTheme.court.withValues(alpha: .075),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppTheme.court.withValues(alpha: .10)),
           ),
-          if (match.hasConsistentResult)
-            Flexible(
-              child: _WinnerBanner(
-                name: match.winner!.fullName,
-                score: _teamSetScore(match),
+          child: Row(
+            children: [
+              const Icon(Icons.scoreboard, color: AppTheme.court, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  match.scoreText,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
               ),
-            ),
+              if (match.hasConsistentResult) ...[
+                const SizedBox(width: 12),
+                Text(
+                  _teamSetScore(match),
+                  style: const TextStyle(
+                    color: AppTheme.clay,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        if (match.hasConsistentResult) ...[
+          const SizedBox(height: 8),
+          _WinnerBanner(name: match.winner!.fullName),
         ],
-      ),
+      ],
     );
   }
 
@@ -958,10 +973,9 @@ class _ScoreSummary extends StatelessWidget {
 }
 
 class _WinnerBanner extends StatelessWidget {
-  const _WinnerBanner({required this.name, this.score});
+  const _WinnerBanner({required this.name});
 
   final String name;
-  final String? score;
 
   @override
   Widget build(BuildContext context) {
@@ -969,28 +983,17 @@ class _WinnerBanner extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
         color: AppTheme.clay.withValues(alpha: .12),
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           const Icon(Icons.emoji_events, size: 15, color: AppTheme.clay),
           const SizedBox(width: 5),
-          if ((score ?? '').isNotEmpty) ...[
-            Text(
-              score!,
-              style: const TextStyle(
-                color: AppTheme.clay,
-                fontWeight: FontWeight.w900,
-                fontSize: 12,
-              ),
-            ),
-            const SizedBox(width: 6),
-          ],
           Flexible(
             child: Text(
               name,
-              overflow: TextOverflow.ellipsis,
+              softWrap: true,
               style: const TextStyle(
                 color: AppTheme.clay,
                 fontWeight: FontWeight.w900,
@@ -1241,6 +1244,11 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
                     _match.location!,
                     style: const TextStyle(color: Colors.white70),
                   ),
+                if (_match.venue != null)
+                  GoogleVenueAttributions(
+                    locations: [_match.venue!],
+                    onDark: true,
+                  ),
               ],
             ),
           ),
@@ -1253,6 +1261,7 @@ class _MatchDetailsScreenState extends State<MatchDetailsScreen> {
             MapLocationCard(
               location: _match.venue?.label ?? _match.location!,
               googlePlaceId: _match.venue?.googlePlaceId,
+              venue: _match.venue,
             ),
           ],
           const SizedBox(height: 12),

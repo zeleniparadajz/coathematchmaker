@@ -1,26 +1,43 @@
 class AppLocation {
   const AppLocation({
     required this.id,
-    required this.name,
-    this.address = '',
+    required String name,
+    String address = '',
     this.googlePlaceId,
     this.active = true,
-  });
+    this.googleOnly = false,
+    this.googleDetails,
+  }) : customName = name,
+       customAddress = address;
 
   final String id;
-  final String name;
-  final String address;
+  final String customName;
+  final String customAddress;
   final String? googlePlaceId;
   final bool active;
+  final bool googleOnly;
+  final GooglePlaceResult? googleDetails;
+  String get name =>
+      customName.isNotEmpty ? customName : googleDetails?.name ?? 'Google Maps';
+  String get address =>
+      customAddress.isNotEmpty ? customAddress : googleDetails?.address ?? '';
+  bool get showsGoogleDetails =>
+      googleOnly &&
+      googleDetails != null &&
+      (customName.isEmpty || customAddress.isEmpty);
 
   String get label => [name, if (address.isNotEmpty) address].join(', ');
 
   factory AppLocation.fromJson(Map<String, dynamic> json) => AppLocation(
     id: (json['_id'] ?? json['id']).toString(),
-    name: json['name'] ?? '',
+    name: json['customName'] ?? json['name'] ?? '',
     address: json['address'] ?? '',
     googlePlaceId: json['googlePlaceId'],
     active: json['active'] != false,
+    googleOnly: json['googleOnly'] == true,
+    googleDetails: json['googleDetails'] is Map<String, dynamic>
+        ? GooglePlaceResult.fromJson(json['googleDetails'])
+        : null,
   );
 }
 

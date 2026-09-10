@@ -14,6 +14,7 @@ import '../theme/app_theme.dart';
 import '../widgets/app_form_fields.dart';
 import '../widgets/location_picker.dart';
 import '../widgets/map_location_card.dart';
+import '../widgets/google_maps_attribution.dart';
 import '../widgets/player_avatar.dart';
 import '../widgets/section_header.dart';
 import '../widgets/load_error.dart';
@@ -229,6 +230,10 @@ class _TournamentListCard extends StatelessWidget {
                             ),
                           ),
                         ],
+                      ),
+                      GoogleVenueAttributions(
+                        locations: tournament.locations,
+                        onDark: true,
                       ),
                       const SizedBox(height: 18),
                       Wrap(
@@ -640,6 +645,7 @@ class _TournamentDetailsScreenState extends State<TournamentDetailsScreen> {
                   (location) => MapLocationCard(
                     location: location.label,
                     googlePlaceId: location.googlePlaceId,
+                    venue: location,
                   ),
                 ),
               const SizedBox(height: 14),
@@ -865,6 +871,10 @@ class _TournamentHero extends StatelessWidget {
             runSpacing: 8,
             children: [
               _HeroMeta(icon: Icons.place, label: tournament.locationLabel),
+              GoogleVenueAttributions(
+                locations: tournament.locations,
+                onDark: true,
+              ),
               _HeroMeta(icon: Icons.grass, label: tournament.surface),
               _HeroMeta(icon: Icons.category, label: tournament.category),
               _HeroMeta(
@@ -1526,7 +1536,11 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
                   const SizedBox(height: 12),
                   AppSelectField(
                     label: context.tr("Lokacije"),
-                    value: _location.text.trim().isEmpty
+                    value: _locations.isNotEmpty
+                        ? context.tr('Izabrano lokacija: {p0}', [
+                            _locations.length,
+                          ])
+                        : _location.text.trim().isEmpty
                         ? context.tr("Izaberi lokacije")
                         : _location.text.trim(),
                     icon: Icons.place,
@@ -1547,6 +1561,35 @@ class _TournamentFormScreenState extends State<TournamentFormScreen> {
                       }
                     },
                   ),
+                  for (final location in _locations)
+                    ListTile(
+                      key: ValueKey('tournament-location-${location.id}'),
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.location_on_outlined),
+                      title: Text(location.name),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (location.address.isNotEmpty)
+                            Text(location.address),
+                          GoogleVenueAttributions(locations: [location]),
+                        ],
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.close),
+                        tooltip: context.tr('Ukloni lokaciju'),
+                        onPressed: _saving
+                            ? null
+                            : () => setState(() {
+                                _locations.removeWhere(
+                                  (item) => item.id == location.id,
+                                );
+                                _location.text = LocationSelection(
+                                  locations: _locations,
+                                ).label;
+                              }),
+                      ),
+                    ),
                   const SizedBox(height: 12),
                   Row(
                     children: [

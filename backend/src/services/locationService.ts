@@ -16,7 +16,7 @@ export const locationSchema = z.object({
 
 export type VenueRecord = { _id: { toString(): string }; name: string; address: string; active: boolean };
 export const locationLabel = (venue: Pick<VenueRecord, "name" | "address">) =>
-  [venue.name, venue.address].filter(Boolean).join(", ");
+  [venue.name || "Google Maps", venue.address].filter(Boolean).join(", ");
 
 export async function resolveLocations(
   ids: string[],
